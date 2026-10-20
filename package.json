@@ -40,7 +40,8 @@
     "lib",
     "!lib/*.bak-*",
     "cordis.patch.yml",
-    "THIRD-PARTY-NOTICES.md"
+    "THIRD-PARTY-NOTICES.md",
+    "docs"
   ],
   "license": "BSD-3-Clause",
   "repository": {
@@ -106,7 +107,8 @@
     "build": "./scripts/build.sh",
     "test": "vitest run",
     "e2e": "node scripts/e2e.mjs",
-    "coverage": "vitest run --coverage"
+    "coverage": "vitest run --coverage",
+    "docs:config": "node scripts/gen-config-doc.mjs"
   },
   "author": "Geng-zy",
   "contributors": [

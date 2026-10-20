@@ -148,7 +148,7 @@ sudo apt install fonts-noto-cjk fonts-wqy-zenhei fonts-noto-color-emoji fonts-de
 | `proactiveSkipIfActiveMinutes` | `30` | 对方这么多分钟内说过话就跳过 |
 | `proactiveMaxUnanswered` | `2` | 主动消息这么多条没回就当天停止 |
 
-原版的其余配置（连接、权限、媒体、语音转写、文字图卡片、录制回放、诊断……）见 [docs/UPSTREAM-README.md](docs/UPSTREAM-README.md)。
+全部配置项（连接、权限、媒体、语音转写、文字图卡片、诊断……）的类型、默认值和说明见 [docs/CONFIG.md](docs/CONFIG.md)。
 
 ### 叫醒和定时任务发给模型的是什么
 
