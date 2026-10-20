@@ -1,24 +1,15 @@
-/**
- * The chat↔agent bridge: one Agent per QQ chat, inbound message pipeline
- * (policy → parse → media → STT → quote/forward expansion → followup),
- * outbound delivery driven by session events (assistant/message, turn/end),
- * typing indicator, per-chat send ordering, and chat→session mapping
- * persistence for restart resume. Ported from the Hermes OneBotAdapter
- * gateway-interaction half onto the dsh headless-runner agent pattern.
- * @module dsh-qq-companion/bridge
- */
+import type { BridgeDeps } from './bridge-types.js';
+import type { ChatId } from './chat.js';
 import type { ScheduledPrompt } from './companion/index.js';
 import type { OneBotEvent } from './connection.js';
-import type { ChatId } from './chat.js';
-import type { OutboundSegment, SendOptions } from './outbound.js';
-import type { TraceStage } from './trace.js';
+import { type OutboundSegment, type SendOptions } from './outbound.js';
+import { type TraceStage } from './trace.js';
+export * from './bridge-types.js';
 /** the queue notice sent to a chat when a message arrives while its
  * task is running under the default 'queue' policy — at most ONE per running
  * turn (the flag resets at turn/end) so a burst of queued messages never
  * spams the chat. Exported for the deterministic text wait in tests. */
 export declare const QUEUE_NOTICE_TEXT = "\u23F3 \u5F53\u524D\u4EFB\u52A1\u8FD0\u884C\u4E2D\uFF0C\u65B0\u6D88\u606F\u5DF2\u6392\u961F\uFF0C\u5C06\u5728\u5F53\u524D\u4EFB\u52A1\u7ED3\u675F\u540E\u4F9D\u6B21\u5904\u7406\u3002";
-export * from './bridge-types.js';
-import type { BridgeDeps } from './bridge-types.js';
 /**
  * Bridge between OneBot events and dsh agents. Create via the constructor and
  * call start() from the plugin's effect; call stop() on disposal.
@@ -58,15 +49,10 @@ export declare class ChatBridge {
      * would orphan exactly that reply's outbound events. One entry per chat
      * id (bounded by the chat population), so growth is not a concern. */
     private readonly traceByChat;
-    /** chatId → the traceId of the chat's unsettled INJECTED round
-     * (independent of the trace sink, so the dry-run guard covers the async
-     * agent reply even with tracing off). Cleared by a real dispatch to the
-     * chat or when the chat is removed. */
     /** chats that already got the QUEUE_NOTICE_TEXT for their current
      * running turn (one notice per turn; cleared at turn/end and on chat
      * removal — bounded by the chat population). */
     private readonly queueNoticeChats;
-    /** Plugin version + git commit, read once for /ver. */
     private stopping;
     /** companion behavior (session renewal, pass marker, wake-up texts). */
     private readonly companion;
@@ -133,13 +119,6 @@ export declare class ChatBridge {
      */
     sendSegments(chatId: ChatId, segments: OutboundSegment[]): Promise<string | undefined>;
     /**
-     * Wait for the loader's complete application (model selection, settings,
-     * persistence) before reading the default model — the same gate the
-     * headless runner uses, so the pinned selection is never a half-loaded
-     * default.
-     */
-    private ready;
-    /**
      * Inbound OneBot message event → agent turn. All policy and media work is
      * contained: a failure here logs and drops the message, never the host.
      * the whole inbound chain runs inside one trace scope (ALS), so every
@@ -150,7 +129,6 @@ export declare class ChatBridge {
     /** mint the inbound traceId + scope and record the first (收到消息)
      * event; undefined when tracing is off. */
     private beginInboundTrace;
-    private processInbound;
     /** Feed one user message into a chat's agent (create on demand). Records
      * the base text for /retry, queues the initiator's turn role, and applies
      * per-chat /goal + /plan prefixes. */
@@ -161,18 +139,12 @@ export declare class ChatBridge {
     private prefixTurn;
     /** Per-chat outbound-mode override (/mode), falling back to the global config. */
     private effectiveInterim;
-    /** Tool calls whose host-plane UI has no QQ equivalent; relay them to the chat. */
-    private relayHostCards;
-    /** The CardRelayContext handed to the card relay: the outbound
-     * send path plus the bridge log — the only capabilities the relay touches. */
-    private get cardRelayCtx();
     /**
-     * Slash-command router. Commands are admin-only (the Hermes member
-     * slash-command block) and are matched on the first word; a leading
-     * @mention glued to the command (QQ group at + text) is stripped first.
-     * A path like /tmp/x is never a command (command words are
-     * /[A-Za-z][A-Za-z0-9_-]* only). Unknown commands return false so the
-     * message reaches the model, matching the Hermes "fall through" behavior.
+     * Slash-command router. Commands are admin-only and are matched on the
+     * first word; a leading @mention glued to the command (QQ group at + text)
+     * is stripped first. A path like /tmp/x is never a command (command words
+     * are /[A-Za-z][A-Za-z0-9_-]* only). Unknown commands return false so the
+     * message reaches the model.
      * @param chatId - the chat the command arrived in.
      * @param text - parsed inbound text.
      * @param userId - sender QQ number.
@@ -186,15 +158,11 @@ export declare class ChatBridge {
      * invocation (the llm catalog especially must stay a live service lookup).
      */
     private get commandCtx();
-    /** Read the chat→session mapping file (for /id and /status when no live chat). */
-    private sessionIdFromMapping;
     /**
      * Build the message body text: placeholders become annotated local paths
      * (images/voices/videos) and voice files are transcribed when enabled.
      */
     private buildBody;
-    /** Resolve one media ref to a text annotation with a local path. */
-    private resolveMediaRef;
     /** steer a completed voice transcript into the chat's agent — the
      * running turn consumes it at its nearest step boundary; an idle agent
      * opens a turn. No live chat (dispatch dropped/never happened) drops it. */
@@ -209,15 +177,13 @@ export declare class ChatBridge {
      * the busy-turn policy seam (inbound ctx.interceptBusyTurn).
      * Called for every non-command message AFTER all gates, only when deciding
      * what to do with it while the chat's task is running:
-     * - no running turn → false (caller dispatches normally; the 0.8.1 path,
-     *   byte-identical — also the path for newMessagePolicy缺省 idle traffic);
+     * - no running turn → false (caller dispatches normally);
      * - 'steer' policy + plain text + non-restricted sender + autoSteerPolicy
-     *   eligibility ('admin' 档缺省 = 仅管理员；'all' 档不限，用户裁决
-     *   2026-10-12) → the message is submitted into the running turn via the
-     *   steerMessage kernel (consumed at the nearest step boundary, NO new turn)
-     *   and a submit notice goes out;
-     * - otherwise (queue policy default / media-quote-forward message /
-     *   restricted group member / 不具备自动插话资格) → the 0.8.1 dispatch path
+     *   eligibility ('admin' = admins only, the default; 'all' = anyone) → the
+     *   message is submitted into the running turn via steerMessage (consumed
+     *   at the nearest step boundary, NO new turn) and a submit notice goes out;
+     * - otherwise (queue policy / media-quote-forward message / restricted
+     *   group member / not eligible for auto-steer) → the normal dispatch
      *   (agent.followup queues it as the next turn: consumed after the current
      *   turn ends, in arrival order) plus the queue notice at most once per
      *   running turn.
@@ -228,15 +194,17 @@ export declare class ChatBridge {
     private interceptBusyTurn;
     /** Expand a quoted (reply) message into [引用] text via get_msg. */
     private expandQuote;
-    /** Send one message to a chat and return its message id. */
-    private sendMsg;
     /** Send [[qq_forward]] nodes as a merged-forward message. */
     sendForward(chatId: ChatId, nodes: Array<{
         name: string;
         content: string;
     }>): Promise<void>;
-    /** Every OneBot action of the bridge goes through here. */
-    private guardedConnectionCall;
+    /** One OneBot action. */
+    private call;
+    /** emit one outbound/deferred decision event for a chat: it rides the
+     * chat's initiating traceId; a write with no mapped trace (proactive tool
+     * sends) starts a fresh one. No-op with tracing off. */
+    private traceChat;
     /** The health deps the /healthcheck command renders from (resolved live). */
     private healthDeps;
     /** /healthcheck: render the health summary. */
@@ -268,15 +236,8 @@ export declare class ChatBridge {
      * user-visible ⚠️ notice. */
     registerMessageFailure(chatId: ChatId, stage: TraceStage, detail: string): string;
     private onSessionFlush;
-    /** Same-name delegations to the chat registry: the command table's
-     * ctx, the interim/turn event links and the outbound pipeline keep calling
-     * the bridge exactly as before the split. */
     /** Get (or create) the agent for a chat. */
     private ensureChat;
-    private effectiveCwd;
-    private resolvePresetId;
-    private saveMappingDebounced;
-    private healSessionCollision;
     /**
      * /new: the registry disposes the agent and retires its session id so the
      * next inbound message creates a brand-new session (fresh history; the old

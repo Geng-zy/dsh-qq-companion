@@ -109,7 +109,7 @@ export interface InboundContext {
      * turn dispatch, so queue/steer can never bypass an existing gate. Returns
      * true when the seam consumed the message (queued with a once-per-turn
      * notice, or steered into the running turn); false = no running turn →
-     * dispatch normally (the 0.8.1 path, byte-identical). `plain` = the message
+     * dispatch normally. `plain` = the message
      * carries no media, no quote and no forward (steer eligibility precondition:
      * media-bearing messages always queue, never steer). Optional: absent =
      * straight dispatch for every message. */
@@ -118,13 +118,8 @@ export interface InboundContext {
     sendToChat(chatId: ChatId, text: string): Promise<string[]>;
     /** Bridge log line callback. */
     log(level: 'info' | 'warn' | 'error' | 'debug', message: string): void;
-    /** The only config fields the inbound pipeline reads. The dedup
-     * window rides as an optional intersection member so the bridge's
-     * BridgeConfig type stays untouched (absent → the default window). */
-    config: Pick<BridgeConfig, 'botQQ' | 'ignoreSelf' | 'requireMention' | 'rateLimitPerMinute' | 'restrictedMemberPrefix' | 'maxInboundFileBytes'> & Partial<{
-        /** (chatId, message_id) dedup window in seconds; 0 disables. */
-        dedupWindowSeconds: number;
-    }>;
+    /** The only config fields the inbound pipeline reads. */
+    config: Pick<BridgeConfig, 'botQQ' | 'ignoreSelf' | 'requireMention' | 'rateLimitPerMinute' | 'restrictedMemberPrefix' | 'maxInboundFileBytes' | 'dedupWindowSeconds'>;
 }
 /** default (chatId, message_id) dedup window, aligned with the MIT
  * dsh-qq-onebot-bridge's dedupWindowSeconds (300s). */

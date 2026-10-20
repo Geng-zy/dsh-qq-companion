@@ -1,9 +1,9 @@
 /**
  * dsh-qq-companion: a QQ (OneBot 11 / NapCat) chat channel for DeepSeek Harness.
  *
- * Mounts inside the dsh host process: a reverse- or forward-WebSocket link to
- * NapCat, one Agent per QQ chat, inbound images/voice handled for the model
- * (whisper STT when enabled), outbound replies split at sentence boundaries,
+ * Mounts inside the dsh host process: a reverse-WebSocket server NapCat dials
+ * into, one Agent per QQ chat, inbound images/voice handled for the model
+ * (local speech-to-text when enabled), outbound replies split at line breaks,
  * [[qq_forward]] merged forwards, allowlist/mention access control, and a set
  * of qq_* tools for media and NapCat APIs.
  * @module dsh-qq-companion

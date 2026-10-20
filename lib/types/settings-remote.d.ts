@@ -42,36 +42,30 @@
  * 内可解析）降级为普通 cordis 服务而非炸掉插件加载（照抄
  * dsh-expert-orchestrator/lib/remote.js 的降级骨架）。
  */
-/** 宿主 dsh-workspace 注册表（src/bridge.ts:152 已有结构面；本模块只读消费
- *  list()，不打开 registry 内部态——import type 零运行时依赖，不改 bridge.ts）。 */
+/** 宿主 dsh-workspace 注册表（本模块只读消费 list()，不打开 registry 内部态）。 */
 import type { WorkspaceRegistryLike } from './bridge.js';
 /** patch 中插件主条目的行 id（沿用原版的 dsh-onebot，已有配置不用改）。 */
 export declare const ENTRY_ID = "dsh-onebot";
 /** Typert Remote 命名空间 = cordis 服务键。 */
 export declare const NAMESPACE = "onebotSettings";
-/** 快照固定值：29 键均为插件级热重启生效。 */
+/** 快照固定值：设置页的键都是插件级热重启生效。 */
 export declare const REMOTE_EFFECT = "restart";
-/** 设置页 UI 四组 29 键。
- *  permissions/behavior 三组 19 键保持不动，的 6 个布尔键独立成
- *  「diagnostics（诊断）」组——它们全部默认关（除 actionAuditEnabled 默认开）、
- *  属观测/调试面，与连接权限行为组的使用频率与风险等级都不同，独立分组让
- *  「默认全关的调试开关」一眼可辨。
- *  connection 组追加 workspacePath（会话默认工作区；schema 已有该键
- *  src/index.ts:287，本批次起入面板白名单，键序追加在组尾）。 */
+/** 设置页的分组和每组里的键（也是设置页能读写的全部键）。键的类型、默认值
+ *  都从配置定义 src/config.ts 读取，这里只决定哪些键上设置页、怎么分组。 */
 export declare const SETTINGS_GROUPS: Readonly<Record<string, readonly string[]>>;
-/** schema 默认值，快照生效值的底层。 */
+/** 设置页能读写的全部键。 */
+export declare const ALL_KEYS: readonly string[];
+/** 配置定义里的默认值，快照生效值的底层。 */
 export declare const SCHEMA_DEFAULTS: Readonly<Record<string, unknown>>;
 /** 快照返回侧脱敏的键。 */
 export declare const SECRET_KEYS: readonly string[];
-/** 全部 29 键（校验与快照的唯一键集；6 枚举 + 4 数字 + 11 布尔 + 5 字符串 + 3 字符串数组）。 */
-export declare const ALL_KEYS: readonly string[];
 /** OnebotSettingsSnapshot。 */
 export interface OnebotSettingsSnapshot {
     /** §3.1 乐观锁计数器。 */
     revision: number;
     /** 插件条目 fiber 是否 active（fiber.state === 2，同 configEditor.edit 的活性判据）。 */
     entryActive: boolean;
-    /** 28 键生效值；accessToken 脱敏为 ''。 */
+    /** 设置页各键的生效值；accessToken 脱敏为 ''。 */
     config: Record<string, unknown>;
     /** 脱敏键标记：明文是否已配置。 */
     secrets: Array<{
@@ -124,7 +118,7 @@ export interface WorkspaceListResult {
  *  校验——与 requireConfigEditor 同款「运行期再校验形状」风格，但绝不抛错：
  *  缺席/形状不符/list() 失败都归一为 unavailable 空列表）。 */
 export declare function listWorkspaces(registry: WorkspaceRegistryLike | undefined): WorkspaceListResult;
-/** 28 键生效值 = schema 默认值 ← 条目 config 覆盖。 */
+/** 设置页各键的生效值 = 配置定义的默认值 ← 条目 config 覆盖。 */
 export declare function effectiveConfig(raw: Record<string, unknown>): Record<string, unknown>;
 /** updateSettings 入参校验。未知键整单
  *  拒绝（不静默丢弃）；类型/枚举不符拒绝；具体取值合法性交由宿主 schemastery

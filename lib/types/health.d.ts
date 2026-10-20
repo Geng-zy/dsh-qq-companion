@@ -25,12 +25,6 @@ export interface HealthDeps {
         windowSeconds: number;
     };
     /** Write-gate snapshot. */
-    writeGate: {
-        minuteUsed: number;
-        minuteLimit: number;
-        dayUsed: number;
-        dayLimit: number;
-    };
     /** The already-redacted config snapshot (see redactSnapshot). */
     configSnapshot: Record<string, unknown>;
     /** Secret VALUES to scrub from every packed artifact (e.g. accessToken). */

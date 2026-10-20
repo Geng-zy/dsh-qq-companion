@@ -2,8 +2,6 @@
  * Host-plane card relay: tool calls whose host-plane UI has no
  * QQ equivalent (exit_plan_mode plan books, ask_user_question option cards)
  * are rendered to plain-text cards and relayed through the outbound pipeline.
- * Extracted verbatim from bridge.ts; the bridge keeps a thin relayHostCards
- * delegation so the onSessionEvent call site is unchanged.
  * @module dsh-qq-companion/card-relay
  */
 import type { ChatId } from './chat.js';

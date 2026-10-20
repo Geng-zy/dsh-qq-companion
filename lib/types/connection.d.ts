@@ -74,8 +74,8 @@ export declare class OneBotConnection {
      * failure points (bind failure, reverse
      * server error) — the bridge implements it by minting/recording/tracing a
      * `QQ-CONN-…` reference; the returned reference is appended to the log
-     * line so host logs and the trace file share the same number. Absent
-     * (default) = the fault log lines keep their 0.8.1 wording unchanged.
+     * line so host logs and the trace file share the same number. Absent =
+     * the fault log lines carry no reference.
      */
     onFailure: ((stage: string, detail: string) => string | undefined) | undefined;
     private server;
@@ -96,6 +96,11 @@ export declare class OneBotConnection {
     constructor(config: ConnectionConfig);
     /** Whether the transport currently has a live socket. */
     get connected(): boolean;
+    /** The configured listen address (for /healthcheck). */
+    get listenHost(): string;
+    get listenPort(): number;
+    /** Port-in-use bind retries since the last successful listen (for /healthcheck). */
+    get portRetryAttempts(): number;
     /** Drop the current socket so the peer reconnects (liveness watchdog: the
      * WebSocket answers pings but the OneBot side has gone silent);
      * NapCat dials back in. No-op without a socket. */

@@ -1,5 +1,5 @@
-import type { SwitchableSession } from './session-ledger.js';
 import type { ChatId } from './chat.js';
+import type { SwitchableSession } from './session-ledger.js';
 export * from './registry-types.js';
 export type { SwitchableSession } from './session-ledger.js';
 import { ChatAgent, ChatSettings, RegistryDeps, SessionSwitchOutcome } from './registry-types.js';
@@ -40,8 +40,7 @@ export declare class ChatRegistry {
     /** the ChatAgent literal shared by the create and resume assembly
      * paths — every field starts at its neutral initial value. `nickname` is
      * the one deliberate divergence between the callers (create seeds it from
-     * the inbound message, resume starts with ''); pinned by
-     * the characterization tests in bridge.spec.ts. */
+     * the inbound message, resume starts with ''). */
     private createChatAgent;
     /** in-flight creates keyed by chat id — concurrent first messages for
      * one chat join a single create instead of racing (otherwise two dispatches
@@ -57,17 +56,28 @@ export declare class ChatRegistry {
     /** Get (or create) the agent for a chat. */
     ensureChat(chatId: ChatId, nickname: string): Promise<ChatAgent>;
     private createChat;
-    /** apply the persisted-settings snapshot (mode/goal/workspace override)
-     * of an evicted or reset chat onto its settings entry — shared by the
-     * evicted-resume path and its retired-session fast path. */
-    private restoreEvictedSettings;
+    /** apply a persisted-settings snapshot (mode/goal/workspace override)
+     * onto a chat's settings entry — used for mapping entries read from disk
+     * and for the snapshots of evicted / reset chats. */
+    private restoreSettings;
+    /** The persisted-settings snapshot of a chat under one session id: the
+     * live settings win, `known` (an earlier snapshot) fills the gaps. */
+    private settingsSnapshot;
+    /** Wait for a fresh agent to settle; when that fails, dispose it (no
+     * orphan agent) and rethrow the original error. */
+    private settle;
+    /** Take a chat out of the live indexes: typing stopped, interim recall
+     * timers cleared. The agent itself is disposed by the caller. */
+    private detachChat;
+    /** Dispose a detached chat's agent; a failure only logs. */
+    private disposeChat;
     /** Resume persisted chats from the mapping file (best-effort). */
     loadMapping(): Promise<void>;
     /** Resume one persisted chat from its recorded session id (shared by
      * loadMapping and the evicted-chat resume). */
     private resumeChat;
     private mappingPath;
-    /** (hole C): make a just-set /workspace override durable even when the
+    /** Make a just-set /workspace override durable even when the
      * chat is not live (before its first message, or after a failed resume).
      * saveMapping covers chats/evictedChats plus a settings-only
      * fallback, so the settings survive either way — the snapshot still pins
@@ -124,15 +134,13 @@ export declare class ChatRegistry {
      * session on its next message — it never gets stuck.
      */
     switchSession(chatId: ChatId, targetSessionId: string): Promise<SessionSwitchOutcome>;
-    /** (review closure): carry the chat's persisted settings across a
-     * reset or a collision heal — snapshot them into evictedChats under the
+    /** carry the chat's persisted settings across a reset, a session
+     * switch or a collision heal — snapshot them into evictedChats under the
      * (about-to-be-retired) session id, so the trailing saveMapping keeps the
      * entry instead of dropping the chat's workspace/goal/mode on a restart.
-     * Only persisted fields trigger the snapshot (a plain /new or heal keeps
-     * the old on-disk behavior: entry dropped); the recorded session
-     * id is retired by the caller, so the carrier is never resumed. Shared by
-     * resetChat and healSessionCollision — logic frozen to the original
-     * resetChat inline snapshot. */
+     * Only persisted fields trigger the snapshot (a plain /new or heal drops
+     * the entry); the recorded session id is retired by the caller, so the
+     * carrier is never resumed. */
     private snapshotRetainedSettings;
     /**
      * Recover from a session-log collision: the live session cannot append to

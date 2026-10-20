@@ -1,3 +1,7 @@
+/** Typing speed defaults (milliseconds), the same as the config schema's. */
+export declare const DEFAULT_TYPING_DELAY_PER_CHAR_MS = 80;
+export declare const DEFAULT_TYPING_DELAY_MIN_MS = 500;
+export declare const DEFAULT_TYPING_DELAY_MAX_MS = 2500;
 export interface TypingPaceConfig {
     perCharMs: number;
     minMs: number;

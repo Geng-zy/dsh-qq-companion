@@ -18,10 +18,6 @@ export interface SendOptions {
      * output, notices and interim sends never set it. */
     humanize?: boolean;
 }
-/** typing-pause defaults for split replies (milliseconds). */
-export declare const DEFAULT_TYPING_DELAY_PER_CHAR_MS = 80;
-export declare const DEFAULT_TYPING_DELAY_MIN_MS = 500;
-export declare const DEFAULT_TYPING_DELAY_MAX_MS = 2500;
 /** Narrow view of a live chat the outbound pipeline may touch — the
  * structural subset of the bridge's ChatAgent the pipeline reads: the
  * nickname used as the t2i card title. Re-evaluated for the per-chat
@@ -42,15 +38,13 @@ export interface OutboundContext {
     connected(): boolean;
     /** The connection's own QQ id (forward-node uin). */
     selfId(): string;
-    /** Raw OneBot action invocation (send_msg / send_*_forward_msg).
-     * the target chatId rides along when known so the bridge's inject dry-run
-     * guard can attribute the call to a chat's injected round. */
-    call(action: string, params: Record<string, unknown>, chatId?: ChatId): Promise<unknown>;
+    /** Raw OneBot action invocation (send_msg / send_*_forward_msg). */
+    call(action: string, params: Record<string, unknown>): Promise<unknown>;
     /** Bridge stop flag: the drain must never run while stopping. */
     isStopping(): boolean;
     /** Called after each message went out (send counting for /doctor). */
     onSent?: (chatId: ChatId) => void;
-    /** Account-wide human typing pace: every send waits its typing time. */
+    /** The account-wide typing pacer (absent = one built from the config). */
     typingPacer?: {
         wait(text: string): Promise<void>;
     };
@@ -65,17 +59,11 @@ export interface OutboundContext {
         reason?: string;
         data?: Record<string, unknown>;
     }) => void;
-    /** The only config fields the outbound pipeline reads. The write-gate
-     * fields ride as optional intersection members so the bridge's BridgeConfig
-     * type stays untouched (absent → the defaults below). */
+    /** The only config fields the outbound pipeline reads. */
     config: Pick<BridgeConfig, 'botQQ' | 'sensitivePatterns' | 'textImageThreshold' | 'maxImageBytes' | 'cardFooter' | 'fontFiles' | 'fontFamilies'> & Partial<{
         /** Audit file directory (mediaDir/qq-actions.log); absent → no audit. */
         mediaDir: string;
-        /** bridge-wide proactive-write cap per sliding minute; 0 disables. */
-        actionRatePerMinute: number;
-        /** bridge-wide proactive-write cap per calendar day; 0 disables. */
-        actionRatePerDay: number;
-        /** proactive-write audit switch (default on). */
+        /** tool-send audit switch (default on). */
         actionAuditEnabled: boolean;
         /** split final replies "one line, one message". */
         splitLines: boolean;
@@ -83,7 +71,10 @@ export interface OutboundContext {
         groupSplitLines: boolean;
         /** most messages one split reply may become. */
         splitMaxMessages: number;
-        /** typing pause per character / floor / ceiling (ms). */
+        /** true = every message waits its typing time; false = only the
+         * follow-up lines of a split reply do. */
+        humanTypingPace: boolean;
+        /** typing time per character / floor / ceiling (ms). */
         typingDelayPerCharMs: number;
         typingDelayMinMs: number;
         typingDelayMaxMs: number;
@@ -91,11 +82,7 @@ export interface OutboundContext {
 }
 /** Offline queue file, under mediaDir. */
 export declare const PENDING_SENDS_FILE = "pending-sends.json";
-/** default bridge-wide proactive-write caps, aligned with the MIT
- * dsh-qq-onebot-bridge's actionRatePerMinute(20) / actionRatePerDay(500). */
-export declare const DEFAULT_ACTION_RATE_PER_MINUTE = 20;
-export declare const DEFAULT_ACTION_RATE_PER_DAY = 500;
-/** proactive-write audit file name, appended under mediaDir (jsonl). */
+/** tool-send audit file name, appended under mediaDir (jsonl). */
 export declare const ACTION_AUDIT_FILE = "qq-actions.log";
 /**
  * The outbound pipeline. Owns the pendingSends state; the bridge keeps
@@ -111,6 +98,10 @@ export declare class OutboundPipeline {
     private readonly pendingSends;
     /** typing-pause sleep (tests inject a recorder). */
     private readonly sleep;
+    /** Typing pace for outgoing messages (see TypingPacer). */
+    private readonly pacer;
+    /** humanTypingPace: pace every message, not just split follow-up lines. */
+    private readonly paceEveryMessage;
     /** Durable copy of pendingSends (mediaDir/pending-sends.json), so replies
      * queued while QQ was disconnected survive a dsh restart. Absent = memory
      * only (tests, no mediaDir). */
@@ -136,28 +127,9 @@ export declare class OutboundPipeline {
     /** Restore replies queued before a restart (expired ones are dropped at
      * drain time by the usual TTL). Missing or corrupt file = nothing queued. */
     loadPending(): Promise<void>;
-    /** Sliding-60s timestamps of allowed proactive writes (bridge-wide). */
-    private writeActionTimes;
-    /** Calendar-day (local) counter of allowed proactive writes. */
-    private writeDayKey;
-    private writeDayCount;
     /** Serialized audit-append chain (order discipline, see auditWrite). */
     private auditChain;
-    /** health snapshot: the write gate's current usage against its
-     * limits (minute sliding window pruned at read time; day counter). */
-    writeGateStats(): {
-        minuteUsed: number;
-        minuteLimit: number;
-        dayUsed: number;
-        dayLimit: number;
-    };
-    /** check + consume one proactive-write slot. Returns a non-empty
-     * Chinese rejection reason when the write must be dropped (a warn with the
-     * chatId and the limit name is logged and the rejection is audited);
-     * returns null when allowed (slot consumed). Rejected attempts do not
-     * consume quota. */
-    private writeGateRejectReason;
-    /** append one proactive-write (or rejection / send failure) audit
+    /** append one tool-send (or send failure) audit
      * line to mediaDir/qq-actions.log (jsonl: ts/chatId/action/ok/reason).
      * Fire-and-forget: a write failure only warns and never affects the send
      * path. Writes are chained so lines land in call order even when the fs
@@ -171,8 +143,7 @@ export declare class OutboundPipeline {
      * onStatus(true) handler (bridge.start). */
     drainPendingSends(): void;
     /**
-     * Send raw OneBot segments (used by the media tools). counts as a
-     * proactive write — subject to the minute/day caps and audited.
+     * Send raw OneBot segments (used by the media tools); audited.
      * @param chatId - target chat.
      * @param segments - outbound segments.
      * @returns the sent message id.
@@ -190,15 +161,14 @@ export declare class OutboundPipeline {
     chainTail(chatId: ChatId): Promise<unknown>;
     /** Send one message to a chat and return its message id. */
     sendMsg(chatId: ChatId, segments: OutboundSegment[], options: SendOptions): Promise<string | undefined>;
-    /** Send [[qq_forward]] nodes as a merged-forward message (proactive write
-     * from the qq_send_forward tool). subject to the minute/day caps
-     * and audited; the passive [[qq_forward]] blocks inside sendToChat bypass
-     * this gate via sendForwardNodes. */
+    /** Send [[qq_forward]] nodes as a merged-forward message (the
+     * qq_send_forward tool); audited. [[qq_forward]] blocks inside a reply go
+     * through sendForwardNodes directly. */
     sendForward(chatId: ChatId, nodes: Array<{
         name: string;
         content: string;
     }>): Promise<void>;
-    /** Ungated merged-forward send (shared by the gated tool path and the
-     * passive [[qq_forward]] blocks inside sendToChat). */
+    /** Merged-forward send (shared by the tool path and the [[qq_forward]]
+     * blocks inside sendToChat). */
     private sendForwardNodes;
 }

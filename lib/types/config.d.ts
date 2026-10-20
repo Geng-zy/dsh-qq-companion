@@ -12,7 +12,7 @@ export interface Config {
     unknownCommand: 'intercept' | 'passthrough';
     /** 任务运行中的新消息处理策略：queue=排队（默认）；steer=插话进当前任务。 */
     newMessagePolicy: 'queue' | 'steer';
-    /** (用户裁决 2026-10-12)：steer 模式下自动插话资格：admin=仅管理员（默认）；all=不限。 */
+    /** steer 模式下自动插话资格：admin=仅管理员（默认）；all=不限。 */
     autoSteerPolicy: 'admin' | 'all';
     /** 等待模型回复超时阈值（毫秒）——超时后登记补发跟踪、回合完成后向原聊天补发最终文字；0=关闭。 */
     deferredTimeoutMs: number;
@@ -96,14 +96,10 @@ export interface Config {
     allowPrivateHosts: boolean;
     /** inbound (chatId, message_id) dedup window in seconds; 0 disables. */
     dedupWindowSeconds: number;
-    /** bridge-wide proactive-write (qq_send_* tools) cap per minute; 0 disables. */
-    actionRatePerMinute: number;
-    /** bridge-wide proactive-write cap per calendar day; 0 disables. */
-    actionRatePerDay: number;
-    /** proactive-write audit jsonl (mediaDir/qq-actions.log). */
+    /** tool-send audit jsonl (mediaDir/qq-actions.log). */
     actionAuditEnabled: boolean;
-    /** decision-trace jsonl (mediaDir/qq-trace.jsonl); default off — zero
-     * file, zero behavior difference vs 0.6.0. */
+    /** decision-trace jsonl (mediaDir/qq-trace.jsonl); default off — no
+     * file, no behavior difference. */
     traceEnabled: boolean;
     /** trace level; 'warn' records only ok:false (rejected/failed/dropped) events. */
     traceLevel: 'debug' | 'warn';
