@@ -7,6 +7,7 @@
  * @module dsh-qq-companion/commands
  */
 import type { ScheduledPrompt } from './companion/index.js'
+import { handleTaskCommand } from './companion/task-command.js'
 import { handleGroupCommand } from './groups.js'
 import type { GroupAccessLike } from './groups.js'
 import type { Agent, ModelSelection, ModelSelectionRef } from '@deepseek-ai/dsh-agent'
@@ -185,7 +186,7 @@ export const COMMANDS: CommandDefinition[] = [
   { name: 'plan', adminOnly: true, group: '输出', help: '[off|内容] 宿主计划模式', handler: (ctx, chatId, arg) => handlePlanCommand(ctx, chatId, arg) },
   { name: 'permission', adminOnly: true, group: '会话', help: '[w|f|预设名|序号] 切换权限预设（w=工作区可写+需审批，f=全盘+免审批）', handler: (ctx, chatId, arg) => handlePermissionCommand(ctx, chatId, arg) },
   { name: 'group', aliases: ['qun'], adminOnly: true, group: '其他', help: '[list|allow <群号>|remove <群号>] 群白名单', handler: (ctx, chatId, arg) => handleGroupCommand(ctx.groupAccess, arg, text => ctx.sendToChat(chatId, text)) },
-  { name: 'task', adminOnly: true, group: '其他', help: '[id] 定时任务：无参列出，带 id 立刻执行一次', handler: (ctx, chatId, arg) => handleTaskCommand(ctx, chatId, arg) },
+  { name: 'task', adminOnly: true, group: '其他', help: '[id] 定时任务：无参列出，带 id 立刻执行一次', handler: (ctx, chatId, arg) => handleTaskCommand(ctx, arg, text => ctx.sendToChat(chatId, text)) },
   { name: 'goal', adminOnly: true, group: '其他', help: '[目标|clear] 目标记录', handler: (ctx, chatId, arg) => handleGoalCommand(ctx, chatId, arg) },
   { name: 'help', adminOnly: true, group: '其他', help: '本帮助', handler: async (ctx, chatId) => {
     await ctx.sendToChat(chatId, helpText())
@@ -1354,33 +1355,4 @@ function gitCommit(): string | undefined {
     }
   }
   return cachedGitCommit
-}
-
-/** /task: list the daily scheduled prompts, or run one now. */
-async function handleTaskCommand(ctx: CommandContext, chatId: ChatId, arg: string): Promise<void> {
-  const prompts = ctx.scheduledPrompts?.() ?? []
-  const id = arg.trim()
-  if (id === '') {
-    const lines = prompts.map(p => '· ' + p.id + '  每天 ' + p.time + ' → ' + p.chatId)
-    if (ctx.proactive !== undefined) {
-      const left = ctx.proactive.remaining()
-      lines.push('· checkin  主动聊天，今天还剩：' + (left.length > 0 ? left.join('、') : '无'))
-    }
-    await ctx.sendToChat(chatId, lines.length === 0
-      ? '没有配置定时任务。'
-      : '定时任务：\n' + lines.join('\n') + '\n用法：/task <id> 立刻执行一次')
-    return
-  }
-  if (id === 'checkin' && ctx.proactive !== undefined) {
-    await ctx.sendToChat(chatId, '▶ 立刻叫醒她一次（主动聊天）')
-    await ctx.proactive.fireNow()
-    return
-  }
-  const prompt = prompts.find(p => p.id === id)
-  if (prompt === undefined || ctx.fireScheduled === undefined) {
-    await ctx.sendToChat(chatId, '没有叫 ' + id + ' 的定时任务。发 /task 查看列表。')
-    return
-  }
-  await ctx.sendToChat(chatId, '▶ 立刻执行定时任务 ' + id)
-  await ctx.fireScheduled(prompt)
 }

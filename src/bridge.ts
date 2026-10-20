@@ -9,7 +9,7 @@
  */
 
 import type { ChatActivity, ScheduledPrompt } from './companion/index.js'
-import { PROACTIVE_PASS, appendMemoryNote, ensureGroupMemory, formatTranscript, groupMemoryPaths, isProactivePass } from './companion/index.js'
+import { CompanionHooks } from './companion/index.js'
 import { registerMemoryNoteTool } from './tools.js'
 import type { GroupAccessLike } from './groups.js'
 import type { AgentRegistry, ModelSelection } from '@deepseek-ai/dsh-agent'
@@ -350,6 +350,9 @@ export class ChatBridge {
   private pluginCommit: string | undefined
   private stopping = false
 
+  /** companion behavior (session renewal, pass marker, wake-up texts). */
+  private readonly companion: CompanionHooks
+
   constructor(deps: BridgeDeps) {
     this.deps = deps
     this.registry = new ChatRegistry({
@@ -373,6 +376,12 @@ export class ChatBridge {
       installChannelScope: agentCtx => this.installChannelScope(agentCtx),
       isAdminPrivate: chatId => this.isAdminPrivate(chatId),
       onSessionCreated: chat => this.applyAdminPermission(chat),
+    })
+    this.companion = new CompanionHooks({
+      config: deps.config,
+      ...(deps.activity !== undefined ? { activity: deps.activity } : {}),
+      log: (level, message) => deps.log(level, message),
+      resetChat: chatId => this.registry.resetChat(chatId as ChatId),
     })
     this.outbound = new OutboundPipeline({
       getChat: chatId => this.chats.get(chatId),
@@ -546,45 +555,22 @@ export class ChatBridge {
    * @returns the sent message ids.
    */
   sendToChat(chatId: ChatId, text: string, options: SendOptions = {}): Promise<string[]> {
-    // a proactive wake-up she chose to skip sends nothing.
-    if (options.humanize === true && isProactivePass(text)) {
-      this.deps.log('info', '她这次选择不主动发消息: ' + chatId)
-      return Promise.resolve([])
-    }
-    // remember her final replies for the handoff recap / diary.
-    if (options.humanize === true) this.deps.activity?.record(chatId, 'bot', text)
+    // a skipped proactive wake-up sends nothing; final replies are recorded.
+    if (options.humanize === true && !this.companion.beforeFinalReply(chatId, text)) return Promise.resolve([])
     return this.outbound.sendToChat(chatId, text, options)
   }
 
   /** one proactive wake-up in the owner's chat. She decides
    * whether to write; replying exactly PROACTIVE_PASS sends nothing. */
   async fireCheckin(chatId: ChatId, context: { time: string; unanswered: number; lastUserAt: number | undefined }): Promise<void> {
-    const owner = this.deps.config.ownerTitle ?? '管理员'
-    const since = context.lastUserAt === undefined
-      ? owner + '还没跟你说过话'
-      : owner + '上一次跟你说话是 ' + Math.round((Date.now() - context.lastUserAt) / 60_000) + ' 分钟前'
-    const text = [
-      '[主动聊天的机会 ' + context.time + '｜这条不是' + owner + '发的，是系统叫醒你]',
-      since + (context.unanswered > 0 ? '；你主动发的 ' + context.unanswered + ' 条消息' + owner + '还没回' : '') + '。',
-      '按你的人设决定要不要主动找' + owner + '：想找就直接写你要发的话（像平时一样一句一条）；',
-      '这次不想打扰，或者没什么具体想说的，就只回复 ' + PROACTIVE_PASS + '，什么都不会发出去。',
-    ].join('\n')
-    await this.dispatchFollowup(chatId, text, 'admin', undefined, { scheduled: true })
+    await this.dispatchFollowup(chatId, this.companion.checkinText(context), 'admin', undefined, { scheduled: true })
   }
 
   /** run one scheduled prompt (diary, proactive check-ins) as
    * an admin turn in its chat. Never idle-resets: the diary must see the
    * day's session. */
   async fireScheduled(prompt: ScheduledPrompt): Promise<void> {
-    const owner = this.deps.config.ownerTitle ?? '管理员'
-    let text = '[定时任务 ' + prompt.time + '｜这条不是' + owner + '发的，是系统按时叫你]\n' + prompt.prompt
-    if (prompt.includeTodayLog === true && this.deps.activity !== undefined) {
-      const lines = this.deps.activity.takeToday(prompt.chatId, true)
-      text += lines.length > 0
-        ? '\n\n今天和' + owner + '的聊天（节选，最多 200 句，每句最多 200 字）：\n' + formatTranscript(lines)
-        : '\n\n（今天和' + owner + '没有聊天）'
-    }
-    await this.dispatchFollowup(prompt.chatId as ChatId, text, 'admin', undefined, { scheduled: true })
+    await this.dispatchFollowup(prompt.chatId as ChatId, this.companion.scheduledText(prompt), 'admin', undefined, { scheduled: true })
   }
 
   /**
@@ -686,27 +672,8 @@ export class ChatBridge {
    * the base text for /retry, queues the initiator's turn role, and applies
    * per-chat /goal + /plan prefixes. */
   private async dispatchFollowup(chatId: ChatId, text: string, role: UserRole, nickname?: string, internal?: { scheduled?: boolean }): Promise<void> {
-    // idle reset + handoff recap, and the activity record.
-    const activity = this.deps.activity
-    if (activity !== undefined && internal?.scheduled !== true) {
-      const hours = this.deps.config.idleResetHours ?? 0
-      const days = chatId.startsWith('group:') ? (this.deps.config.groupResetDays ?? 0) : (this.deps.config.privateResetDays ?? 0)
-      const idle = hours > 0 && activity.isIdle(chatId, hours)
-      const aged = !idle && days > 0 && activity.sessionDaysCrossed(chatId) >= days
-      if (idle || aged) {
-        const recap = activity.handoff(chatId)
-        await this.registry.resetChat(chatId)
-        activity.markSessionStart(chatId)
-        this.deps.log('info', (idle ? 'idle reset' : 'periodic reset') + ' for ' + chatId)
-        if (recap !== '') {
-          const why = idle
-            ? '距离上次聊天已经过了 ' + hours + ' 个多小时'
-            : '每隔 ' + days + ' 天会换一次新会话，之前的事在记忆和日记里'
-          text = '（这是一个新会话：' + why + '。上次最后几句是：\n' + recap + '\n）\n' + text
-        }
-      }
-      activity.record(chatId, 'user', plainUserText(text), nickname ?? '')
-    }
+    // companion: idle / periodic session renewal + handoff, activity record.
+    text = await this.companion.beforeUserTurn(chatId, text, plainUserText(text), nickname ?? '', internal?.scheduled === true)
     const final = this.prefixTurn(chatId, text)
     const fallback = this.chats.get(chatId)?.lastNickname ?? ''
     const chat = await this.ensureChat(chatId, nickname ?? fallback)
@@ -1318,23 +1285,8 @@ export class ChatBridge {
       maxVoiceBytes: this.deps.config.maxVoiceBytes,
       maxFileBytes: this.deps.config.maxFileBytes,
     })
-    const memoryFile = this.deps.config.publicMemoryFile
-    const groupRoot = this.deps.config.groupMemoryDir
-    if ((memoryFile !== undefined && memoryFile !== '') || (groupRoot !== undefined && groupRoot !== '')) {
-      registerMemoryNoteTool(agentCtx, this, async (chatId, text) => {
-        // a group's notes go to that group's own file.
-        if (chatId.startsWith('group:') && groupRoot !== undefined && groupRoot !== '') {
-          const groupId = chatId.slice('group:'.length)
-          await ensureGroupMemory(groupRoot, groupId)
-          return appendMemoryNote(groupMemoryPaths(groupRoot, groupId).file, chatId, text, undefined, this.deps.config.groupMemoryMaxBytes)
-        }
-        if (!chatId.startsWith('group:')) {
-          return { ok: false as const, reason: '私聊里请直接改记忆文件，这个工具只给群聊用' }
-        }
-        if (memoryFile === undefined || memoryFile === '') return { ok: false as const, reason: '没有配置公开记忆文件' }
-        return appendMemoryNote(memoryFile, chatId, text, undefined, this.deps.config.publicMemoryMaxBytes)
-      })
-    }
+    const writeNote = this.companion.memoryNoteWriter()
+    if (writeNote !== undefined) registerMemoryNoteTool(agentCtx, this, writeNote)
   }
 
   // ------------------------------------------------------------ typing
