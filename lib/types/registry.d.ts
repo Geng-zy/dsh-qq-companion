@@ -395,6 +395,16 @@ export declare class ChatRegistry {
      * goal/ocr) all survive — they key the NEXT session of this chat.
      */
     resetChat(chatId: ChatId): Promise<void>;
+    /** Every chat with a session: live ones and idle-evicted ones. */
+    knownChatIds(): ChatId[];
+    /**
+     * Retire a chat's session for good (e.g. a group that left the allowlist):
+     * a live chat is reset like /new; an idle-evicted one has its recorded
+     * session retired so it is never resumed. Either way the next message
+     * starts a fresh session (with the current preset). History stays on disk.
+     * @returns whether there was a session to retire.
+     */
+    retireChat(chatId: ChatId): Promise<boolean>;
     /** Read the chat→session mapping file (for /id and /status when no live chat). */
     sessionIdFromMapping(chatId: ChatId): Promise<string | undefined>;
     /** Clear every pending interim auto-recall timer for a chat (dispose path). */

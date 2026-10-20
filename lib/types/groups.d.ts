@@ -26,6 +26,8 @@ export declare class GroupAccess implements GroupAccessLike {
     private added;
     private removed;
     private readonly writer;
+    /** Called after a group leaves the effective allowlist. */
+    onRemoved: ((groupId: string) => Promise<void>) | undefined;
     constructor(options: {
         policy: {
             groupAllowFrom: readonly string[];

@@ -372,6 +372,12 @@ export declare class ChatBridge {
      * @returns the sent message ids.
      */
     sendToChat(chatId: ChatId, text: string, options?: SendOptions): Promise<string[]>;
+    /** A group left the allowlist: retire its session so that, if it is ever
+     * allowed again, it starts fresh under the current preset. */
+    retireGroup(groupId: string): Promise<void>;
+    /** On startup: retire sessions of groups that are no longer allowed (the
+     * allowlist may have changed in the config while dsh was down). */
+    retireDisallowedGroups(): Promise<void>;
     /** one proactive wake-up in the owner's chat. She decides
      * whether to write; replying exactly PROACTIVE_PASS sends nothing. */
     fireCheckin(chatId: ChatId, context: {

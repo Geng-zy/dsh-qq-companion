@@ -49,6 +49,12 @@ export declare class CompanionHooks {
      * @returns false when nothing should be sent (the pass marker).
      */
     beforeFinalReply(chatId: string, text: string): boolean;
+    /**
+     * Before any model text goes out: cut a fabricated transcript continuation
+     * (see sanitize.ts).
+     * @returns the text to send ('' = nothing left to send).
+     */
+    cleanOutgoing(chatId: string, text: string): string;
     /** The wake-up text of one proactive check-in. */
     checkinText(context: {
         time: string;
