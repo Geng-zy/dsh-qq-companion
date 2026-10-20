@@ -11,7 +11,7 @@
 
 import { selfCheck } from './selfcheck.js'
 import { QqLiveness } from './liveness.js'
-import { ChatActivity, DailyScheduler, NoteCounter, ProactiveScheduler, SendCounter, StickerLibrary, TypingPacer, companionStatusLines, setDefaultNoteCounter } from './companion/index.js'
+import { ChatActivity, DailyScheduler, NoteCounter, ProactiveScheduler, SendCounter, SessionCleaner, StickerLibrary, TypingPacer, companionStatusLines, setDefaultNoteCounter } from './companion/index.js'
 import { GroupAccess, handleGroupEvent } from './groups.js'
 import type { Context as CordisContext } from '@deepseek-ai/cordis'
 import type SystemPrompt from '@deepseek-ai/dsh-system-prompt'
@@ -309,6 +309,16 @@ export function apply(ctx: Context, config: Config): void {
     })
     : undefined
   proactiveRef = proactive
+  // old QQ chat sessions nobody writes to any more: deleted after their age limit.
+  const sessionCleaner = new SessionCleaner({
+    sessionsRoot: join(dshHome(), 'sessions'),
+    projectionCacheDir: join(dshHome(), 'storages', 'session_projcache', 'sessions'),
+    privateKeepDays: config.privateSessionKeepDays ?? 0,
+    groupKeepDays: config.groupSessionKeepDays ?? 0,
+    inUse: () => bridge.sessionIdsInUse(),
+    onRemoved: id => bridge.forgetSession(id),
+    log,
+  })
   ctx.effect(() => {
     bridge.start()
     // after start(): the mapping load it kicks off is what this waits for.
@@ -316,10 +326,12 @@ export function apply(ctx: Context, config: Config): void {
     void Promise.all([activityLoaded, scheduler.load(), proactive?.load(), noteCounter.load(), stickers?.load()]).then(() => { scheduler.start(); proactive?.start() })
     liveness.start()
     connection.start()
+    sessionCleaner.start()
     // QQ 平台说明与 qq_* 工具现按会话 agent 注入（见 ChatBridge.installChannelScope）
     return async () => {
       scheduler.stop()
       proactive?.stop()
+      await sessionCleaner.stop()
       liveness.stop()
       await bridge.stop()
       // After the bridge: its last replies are recorded too.

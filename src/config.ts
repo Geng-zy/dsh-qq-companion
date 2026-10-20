@@ -95,6 +95,8 @@ export interface Config {
   stickerDailyMax: number
   privateResetDays: number
   groupResetDays: number
+  privateSessionKeepDays: number
+  groupSessionKeepDays: number
   proactiveEnabled: boolean
   proactiveChatId: string
   proactiveWindowStart: string
@@ -294,6 +296,10 @@ export const Config: Z<Config> = z.object({
     .description('私聊会话跨过这么多个凌晨 4 点后，下一条消息开新会话（附交接；0=关闭）'),
   groupResetDays: z.number().default(0)
     .description('群聊会话跨过这么多个凌晨 4 点后，下一条消息开新会话（附交接；0=关闭）'),
+  privateSessionKeepDays: z.number().default(0)
+    .description('私聊的旧会话（已经不用的）超过这么多天没写入就删掉（0=不删）；正在用的会话永远不删'),
+  groupSessionKeepDays: z.number().default(0)
+    .description('群聊的旧会话超过这么多天没写入就删掉（0=不删）；正在用的会话永远不删'),
   proactiveEnabled: z.boolean().default(false)
     .description('每天在时段内随机叫醒机器人几次，让它决定要不要主动找管理员'),
   proactiveChatId: z.string().default('')

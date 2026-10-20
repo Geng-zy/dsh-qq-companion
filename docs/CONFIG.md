@@ -75,6 +75,8 @@
 | `stickerDailyMax` | number | `20` | 每天最多新存多少张（控制她看图打标签的花费；合并到已有表情包不算） |
 | `privateResetDays` | number | `0` | 私聊会话跨过这么多个凌晨 4 点后，下一条消息开新会话（附交接；0=关闭） |
 | `groupResetDays` | number | `0` | 群聊会话跨过这么多个凌晨 4 点后，下一条消息开新会话（附交接；0=关闭） |
+| `privateSessionKeepDays` | number | `0` | 私聊的旧会话（已经不用的）超过这么多天没写入就删掉（0=不删）；正在用的会话永远不删 |
+| `groupSessionKeepDays` | number | `0` | 群聊的旧会话超过这么多天没写入就删掉（0=不删）；正在用的会话永远不删 |
 | `proactiveEnabled` | boolean | `false` | 每天在时段内随机叫醒机器人几次，让它决定要不要主动找管理员 |
 | `proactiveChatId` | string | `""` | 主动找的会话，如 private:<管理员QQ> |
 | `proactiveWindowStart` | string | `"09:00"` | 主动聊天时段开始（本地 HH:MM） |

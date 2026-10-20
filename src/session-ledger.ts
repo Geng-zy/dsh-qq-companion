@@ -180,6 +180,14 @@ export class SessionLedger {
     void this.saveSwitchable()
   }
 
+  /** A session's logs were deleted: drop it from every chat's switch-back
+   * list (it stays retired, so its id is never created again). */
+  forgetSession(sessionId: string): void {
+    for (const chatId of [...this.switchableByChat.keys()]) {
+      if (this.isSwitchable(chatId, sessionId)) this.removeSwitchable(chatId, sessionId)
+    }
+  }
+
   removeSwitchable(chatId: ChatId, sessionId: string): void {
     const list = this.switchableByChat.get(chatId)
     if (list === undefined) return

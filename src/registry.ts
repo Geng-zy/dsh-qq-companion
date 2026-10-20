@@ -60,6 +60,20 @@ export class ChatRegistry {
     return this.ledger.retired
   }
 
+  /** Session ids some chat still uses: live chats, evicted-but-resumable
+   * chats, and anything routed to a chat (never deleted by cleanup). */
+  sessionIdsInUse(): Set<string> {
+    const ids = new Set<string>(this.bySession.keys())
+    for (const chat of this.chats.values()) ids.add(chat.sessionId)
+    for (const evicted of this.evictedChats.values()) ids.add(evicted.session)
+    return ids
+  }
+
+  /** A session's logs were deleted (old-session cleanup). */
+  forgetSession(sessionId: string): void {
+    this.ledger.forgetSession(sessionId)
+  }
+
   /** Session ids whose logs are unusable (the ledger's live set). */
   get brokenSessions(): Set<string> {
     return this.ledger.broken

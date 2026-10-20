@@ -312,6 +312,16 @@ export class ChatBridge {
     }
   }
 
+  /** Session ids some chat still uses (old-session cleanup never deletes these). */
+  sessionIdsInUse(): Set<string> {
+    return this.registry.sessionIdsInUse()
+  }
+
+  /** A session's logs were deleted by the old-session cleanup. */
+  forgetSession(sessionId: string): void {
+    this.registry.forgetSession(sessionId)
+  }
+
   /** On startup: retire sessions of groups that are no longer allowed (the
    * allowlist may have changed in the config while dsh was down). */
   async retireDisallowedGroups(): Promise<void> {
