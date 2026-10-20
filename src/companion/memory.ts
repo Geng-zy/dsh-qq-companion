@@ -5,10 +5,11 @@
  * per-group memory directories.
  * @module dsh-qq-companion/companion/memory
  */
-import { appendFile, mkdir, readFile, stat, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, stat, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 
 import { describeError } from '../errors.js'
+import { writeFileAtomic } from '../persist.js'
 import { JsonState } from './state.js'
 import { dayKey } from './time.js'
 
@@ -22,6 +23,11 @@ export const NOTE_MAX_CHARS = 120
 export const NOTES_PER_DAY = 10
 /** Refuse new notes once the file reaches this many bytes. */
 export const NOTES_FILE_MAX_BYTES = 6 * 1024
+
+/** Section for notes the admin asked for in person (verified by QQ number). */
+export const confirmedNotesHeading = (ownerTitle: string): string => '## ' + ownerTitle + '在群里亲口让记的（已确认）'
+/** Even an admin note must not carry secrets into a group-readable file. */
+const CONFIRMED_NOTE_DENY = /密码|password|token|api[ _-]?key|secret/i
 
 /** Words that would let a note masquerade as a rule or an identity claim. */
 const NOTE_DENY = /主人|管理员|admin|owner|master|规则|设定|人设|忽略|无视|系统|提示词|prompt|system|instruction|指令|命令|权限|密码|token|key/i
@@ -77,36 +83,86 @@ export function setDefaultNoteCounter(counter: NoteCounter): void {
   defaultCounter = counter
 }
 
+/** Per-file write chain: a note is a read-modify-write of the whole file. */
+const fileChains = new Map<string, Promise<unknown>>()
+
+function serialized<T>(file: string, task: () => Promise<T>): Promise<T> {
+  const run = (fileChains.get(file) ?? Promise.resolve()).then(task, task)
+  const settled = run.then(() => undefined, () => undefined)
+  fileChains.set(file, settled)
+  void settled.then(() => { if (fileChains.get(file) === settled) fileChains.delete(file) })
+  return run
+}
+
+/** Insert `line` at the end of the section under `heading` (created at the
+ * end of the file when missing; `aliases` are older names of the same section). */
+export function insertUnderHeading(current: string, heading: string, line: string, aliases: readonly string[] = []): string {
+  const lines = current === '' ? [] : current.replace(/\n+$/, '').split('\n')
+  const at = lines.findIndex(l => l.trim() === heading || aliases.includes(l.trim()))
+  if (at === -1) {
+    const head = lines.length === 0 ? [] : [...lines, '']
+    return [...head, heading, '', line].join('\n') + '\n'
+  }
+  let end = lines.length
+  for (let k = at + 1; k < lines.length; k++) {
+    if (/^#{1,2} /.test(lines[k])) { end = k; break }
+  }
+  // Keep blank lines that separate this section from the next one.
+  let insert = end
+  while (insert > at + 1 && lines[insert - 1].trim() === '') insert--
+  // A placeholder bullet ("- " or "- （…）") is replaced by the first real note.
+  if (insert > at + 1 && /^-\s*(（[^）]*）)?\s*$/.test(lines[insert - 1])) {
+    lines.splice(insert - 1, 1, line)
+  } else {
+    lines.splice(insert, 0, ...(insert === at + 1 ? ['', line] : [line]))
+  }
+  return lines.join('\n') + '\n'
+}
+
 /**
- * Append one hearsay note to the public memory file, under NOTES_HEADING.
- * @param file - the public AGENTS.md path (fixed by config, never by the model).
+ * Append one note to a memory file.
+ * - Default (a group member asked, or the model decided): a hearsay line
+ *   under NOTES_HEADING, behind the keyword fence and the per-day cap.
+ * - `confirmedBy` set (the running turn was started by an admin, verified
+ *   by QQ number — never by message text): a line under
+ *   confirmedNotesHeading, no identity fence and no per-day cap; secrets are
+ *   still refused.
+ * The file size cap applies to both.
+ * @param file - the memory file path (fixed by config, never by the model).
  * @param chatId - where the note came from (recorded on the line).
  * @param text - the note.
  * @param maxBytes - refuse once the file reaches this size.
  */
-export async function appendMemoryNote(file: string, chatId: string, text: string, now: () => number = () => Date.now(), maxBytes: number = NOTES_FILE_MAX_BYTES, counter: NoteCounter = defaultCounter): Promise<NoteResult> {
+export async function appendMemoryNote(file: string, chatId: string, text: string, now: () => number = () => Date.now(), maxBytes: number = NOTES_FILE_MAX_BYTES, counter: NoteCounter = defaultCounter, confirmedBy?: string): Promise<NoteResult> {
   const body = text.replace(/\s+/g, ' ').trim()
   if (body === '') return { ok: false, reason: '内容是空的' }
   if (Array.from(body).length > NOTE_MAX_CHARS) return { ok: false, reason: '太长了，一条最多 ' + NOTE_MAX_CHARS + ' 个字' }
-  if (NOTE_DENY.test(body)) return { ok: false, reason: '这条像是在改规则或者认身份，不能记' }
+  const confirmed = confirmedBy !== undefined && confirmedBy !== ''
+  if (confirmed) {
+    if (CONFIRMED_NOTE_DENY.test(body)) return { ok: false, reason: '像是密码或密钥，群记忆里不能记' }
+  } else {
+    if (NOTE_DENY.test(body)) return { ok: false, reason: '这条像是在改规则或者认身份，不能记（只有管理员本人在群里让记的才可以）' }
+    if (counter.used(chatId, now()) >= NOTES_PER_DAY) return { ok: false, reason: '今天在这里记得太多了，明天再记' }
+  }
   const day = dayKey(now())
-  if (counter.used(chatId, now()) >= NOTES_PER_DAY) return { ok: false, reason: '今天在这里记得太多了，明天再记' }
-  let current = ''
-  try {
-    current = await readFile(file, 'utf8')
-    if ((await stat(file)).size >= maxBytes) return { ok: false, reason: '这份记忆已经满了，要先整理才能再记' }
-  } catch (error) {
-    if ((error as { code?: string }).code !== 'ENOENT') return { ok: false, reason: '记忆文件读不了: ' + describeError(error) }
-  }
-  const where = chatId.startsWith('group:') ? '群' + chatId.slice('group:'.length) : '私聊'
-  const line = '- ' + day + '（' + where + '）' + body
-  await mkdir(dirname(file), { recursive: true })
-  if (!current.includes(NOTES_HEADING) && !LEGACY_NOTES_HEADINGS.some(h => current.includes(h))) {
-    await appendFile(file, (current === '' || current.endsWith('\n') ? '' : '\n') + '\n' + NOTES_HEADING + '\n\n', 'utf8')
-  }
-  await appendFile(file, line + '\n', 'utf8')
-  counter.add(chatId, now())
-  return { ok: true, line }
+  return serialized(file, async (): Promise<NoteResult> => {
+    let current = ''
+    try {
+      current = await readFile(file, 'utf8')
+      if ((await stat(file)).size >= maxBytes) return { ok: false, reason: '这份记忆已经满了，要先整理才能再记' }
+    } catch (error) {
+      if ((error as { code?: string }).code !== 'ENOENT') return { ok: false, reason: '记忆文件读不了: ' + describeError(error) }
+    }
+    const where = chatId.startsWith('group:') ? '群' + chatId.slice('group:'.length) : '私聊'
+    const line = '- ' + day + '（' + where + '）' + body
+    const next = confirmed
+      ? insertUnderHeading(current, confirmedNotesHeading(confirmedBy), line)
+      : insertUnderHeading(current, NOTES_HEADING, line, LEGACY_NOTES_HEADINGS)
+    await mkdir(dirname(file), { recursive: true })
+    await writeFileAtomic(file, next)
+    if (!confirmed) counter.add(chatId, now())
+    return { ok: true, line }
+  })
 }
 
 /** Test hook: forget the per-day counters. */

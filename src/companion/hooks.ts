@@ -133,11 +133,13 @@ export class CompanionHooks {
   }
 
   /** The qq_memory_note writer, or undefined when no memory file is set. */
-  memoryNoteWriter(): ((chatId: string, text: string) => Promise<NoteResult>) | undefined {
+  memoryNoteWriter(): ((chatId: string, text: string, byAdmin: boolean) => Promise<NoteResult>) | undefined {
     const memoryFile = this.config.publicMemoryFile ?? ''
     const groupRoot = this.config.groupMemoryDir ?? ''
     if (memoryFile === '' && groupRoot === '') return undefined
-    return async (chatId, text) => {
+    return async (chatId, text, byAdmin) => {
+      // An admin's own request (QQ number verified for this turn) is a confirmed note.
+      const confirmedBy = byAdmin ? this.owner : undefined
       if (!chatId.startsWith('group:')) {
         return { ok: false as const, reason: '私聊里请直接改记忆文件，这个工具只给群聊用' }
       }
@@ -145,9 +147,9 @@ export class CompanionHooks {
       if (groupRoot !== '') {
         const groupId = chatId.slice('group:'.length)
         await ensureGroupMemory(groupRoot, groupId)
-        return appendMemoryNote(groupMemoryPaths(groupRoot, groupId).file, chatId, text, undefined, this.config.groupMemoryMaxBytes)
+        return appendMemoryNote(groupMemoryPaths(groupRoot, groupId).file, chatId, text, undefined, this.config.groupMemoryMaxBytes, undefined, confirmedBy)
       }
-      return appendMemoryNote(memoryFile, chatId, text, undefined, this.config.publicMemoryMaxBytes)
+      return appendMemoryNote(memoryFile, chatId, text, undefined, this.config.publicMemoryMaxBytes, undefined, confirmedBy)
     }
   }
 }
