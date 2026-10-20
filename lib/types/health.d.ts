@@ -60,6 +60,9 @@ export interface HealthDeps {
     /** W3/T4 (P3): the reference stamped into the exported archive file name
      * (explicit /healthcheck export argument, or the latest recorded fault). */
     triggerRef?: string;
+    /** Extra report lines from the companion features (QQ liveness, plans,
+     * memory sizes); absent = no companion section. */
+    companion?: () => Promise<string[]>;
     log(level: 'info' | 'warn', message: string): void;
 }
 /** Redact a config snapshot: secret-looking keys become 已配置/未配置, nested

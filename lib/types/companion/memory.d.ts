@@ -16,13 +16,29 @@ export type NoteResult = {
     reason: string;
 };
 /**
+ * Per-chat per-day note counters. In-memory by default; with a state file the
+ * counts survive restarts (only today's counts are kept).
+ */
+export declare class NoteCounter {
+    private day;
+    private counts;
+    private readonly state;
+    constructor(file?: string, log?: (level: 'info' | 'warn' | 'error' | 'debug', message: string) => void);
+    load(now?: number): Promise<void>;
+    used(chatId: string, now: number): number;
+    add(chatId: string, now: number): void;
+    clear(): void;
+}
+/** Use a persistent counter for appendMemoryNote calls without one. */
+export declare function setDefaultNoteCounter(counter: NoteCounter): void;
+/**
  * Append one hearsay note to the public memory file, under NOTES_HEADING.
  * @param file - the public AGENTS.md path (fixed by config, never by the model).
  * @param chatId - where the note came from (recorded on the line).
  * @param text - the note.
  * @param maxBytes - refuse once the file reaches this size.
  */
-export declare function appendMemoryNote(file: string, chatId: string, text: string, now?: () => number, maxBytes?: number): Promise<NoteResult>;
+export declare function appendMemoryNote(file: string, chatId: string, text: string, now?: () => number, maxBytes?: number, counter?: NoteCounter): Promise<NoteResult>;
 /** Test hook: forget the per-day counters. */
 export declare function resetNoteCounts(): void;
 /** A new group's memory file (her notes about that group only). */

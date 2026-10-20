@@ -224,6 +224,8 @@ export interface BridgeDeps {
     ctx: SessionEventPort;
     /** runtime group allowlist for /group (absent = disabled). */
     groupAccess?: GroupAccessLike;
+    /** Companion lines for /doctor (liveness, plans, memory sizes). */
+    companionStatus?: () => Promise<string[]>;
     /** per-chat activity (idle reset, handoff recap, diary input). */
     activity?: ChatActivity;
     /** proactive wake-ups (for /task listing and run-now). */
@@ -330,6 +332,8 @@ export declare class ChatBridge {
     private pluginVersion;
     private pluginCommit;
     private stopping;
+    /** companion behavior (session renewal, pass marker, wake-up texts). */
+    private readonly companion;
     constructor(deps: BridgeDeps);
     /** Start listening: wire connection handlers and the session event feed. */
     start(): void;

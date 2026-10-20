@@ -35,7 +35,10 @@ export declare class ProactiveScheduler {
     private readonly random;
     private day;
     private plan;
+    /** Wake-ups actually fired today (persisted with the plan). */
+    private firedToday;
     private timer;
+    private readonly state;
     constructor(options: {
         config: ProactiveConfig;
         activity: ChatActivity;
@@ -47,7 +50,19 @@ export declare class ProactiveScheduler {
         log: Log;
         now?: () => number;
         random?: () => number;
+        /** Persist today's plan and fired count (a restart keeps them). */
+        stateFile?: string;
     });
+    /** Restore today's plan from the state file (a restart mid-day keeps the
+     * remaining slots and the count instead of drawing a fresh day). */
+    load(): Promise<void>;
+    /** Snapshot for /doctor. */
+    snapshot(): {
+        day: string;
+        remaining: string[];
+        firedToday: number;
+    };
+    private persist;
     start(intervalMs?: number): void;
     stop(): void;
     /** Today's remaining wake-up times as HH:MM (for /task listing). */
