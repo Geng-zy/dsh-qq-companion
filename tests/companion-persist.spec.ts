@@ -162,3 +162,34 @@ describe('NoteCounter persistence', () => {
     expect(c.used('group:1', at(12, 0))).toBe(0)
   })
 })
+
+describe('feature interplay: proactive check-in vs session renewal', () => {
+  it('a check-in stays in the aged session; the owner\'s reply renews it with the check-in in the handoff', async () => {
+    const { makeCmdHarness } = await import('./helpers/bridge-harness.js')
+    let now = Date.now()
+    const activity = new ChatActivity({ mediaDir: tmp(), log: () => undefined, now: () => now })
+    const h = await makeCmdHarness({ activity, privateResetDays: 1 })
+    h.sendText('今天好累')
+    await vi.waitFor(() => expect(h.captured.followups).toHaveLength(1))
+    const first = h.captured.followups[0].sessionId
+    await h.bridge.sendToChat('private:10001' as never, '摸摸头', { humanize: true })
+
+    now += 3 * 86_400_000
+    await h.bridge.fireCheckin('private:10001' as never, { time: '15:00', unanswered: 0, lastUserAt: now - 3 * 86_400_000 })
+    await vi.waitFor(() => expect(h.captured.followups).toHaveLength(2))
+    expect(h.captured.followups[1].sessionId).toBe(first)
+    expect(h.captured.followups[1].text).toContain('主动聊天的机会')
+    await h.bridge.sendToChat('private:10001' as never, '主人在干嘛呀', { humanize: true })
+    expect(activity.botLinesSinceUser('private:10001')).toBe(2)
+
+    h.sendText('在上班')
+    await vi.waitFor(() => expect(h.captured.followups).toHaveLength(3))
+    expect(h.captured.followups[2].sessionId).not.toBe(first)
+    expect(h.captured.followups[2].text).toContain('这是一个新会话')
+    expect(h.captured.followups[2].text).toContain('你：主人在干嘛呀')
+    expect(activity.botLinesSinceUser('private:10001')).toBe(0)
+    h.client.close()
+    await h.bridge.stop()
+    await h.connection.stop()
+  })
+})
