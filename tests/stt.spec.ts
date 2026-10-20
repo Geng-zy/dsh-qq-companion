@@ -11,7 +11,7 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { recordResult } from '../src/inbound.js'
-import { MAX_QUEUE, Transcriber, cleanTranscript, parseSherpaOutput, transcriptLabel, type SttConfig } from '../src/stt.js'
+import { MAX_QUEUE, Transcriber, applyReplacements, cleanTranscript, parseSherpaOutput, transcriptLabel, type SttConfig } from '../src/stt.js'
 
 afterEach(() => { vi.unstubAllEnvs() })
 
@@ -42,6 +42,15 @@ function voice(content = 'ID3 fake mp3 bytes'): string {
 const base: SttConfig = { enabled: true, engine: 'auto', command: '', args: [], model: '', language: 'zh', timeoutMs: 5_000, maxSeconds: 60 }
 
 describe('engines', () => {
+  it('the fix-up table corrects the transcript before she sees it', async () => {
+    await fakeTools({ 'sherpa-onnx-offline': 'echo "{\\"text\\": \\"<|zh|>大飞鱼你在做什么\\"}"' })
+    const dir = tmp('stt-sv-')
+    writeFileSync(join(dir, 'tokens.txt'), 'x')
+    writeFileSync(join(dir, 'model.int8.onnx'), 'x')
+    const t = new Transcriber({ ...base, engine: 'sherpa-onnx', model: dir, replacements: { 大飞鱼: '大肥鱼' } })
+    expect(await t.transcribe(voice())).toBe('大肥鱼你在做什么')
+  })
+
   it('whisper-cpp: runs whisper-cli with the model and language, and cleans the output', async () => {
     await fakeTools({ 'whisper-cli': 'echo "  今天吃什么 [BLANK_AUDIO] "; echo "$@" > "$(dirname "$0")/args"' })
     const model = join(tmp('stt-model-'), 'ggml-small.bin')
@@ -136,5 +145,21 @@ describe('output handling', () => {
     expect(recordResult({ file: '/home/napcat/cache/a.mp3' })).toEqual({ url: undefined, file: 'file:///home/napcat/cache/a.mp3' })
     expect(recordResult({ file: 'hash-only' })).toBeUndefined()
     expect(recordResult(undefined)).toBeUndefined()
+  })
+})
+
+describe('applyReplacements', () => {
+  it('replaces every occurrence, longer keys first, in a single pass', () => {
+    expect(applyReplacements('大飞鱼大飞鱼', { 大飞鱼: '大肥鱼' })).toBe('大肥鱼大肥鱼')
+    expect(applyReplacements('小大飞鱼呀', { 大飞鱼: '大肥鱼', 小大飞鱼: '小肥鱼' })).toBe('小肥鱼呀')
+    // a replacement is never fed back in (飞→肥, 肥→胖 does not chain)
+    expect(applyReplacements('飞', { 飞: '肥', 肥: '胖' })).toBe('肥')
+  })
+
+  it('treats keys literally and ignores empty keys or a missing table', () => {
+    expect(applyReplacements('a.b a*b', { 'a.b': 'x' })).toBe('x a*b')
+    expect(applyReplacements('abc', { '': 'x' })).toBe('abc')
+    expect(applyReplacements('abc', undefined)).toBe('abc')
+    expect(applyReplacements('abc', {})).toBe('abc')
   })
 })

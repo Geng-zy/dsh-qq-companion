@@ -67,6 +67,7 @@ export interface Config {
   sttTimeoutMs: number
   sttLanguage: string
   sttMaxSeconds: number
+  sttReplacements: Record<string, string>
   textImageThreshold: number
   cardFooter: string
   splitLines: boolean
@@ -226,6 +227,8 @@ export const Config: Z<Config> = z.object({
     .description('只转写每条语音的前多少秒'),
   sttTimeoutMs: z.number().default(60_000)
     .description('单次转写超时（毫秒）；超时后她只看到 [语音]'),
+  sttReplacements: z.dict(z.string()).default({})
+    .description('转写纠错表：识别结果里的“左边”换成“右边”再交给她，用来纠正识别引擎不认识的名字，例如 { 大飞鱼: 大肥鱼 }；长的词优先，替换只做一遍'),
   textImageThreshold: z.number().default(150)
     .description('回复正文超过该长度（字符数）时渲染为文字图卡片发送；<=0 禁用卡片路径'),
   splitLines: z.boolean().default(false)

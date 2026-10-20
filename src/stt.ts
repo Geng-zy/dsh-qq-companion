@@ -39,6 +39,9 @@ export interface SttConfig {
   timeoutMs: number
   /** Only the first this-many seconds are transcribed. */
   maxSeconds?: number
+  /** Fix-ups applied to every transcript: misheard text → what was meant
+   * (e.g. 大飞鱼 → 大肥鱼, a name the engine cannot know). */
+  replacements?: Readonly<Record<string, string>>
 }
 
 /** Most transcriptions waiting behind the running one. */
@@ -134,6 +137,17 @@ export function cleanTranscript(raw: string): string {
   for (const pattern of HALLUCINATIONS) text = text.replace(pattern, '').trim()
   const chars = Array.from(text)
   return chars.length > MAX_TRANSCRIPT_CHARS ? chars.slice(0, MAX_TRANSCRIPT_CHARS).join('') + '…' : text
+}
+
+/** Apply the transcript fix-up table. Longer keys go first, so a longer
+ * phrase wins over a shorter one it contains; empty keys are ignored. */
+export function applyReplacements(text: string, replacements: Readonly<Record<string, string>> | undefined): string {
+  if (replacements === undefined) return text
+  const keys = Object.keys(replacements).filter(key => key !== '').sort((a, b) => b.length - a.length)
+  if (keys.length === 0) return text
+  // One pass over the text, so a replacement is never replaced again.
+  const pattern = new RegExp(keys.map(key => key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|'), 'g')
+  return text.replace(pattern, match => replacements[match] ?? match)
 }
 
 /** sherpa-onnx prints a JSON object with "text" (on stdout or stderr, depending on version). */
@@ -239,7 +253,7 @@ export class Transcriber {
       const wav = join(work, 'audio.wav')
       const seconds = Math.max(1, this.config.maxSeconds ?? 60)
       await runProcess(ffmpeg, ['-nostdin', '-v', 'error', '-y', '-i', filePath, '-t', String(seconds), '-ac', '1', '-ar', '16000', '-f', 'wav', wav], Math.min(this.config.timeoutMs, 30_000))
-      return cleanTranscript(await this.runEngine(engine, wav, filePath))
+      return applyReplacements(cleanTranscript(await this.runEngine(engine, wav, filePath)), this.config.replacements)
     } finally {
       await rm(work, { recursive: true, force: true })
     }

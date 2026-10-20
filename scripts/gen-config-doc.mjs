@@ -10,6 +10,7 @@ const typeOf = schema => {
   if (schema.type === 'union') return schema.list.map(item => JSON.stringify(item.value ?? item.type)).join(' / ')
   if (schema.type === 'array') return typeOf(schema.inner ?? { type: 'any' }) + '[]'
   if (schema.type === 'const') return JSON.stringify(schema.value)
+  if (schema.type === 'dict') return '{ 键: ' + typeOf(schema.inner ?? { type: 'any' }) + ' }'
   return schema.type
 }
 

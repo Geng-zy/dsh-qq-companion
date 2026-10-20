@@ -171,6 +171,7 @@ export function apply(ctx: Context, config: Config): void {
     model: config.sttModel,
     language: config.sttLanguage,
     maxSeconds: config.sttMaxSeconds,
+    replacements: config.sttReplacements,
     timeoutMs: config.sttTimeoutMs,
   })
   connection.onMessage = (event: OneBotEvent) => {

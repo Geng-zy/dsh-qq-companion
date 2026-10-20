@@ -47,6 +47,7 @@
 | `sttLanguage` | string | `"auto"` | 语音的语言：auto 自动判断，或 zh / en / ja 等 |
 | `sttMaxSeconds` | number | `60` | 只转写每条语音的前多少秒 |
 | `sttTimeoutMs` | number | `60000` | 单次转写超时（毫秒）；超时后她只看到 [语音] |
+| `sttReplacements` | { 键: string } | `{}` | 转写纠错表：识别结果里的“左边”换成“右边”再交给她，用来纠正识别引擎不认识的名字，例如 { 大飞鱼: 大肥鱼 }；长的词优先，替换只做一遍 |
 | `textImageThreshold` | number | `150` | 回复正文超过该长度（字符数）时渲染为文字图卡片发送；<=0 禁用卡片路径 |
 | `splitLines` | boolean | `false` | 模型最终回复按行拆成多条消息发送（一句一条），中间按字数停顿模拟打字 |
 | `splitMaxMessages` | number | `6` | 一条回复最多拆成几条；行数超过它（列表、代码等）就整段发送 |
