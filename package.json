@@ -105,8 +105,7 @@
     "build": "./scripts/build.sh",
     "test": "vitest run",
     "e2e": "node scripts/e2e.mjs",
-    "coverage": "vitest run --coverage",
-    "verify:lan-management": "node scripts/verify-lan-management.mjs"
+    "coverage": "vitest run --coverage"
   },
   "author": "Geng-zy",
   "contributors": [

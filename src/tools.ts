@@ -269,7 +269,7 @@ export function registerTools(
     },
     output: { schema: { type: 'json' }, render: (_args: unknown, value: unknown) => [{ type: 'text', text: JSON.stringify(value, null, 2) }] },
     isConcurrencySafe: () => true,
-    execute: async (args, exec) => {
+    execute: async args => {
       const a = args as { action?: unknown; params?: unknown }
       if (typeof a.action !== 'string' || !NAPCAT_API_WHITELIST.includes(a.action)) {
         throw new Error('qq_napcat_api: action 不在白名单内（' + NAPCAT_API_WHITELIST.join(', ') + '）')

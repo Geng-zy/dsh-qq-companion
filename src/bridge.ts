@@ -44,7 +44,7 @@ import { DEFAULT_DEFERRED_TIMEOUT_MS } from './deferred.js'
 import { describeError, errorStack } from './errors.js'
 import { currentTrace, newTraceId, runWithTrace, TRACE_REASONS } from './trace.js'
 import type { TraceSink, TraceScope } from './trace.js'
-import { healthReport, exportDiagnostics, redactSnapshot } from './health.js'
+import { healthReport, exportDiagnostics } from './health.js'
 import type { HealthDeps } from './health.js'
 import { FailureRefRegistry, failureRefSuffix } from './ref.js'
 import type { FailureRefKind } from './ref.js'
@@ -344,8 +344,6 @@ export class ChatBridge {
    * removal — bounded by the chat population). */
   private readonly queueNoticeChats = new Set<ChatId>()
   /** Plugin version + git commit, read once for /ver. */
-  private pluginVersion: string | undefined
-  private pluginCommit: string | undefined
   private stopping = false
 
   /** companion behavior (session renewal, pass marker, wake-up texts). */
@@ -1135,7 +1133,7 @@ export class ChatBridge {
    * `connection.onFailure`); the returned reference is appended to the
    * transport's own log line. */
   registerConnectionFailure(stage: string, detail: string): string {
-    return this.mintFailureRef('conn', 'connection', detail)
+    return this.mintFailureRef('conn', 'connection', stage !== '' ? '[' + stage + '] ' + detail : detail)
   }
 
   /** T4: message-fault reference entry for command-plane failures (e.g. the

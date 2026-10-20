@@ -246,7 +246,7 @@ export class DeferredDelivery {
    * 掉）：terminal entries（delivered/failed/uncertain/cancelled，只是可
    * 观测快照）；以及 in-flight 让位路径上的错误/取消类收尾——在途补发循环
    * 只持有回合 A 的 text 副本，回合 B 的错误 reason 不会被它送达。 */
-  onTurnEnd(chatId: string, sessionId: string, reason: DeferredTurnReason | undefined, ref?: string): boolean {
+  onTurnEnd(_chatId: string, sessionId: string, reason: DeferredTurnReason | undefined, ref?: string): boolean {
     this.clearTimer(sessionId)
     const entry = this.entries.get(sessionId)
     if (entry === undefined) return false

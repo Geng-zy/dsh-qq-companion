@@ -476,7 +476,7 @@ export class OneBotConnection {
     socket.on('error', error => {
       this.log('warn', 'forward WS error: ' + describeError(error))
     })
-    socket.on('close', (code, reason) => {
+    socket.on('close', code => {
       if (this.socket !== socket) return // stale socket: a newer dial has replaced it
       this.socket = undefined
       this.stopHeartbeat()
@@ -623,7 +623,7 @@ export class OneBotConnection {
   }
 
   private failAllPending(error: Error): void {
-    for (const [echo, pending] of this.pending) {
+    for (const pending of this.pending.values()) {
       clearTimeout(pending.timer)
       pending.reject(error)
     }

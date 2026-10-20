@@ -237,7 +237,7 @@ export class InterimTracker {
    * 90s timer already revoked during the turn are skipped (already gone).
    * Recall failure is logged only — the summary card still carries the text.
    */
-  private async recallLoopMessages(chatId: ChatId, chat: InterimChat, buf: Array<{ id: string; text: string }>): Promise<void> {
+  private async recallLoopMessages(_chatId: ChatId, chat: InterimChat, buf: Array<{ id: string; text: string }>): Promise<void> {
     for (const { id } of buf) {
       if (chat.recalledInterimIds.has(id)) continue
       this.clearInterimTimer(chat, id)
@@ -252,7 +252,7 @@ export class InterimTracker {
   }
 
   /** Fire when an interim's own 90s timer elapses mid-turn: revoke it alone. */
-  private revokeInterim(chatId: ChatId, chat: InterimChat, id: string): void {
+  private revokeInterim(_chatId: ChatId, chat: InterimChat, id: string): void {
     chat.recallTimers.delete(id)
     this.ctx.call('delete_msg', { message_id: id }).then(() => {
       chat.recalledInterimIds.add(id)
