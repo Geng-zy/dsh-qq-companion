@@ -82,6 +82,8 @@ export interface Config {
     stickerDailyMax: number;
     privateResetDays: number;
     groupResetDays: number;
+    privateSessionKeepDays: number;
+    groupSessionKeepDays: number;
     proactiveEnabled: boolean;
     proactiveChatId: string;
     proactiveWindowStart: string;

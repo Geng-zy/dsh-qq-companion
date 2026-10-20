@@ -24,6 +24,11 @@ export declare class ChatRegistry {
     constructor(deps: RegistryDeps);
     /** Every retired session id (the ledger's live set). */
     get retiredSessionIds(): Set<string>;
+    /** Session ids some chat still uses: live chats, evicted-but-resumable
+     * chats, and anything routed to a chat (never deleted by cleanup). */
+    sessionIdsInUse(): Set<string>;
+    /** A session's logs were deleted (old-session cleanup). */
+    forgetSession(sessionId: string): void;
     /** Session ids whose logs are unusable (the ledger's live set). */
     get brokenSessions(): Set<string>;
     /** The (lazy-created) settings entry for one chat. */

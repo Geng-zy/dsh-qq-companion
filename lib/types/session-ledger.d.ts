@@ -48,6 +48,9 @@ export declare class SessionLedger {
     /** Record a just-soft-retired session for its chat: deduped by id (a
      * re-retire refreshes it to the front), newest first, capped. */
     recordSwitchable(chatId: ChatId, sessionId: string): void;
+    /** A session's logs were deleted: drop it from every chat's switch-back
+     * list (it stays retired, so its id is never created again). */
+    forgetSession(sessionId: string): void;
     removeSwitchable(chatId: ChatId, sessionId: string): void;
 }
 export {};

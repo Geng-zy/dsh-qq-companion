@@ -102,6 +102,10 @@ export declare class ChatBridge {
     /** A group left the allowlist: retire its session so that, if it is ever
      * allowed again, it starts fresh under the current preset. */
     retireGroup(groupId: string): Promise<void>;
+    /** Session ids some chat still uses (old-session cleanup never deletes these). */
+    sessionIdsInUse(): Set<string>;
+    /** A session's logs were deleted by the old-session cleanup. */
+    forgetSession(sessionId: string): void;
     /** On startup: retire sessions of groups that are no longer allowed (the
      * allowlist may have changed in the config while dsh was down). */
     retireDisallowedGroups(): Promise<void>;
