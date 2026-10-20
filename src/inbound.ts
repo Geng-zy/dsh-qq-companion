@@ -209,6 +209,10 @@ export class InboundPipeline {
   /** dedup window state: "chatId#messageId" → first-seen epoch ms, in
    * insertion order (Map) so the oldest entry is the LRU victim. */
   private readonly seenMessages = new Map<string, number>()
+  /** Messages are prepared one at a time, across all chats, in arrival
+   * order: a voice message waiting for its transcript (or an image still
+   * downloading) is never overtaken by a later message. */
+  private queue: Promise<void> = Promise.resolve()
 
   constructor(ctx: InboundContext, options: InboundPipelineOptions = {}) {
     this.ctx = ctx
@@ -223,7 +227,15 @@ export class InboundPipeline {
     return this.seenMessages.size
   }
 
-  async processInbound(inbound: NormalizedInbound): Promise<void> {
+  /** Prepare one message and hand it to the model — after every message
+   * that arrived before it (see `queue`). */
+  processInbound(inbound: NormalizedInbound): Promise<void> {
+    const run = this.queue.then(() => this.processNow(inbound))
+    this.queue = run.catch(() => undefined)
+    return run
+  }
+
+  private async processNow(inbound: NormalizedInbound): Promise<void> {
     if (this.duplicated(inbound)) return
     const { kind, userId, groupId, chatId } = inbound
     if (this.ctx.config.ignoreSelf && this.ctx.selfId() !== '' && userId === this.ctx.selfId()) {

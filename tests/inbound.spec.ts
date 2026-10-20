@@ -69,6 +69,27 @@ describe('inbound pipeline', () => {
     await h.connection.stop()
   })
 
+  it('a failed group turn is reported to the owner privately, not shown in the group', async () => {
+    const h = await makeHarness()
+    h.client.send(JSON.stringify({
+      post_type: 'message', message_type: 'group', user_id: 10003, group_id: 888, self_id: 10002,
+      message: [{ type: 'at', data: { qq: '10002' } }, { type: 'text', data: { text: '你好' } }],
+      raw_message: '[CQ:at,qq=10002]你好', sender: { user_id: 10003, nickname: '群友' },
+    }))
+    await vi.waitFor(() => expect(h.captured.followups).toHaveLength(1))
+    h.ctx.emit('session/event', { id: h.sessionIds[0] } as never, makeEvent('turn/end', {
+      turn: 1,
+      reason: { kind: 'error', error: { code: 'E_TEST', message: '模型炸了' } },
+    }))
+    await vi.waitFor(() => {
+      expect(h.outbound.some(f => f.action === 'send_msg' && (f.params as { user_id?: number }).user_id === 10001 && JSON.stringify(f.params).includes('群 888 里运行出错'))).toBe(true)
+    })
+    expect(h.outbound.some(f => (f.params as { group_id?: number }).group_id === 888 && JSON.stringify(f.params).includes('运行出错'))).toBe(false)
+    h.client.close()
+    await h.bridge.stop()
+    await h.connection.stop()
+  })
+
   it('keeps hostile group nicknames from forging prefix lines', async () => {
     const h = await makeHarness()
     h.client.send(JSON.stringify({

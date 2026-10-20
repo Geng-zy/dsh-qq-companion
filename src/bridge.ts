@@ -751,11 +751,7 @@ export class ChatBridge {
           void this.registry.healSessionCollision(chatId)
         }
         if (!deferredTracked && this.deps.config.sendErrorNotice) {
-          this.sendToChat(chatId, '⚠️ 运行出错：' + message + failureRefSuffix(errorRef), { queuable: true }).catch((error: unknown) => {
-            // the send failure used to be swallowed.
-            this.deps.log('debug', '错误通知发送失败: ' + describeError(error))
-            trace?.emit('notice', { ok: false, reason: TRACE_REASONS.noticeErrorSendFailed })
-          })
+          this.sendErrorNotice(chatId, message + failureRefSuffix(errorRef), trace)
         }
       }
       this.stopTyping(chat)
@@ -771,6 +767,25 @@ export class ChatBridge {
         trace?.emit('notice', { ok: false, reason: '会话落盘失败: ' + String(error) })
       })
       this.registry.saveMappingDebounced()
+    }
+  }
+
+  /** A failed turn's notice goes to the owner only: in their own private
+   * chat it is shown there; a failure in a group or someone else's private
+   * chat is reported to the owner privately, never shown to other people. */
+  private sendErrorNotice(chatId: ChatId, detail: string, trace: TraceScope | undefined): void {
+    const ref = splitChatId(chatId)
+    const targets: Array<{ chat: ChatId; text: string }> = this.isAdminPrivate(chatId)
+      ? [{ chat: chatId, text: '⚠️ 运行出错：' + detail }]
+      : this.deps.policy.adminUsers.map(admin => ({
+        chat: buildChatId('private', admin),
+        text: '⚠️ ' + (ref.kind === 'group' ? '群 ' + ref.target : '和 ' + ref.target + ' 的私聊') + ' 里运行出错：' + detail,
+      }))
+    for (const target of targets) {
+      this.sendToChat(target.chat, target.text, { queuable: true }).catch((error: unknown) => {
+        this.deps.log('debug', '错误通知发送失败: ' + describeError(error))
+        trace?.emit('notice', { ok: false, reason: TRACE_REASONS.noticeErrorSendFailed })
+      })
     }
   }
 

@@ -1,7 +1,6 @@
 /**
  * Media handling: inbound download/resolution (url / base64:// / file:// /
  * hash via get_image), 6h temp-file cleanup, and outbound base64 encoding.
- * Ported from the Hermes OneBotAdapter media half.
  * @module dsh-qq-companion/media
  */
 
@@ -36,6 +35,8 @@ export interface MediaStoreDownloadOptions {
   maxBytes?: number
   /** Escape hatch for local/NAT reverse-proxy deployments: skip the private-address check (protocol whitelist still applies). */
   allowPrivateHosts?: boolean
+  /** Plugin log for failures (absent = console). */
+  log?: (level: 'warn', message: string) => void
 }
 
 /**
@@ -48,6 +49,7 @@ export class MediaStore {
   private readonly imageMaxSize: number
   private readonly downloadMaxBytes: number
   private readonly allowPrivateHosts: boolean
+  private readonly log: (level: 'warn', message: string) => void
 
   /**
    * @param dir - absolute scratch directory (created on demand).
@@ -63,6 +65,7 @@ export class MediaStore {
     this.imageMaxSize = imageMaxSize
     this.downloadMaxBytes = download.maxBytes ?? 0
     this.allowPrivateHosts = download.allowPrivateHosts ?? false
+    this.log = download.log ?? ((_level, message) => console.warn('[qq-companion] ' + message))
   }
 
   /** Ensure the scratch directory exists. */
@@ -99,7 +102,7 @@ export class MediaStore {
         }
       }
     } catch (error) {
-      console.warn('[qq-companion] media cleanup failed:', describeError(error))
+      this.log('warn', 'media cleanup failed: ' + describeError(error))
     }
   }
 
@@ -122,7 +125,7 @@ export class MediaStore {
         const shrunk = await shrinkImage(result.path, this.imageMaxSize)
         if (shrunk !== undefined) result.path = shrunk
       } catch (error) {
-        console.warn('[qq-companion] image shrink failed, keeping original:', describeError(error))
+        this.log('warn', 'image shrink failed, keeping original: ' + describeError(error))
       }
     }
     return result
@@ -177,7 +180,7 @@ export class MediaStore {
       }
       return undefined
     } catch (error) {
-      console.warn('[qq-companion] media resolve failed:', describeError(error))
+      this.log('warn', 'media resolve failed: ' + describeError(error))
       return undefined
     }
   }

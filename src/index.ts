@@ -161,7 +161,7 @@ export function apply(ctx: Context, config: Config): void {
       log,
     },
   )
-  const media = new MediaStore(mediaDir, config.tempTtlHours, config.inboundImageMaxPx, { maxBytes: config.inboundFileMaxBytes, allowPrivateHosts: config.allowPrivateHosts })
+  const media = new MediaStore(mediaDir, config.tempTtlHours, config.inboundImageMaxPx, { maxBytes: config.inboundFileMaxBytes, allowPrivateHosts: config.allowPrivateHosts, log })
   // the trace sink exists only when explicitly enabled — default off
   // means no sink, no traceIds, no jsonl, zero behavior difference.
   const traceSink = config.traceEnabled

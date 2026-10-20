@@ -99,4 +99,27 @@ describe('voice transcript wait', () => {
     await h.bridge.stop()
     await h.connection.stop()
   })
+
+  it('messages are prepared in arrival order across chats: a later text never overtakes a voice still being transcribed', async () => {
+    let finish!: (text: string) => void
+    const h = await makeHarness({
+      transcriber: { enabled: true, transcribe: vi.fn(() => new Promise<string>(resolve => { finish = resolve })) } as never,
+    })
+    h.client.send(JSON.stringify(voiceEvent))
+    await vi.waitFor(() => expect(finish).toBeDefined())
+    h.client.send(JSON.stringify({
+      post_type: 'message', message_type: 'group', user_id: 10003, group_id: 888, self_id: 10002,
+      message: [{ type: 'at', data: { qq: '10002' } }, { type: 'text', data: { text: '群里后发的一句' } }],
+      raw_message: '[CQ:at,qq=10002]群里后发的一句', sender: { user_id: 10003, nickname: '群友' },
+    }))
+    await new Promise(resolve => setTimeout(resolve, 100))
+    expect(h.captured.followups).toHaveLength(0)
+    finish('先说的语音')
+    await vi.waitFor(() => expect(h.captured.followups).toHaveLength(2))
+    expect(h.captured.followups[0].text).toContain('先说的语音')
+    expect(h.captured.followups[1].text).toContain('群里后发的一句')
+    h.client.close()
+    await h.bridge.stop()
+    await h.connection.stop()
+  })
 })

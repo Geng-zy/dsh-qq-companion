@@ -25,14 +25,6 @@ export interface OneBotEvent {
   [key: string]: unknown
 }
 
-/** Action-call result from the OneBot endpoint. */
-export interface ActionResult {
-  status: string
-  retcode: number
-  data: unknown
-  wording?: string
-}
-
 /** Transport configuration. */
 export interface ConnectionConfig {
   host: string
