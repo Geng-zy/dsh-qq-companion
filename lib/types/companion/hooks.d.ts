@@ -65,5 +65,5 @@ export declare class CompanionHooks {
      * (taking it clears it). */
     scheduledText(prompt: ScheduledPrompt): string;
     /** The qq_memory_note writer, or undefined when no memory file is set. */
-    memoryNoteWriter(): ((chatId: string, text: string) => Promise<NoteResult>) | undefined;
+    memoryNoteWriter(): ((chatId: string, text: string, byAdmin: boolean) => Promise<NoteResult>) | undefined;
 }

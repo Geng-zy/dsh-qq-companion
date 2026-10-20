@@ -27,7 +27,7 @@ export declare function registerTools(ctx: Context, bridge: ChatBridge, connecti
  * file and section are fixed by config; caps and the keyword fence live in
  * appendMemoryNote.
  */
-export declare function registerMemoryNoteTool(ctx: Context, bridge: ChatBridge, append: (chatId: string, text: string) => Promise<{
+export declare function registerMemoryNoteTool(ctx: Context, bridge: ChatBridge, append: (chatId: string, text: string, byAdmin: boolean) => Promise<{
     ok: true;
     line: string;
 } | {

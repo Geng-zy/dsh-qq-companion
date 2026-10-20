@@ -8,6 +8,8 @@ export declare const NOTE_MAX_CHARS = 120;
 export declare const NOTES_PER_DAY = 10;
 /** Refuse new notes once the file reaches this many bytes. */
 export declare const NOTES_FILE_MAX_BYTES: number;
+/** Section for notes the admin asked for in person (verified by QQ number). */
+export declare const confirmedNotesHeading: (ownerTitle: string) => string;
 export type NoteResult = {
     ok: true;
     line: string;
@@ -31,14 +33,24 @@ export declare class NoteCounter {
 }
 /** Use a persistent counter for appendMemoryNote calls without one. */
 export declare function setDefaultNoteCounter(counter: NoteCounter): void;
+/** Insert `line` at the end of the section under `heading` (created at the
+ * end of the file when missing; `aliases` are older names of the same section). */
+export declare function insertUnderHeading(current: string, heading: string, line: string, aliases?: readonly string[]): string;
 /**
- * Append one hearsay note to the public memory file, under NOTES_HEADING.
- * @param file - the public AGENTS.md path (fixed by config, never by the model).
+ * Append one note to a memory file.
+ * - Default (a group member asked, or the model decided): a hearsay line
+ *   under NOTES_HEADING, behind the keyword fence and the per-day cap.
+ * - `confirmedBy` set (the running turn was started by an admin, verified
+ *   by QQ number — never by message text): a line under
+ *   confirmedNotesHeading, no identity fence and no per-day cap; secrets are
+ *   still refused.
+ * The file size cap applies to both.
+ * @param file - the memory file path (fixed by config, never by the model).
  * @param chatId - where the note came from (recorded on the line).
  * @param text - the note.
  * @param maxBytes - refuse once the file reaches this size.
  */
-export declare function appendMemoryNote(file: string, chatId: string, text: string, now?: () => number, maxBytes?: number, counter?: NoteCounter): Promise<NoteResult>;
+export declare function appendMemoryNote(file: string, chatId: string, text: string, now?: () => number, maxBytes?: number, counter?: NoteCounter, confirmedBy?: string): Promise<NoteResult>;
 /** Test hook: forget the per-day counters. */
 export declare function resetNoteCounts(): void;
 /** A new group's memory file (her notes about that group only). */
