@@ -1,5 +1,10 @@
 # 更新记录
 
+## 1.1.6（2026-10-20）
+
+- 删除 1.1.4 加的发送总量 / 发送间隔上限（`sendMinIntervalMs`、`sendPerMinute`、`sendPerHour`、`sendPerDay`）和群冷却（`groupReplyMaxPerWindow`、`groupReplyWindowMinutes`），设置页里也去掉。发送节奏统一交给 `humanTypingPace`（按真人打字速度）。配置里还写着这些键的话会被忽略。
+- `/doctor` 的发送量改由一个只计数的模块提供。
+
 ## 1.1.5（2026-10-20）
 
 - 新增 `humanTypingPace`：所有发出的消息都按真人打字的速度发——每条消息发出前，按字数等“打完这条字”的时间（`typingDelayPerCharMs`，夹在 `typingDelayMinMs`～`typingDelayMaxMs` 之间），从上一条发出时算起；整个小号同一时间只打一条，几个会话同时回复时自然排队。开启后不再另加拆句之间的停顿。设置页加上这个开关和三个打字速度参数。

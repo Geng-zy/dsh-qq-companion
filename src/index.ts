@@ -11,7 +11,7 @@
 
 import { selfCheck } from './selfcheck.js'
 import { QqLiveness } from './liveness.js'
-import { ChatActivity, DailyScheduler, GroupCooldown, NoteCounter, ProactiveScheduler, SendBudget, TypingPacer, companionStatusLines, setDefaultNoteCounter } from './companion/index.js'
+import { ChatActivity, DailyScheduler, NoteCounter, ProactiveScheduler, SendCounter, TypingPacer, companionStatusLines, setDefaultNoteCounter } from './companion/index.js'
 import type { ScheduledPrompt } from './companion/index.js'
 import { GroupAccess, handleGroupEvent } from './groups.js'
 import type { Context as CordisContext } from '@deepseek-ai/cordis'
@@ -160,12 +160,6 @@ export interface Config {
   splitMaxMessages: number
   groupSplitLines: boolean
   humanTypingPace: boolean
-  sendMinIntervalMs: number
-  sendPerMinute: number
-  sendPerHour: number
-  sendPerDay: number
-  groupReplyMaxPerWindow: number
-  groupReplyWindowMinutes: number
   typingDelayPerCharMs: number
   typingDelayMinMs: number
   typingDelayMaxMs: number
@@ -345,18 +339,6 @@ export const Config: Z<Config> = z.object({
     .description('群聊里也一句一条；false = 群里每次回复只发一条（发送量少很多，降低 QQ 风控概率）'),
   humanTypingPace: z.boolean().default(false)
     .description('防风控：所有发出的消息都按真人打字的速度排队（按字数等 typingDelayPerCharMs，夹在 typingDelayMinMs～typingDelayMaxMs 之间）；整个小号同一时间只“打”一条，几个会话同时回复时自然排队'),
-  sendMinIntervalMs: z.number().default(0)
-    .description('防风控：整个小号两条消息之间至少隔多少毫秒（所有会话合计）；0 = 不限'),
-  sendPerMinute: z.number().default(0)
-    .description('防风控：整个小号每分钟最多发几条，超了排队等；0 = 不限'),
-  sendPerHour: z.number().default(0)
-    .description('防风控：整个小号每小时最多发几条，超了就不发（管理员私聊不受限）；0 = 不限'),
-  sendPerDay: z.number().default(0)
-    .description('防风控：整个小号每天最多发几条，超了就不发（管理员私聊不受限）；0 = 不限'),
-  groupReplyMaxPerWindow: z.number().default(0)
-    .description('群冷却：每个群在 groupReplyWindowMinutes 分钟内最多回群友几轮，超了先不回（管理员不受限）；0 = 不限'),
-  groupReplyWindowMinutes: z.number().default(10)
-    .description('群冷却的时间窗（分钟）'),
   typingDelayPerCharMs: z.number().default(80)
     .description('拆分发送时每个字的打字停顿（毫秒）'),
   typingDelayMinMs: z.number().default(500)
@@ -535,17 +517,9 @@ export function apply(ctx: Context, config: Config): void {
   // chat activity (idle reset / handoff / diary input).
   const activity = new ChatActivity({ mediaDir, log })
   const activityLoaded = activity.load()
-  // Risk control: an account-wide send budget (the admin's own private chat
-  // is exempt from the hour/day caps) and a per-group reply cooldown.
-  const isAdminPrivateChat = (chatId: string): boolean =>
-    chatId.startsWith('private:') && policy.adminUsers.includes(chatId.slice('private:'.length))
-  const sendBudget = new SendBudget({
-    config: { minIntervalMs: config.sendMinIntervalMs, perMinute: config.sendPerMinute, perHour: config.sendPerHour, perDay: config.sendPerDay },
-    isExempt: isAdminPrivateChat,
-    log,
-  })
+  // Counts what the account sends (shown by /doctor).
+  const sendCounter = new SendCounter()
   const typingPacer = new TypingPacer({ config: { perCharMs: config.typingDelayPerCharMs, minMs: config.typingDelayMinMs, maxMs: config.typingDelayMaxMs } })
-  const groupCooldown = new GroupCooldown({ maxTurns: config.groupReplyMaxPerWindow, windowMinutes: config.groupReplyWindowMinutes, log })
   // Per-day memory-note counts survive restarts.
   const noteCounter = new NoteCounter(join(mediaDir, 'note-counts.json'), log)
   setDefaultNoteCounter(noteCounter)
@@ -726,12 +700,10 @@ export function apply(ctx: Context, config: Config): void {
     groupAccess,
     activity,
     ...(config.proactiveEnabled ? { proactive: proactiveHandle } : {}),
-    // Always wired: with every limit at 0 it only counts (for /doctor).
-    sendBudget,
+    sendCounter,
     ...(config.humanTypingPace ? { typingPacer } : {}),
-    ...(config.groupReplyMaxPerWindow > 0 ? { groupCooldown } : {}),
     companionStatus: () => companionStatusLines({
-      sendBudget: () => sendBudget.snapshot(),
+      sendCounter: () => sendCounter.snapshot(),
       liveness: () => liveness.snapshot(),
       scheduler: () => scheduler.snapshot(),
       ...(proactiveRef !== undefined ? { proactive: () => proactiveRef!.snapshot() } : {}),

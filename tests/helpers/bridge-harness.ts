@@ -211,9 +211,8 @@ export async function makeCmdHarness(opts?: {
   groupPolicy?: 'open' | 'allowlist' | 'disabled'
   groupAllowFrom?: string[]
   /** Risk control wiring. */
-  groupCooldown?: { allow(chatId: string, byAdmin: boolean): boolean }
-  sendBudget?: { acquire(chatId: string): Promise<boolean> }
   typingPacer?: { wait(text: string): Promise<void> }
+  sendCounter?: { record(): void }
   splitLines?: boolean
   groupSplitLines?: boolean
 }) {
@@ -280,9 +279,8 @@ export async function makeCmdHarness(opts?: {
       ...(opts?.splitLines !== undefined ? { splitLines: opts.splitLines, typingDelayMinMs: 0, typingDelayMaxMs: 0, typingDelayPerCharMs: 0 } : {}),
       ...(opts?.groupSplitLines !== undefined ? { groupSplitLines: opts.groupSplitLines } : {}),
     },
-    ...(opts?.groupCooldown !== undefined ? { groupCooldown: opts.groupCooldown } : {}),
-    ...(opts?.sendBudget !== undefined ? { sendBudget: opts.sendBudget } : {}),
     ...(opts?.typingPacer !== undefined ? { typingPacer: opts.typingPacer } : {}),
+    ...(opts?.sendCounter !== undefined ? { sendCounter: opts.sendCounter } : {}),
     policy: {
       dmPolicy: 'open', groupPolicy: opts?.groupPolicy ?? 'open', allowFrom: [], groupAllowFrom: opts?.groupAllowFrom ?? [],
       adminUsers: ['10001'], allowAllUsers: opts?.allowAllUsers ?? false, requireMention: true,

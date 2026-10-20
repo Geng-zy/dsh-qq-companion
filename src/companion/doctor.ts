@@ -7,12 +7,12 @@ import { readdir, stat } from 'node:fs/promises'
 import { join } from 'node:path'
 
 import type { LivenessSnapshot } from '../liveness.js'
-import type { SendBudgetSnapshot } from './send-budget.js'
+import type { SendCounterSnapshot } from './send-counter.js'
 import { hhmm, minutesOfDay } from './time.js'
 
 export interface CompanionStatusDeps {
   liveness?: () => LivenessSnapshot
-  sendBudget?: () => SendBudgetSnapshot
+  sendCounter?: () => SendCounterSnapshot
   scheduler?: () => Array<{ id: string; time: string; firedToday: boolean }>
   proactive?: () => { remaining: string[]; firedToday: number }
   /** Memory files to size; `max` (bytes) renders a percentage. */
@@ -52,12 +52,8 @@ export async function companionStatusLines(deps: CompanionStatusDeps): Promise<s
     const online = live.online === undefined ? '未知' : live.online ? '在线' : '⚠️ 离线'
     lines.push('QQ 账号：' + online + '（' + beat + (live.intervalMs !== undefined ? '，间隔 ' + Math.round(live.intervalMs / 1000) + ' 秒' : '') + '）')
   }
-  const budget = deps.sendBudget?.()
-  if (budget !== undefined) {
-    const cap = (n: number, limit: number) => n + (limit > 0 ? '/' + limit : '')
-    lines.push('发送量：近 1 分钟 ' + cap(budget.lastMinute, budget.limits.perMinute) + ' · 近 1 小时 ' + cap(budget.lastHour, budget.limits.perHour) + ' · 今天 ' + cap(budget.today, budget.limits.perDay)
-      + (budget.dropped > 0 ? '（今天因额度没发出 ' + budget.dropped + ' 条）' : ''))
-  }
+  const sent = deps.sendCounter?.()
+  if (sent !== undefined) lines.push('发送量：近 1 分钟 ' + sent.lastMinute + ' 条 · 近 1 小时 ' + sent.lastHour + ' 条 · 今天 ' + sent.today + ' 条')
   const tasks = deps.scheduler?.() ?? []
   if (tasks.length > 0) {
     const nowMin = minutesOfDay(now())

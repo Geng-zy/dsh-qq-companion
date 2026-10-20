@@ -74,8 +74,8 @@ export interface OutboundContext {
   call(action: string, params: Record<string, unknown>, chatId?: ChatId): Promise<unknown>
   /** Bridge stop flag: the B6 drain must never run while stopping. */
   isStopping(): boolean
-  /** Account-wide send budget (risk control); false = drop this send. */
-  sendBudget?: { acquire(chatId: string): Promise<boolean> }
+  /** Called after each message went out (send counting for /doctor). */
+  onSent?: (chatId: ChatId) => void
   /** Account-wide human typing pace: every send waits its typing time. */
   typingPacer?: { wait(text: string): Promise<void> }
   /** Bridge log line callback. */
@@ -480,11 +480,8 @@ export class OutboundPipeline {
     if (this.ctx.typingPacer !== undefined) {
       await this.ctx.typingPacer.wait(segments.map(s => (s.type === 'text' ? String((s.data as { text?: unknown }).text ?? '') : '')).join(''))
     }
-    if (this.ctx.sendBudget !== undefined && !(await this.ctx.sendBudget.acquire(chatId))) {
-      this.ctx.trace?.(chatId, { stage: 'outbound', ok: false, reason: '发送额度用完，未发送（防风控）' })
-      return undefined
-    }
     const data = await this.ctx.call('send_msg', params, chatId) as { message_id?: number | string }
+    this.ctx.onSent?.(chatId)
     return data.message_id !== undefined ? String(data.message_id) : undefined
   }
 
@@ -512,7 +509,6 @@ export class OutboundPipeline {
     const target = Number(ref.target)
     if (!Number.isFinite(target)) throw new OneBotActionError('invalid chat target: ' + chatId)
     if (this.ctx.typingPacer !== undefined) await this.ctx.typingPacer.wait(nodes.map(n => n.content).join(''))
-    if (this.ctx.sendBudget !== undefined && !(await this.ctx.sendBudget.acquire(chatId))) return
     const messages = nodes.map(node => ({
       type: 'node',
       data: {
@@ -526,5 +522,6 @@ export class OutboundPipeline {
     } else {
       await this.ctx.call('send_private_forward_msg', { user_id: target, messages }, chatId)
     }
+    this.ctx.onSent?.(chatId)
   }
 }

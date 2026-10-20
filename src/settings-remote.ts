@@ -71,7 +71,7 @@ export const SETTINGS_GROUPS: Readonly<Record<string, readonly string[]>> = {
   permissions: ['requireMention', 'adminUsers', 'dmPolicy', 'groupPolicy', 'allowAllUsers', 'allowFrom', 'groupAllowFrom'],
   behavior: ['interimMessages', 'interimRecall', 'interimRecallMs', 'sendErrorNotice', 'unknownCommand', 'rateLimitPerMinute', 'newMessagePolicy', 'autoSteerPolicy', 'deferredTimeoutMs'],
   diagnostics: ['actionAuditEnabled', 'traceEnabled', 'recordInbound', 'inboxRedact', 'injectEnabled', 'injectDryRun'],
-  companion: ['ownerTitle', 'agentPreset', 'adminPreset', 'adminPermission', 'adminWorkspacePath', 'splitLines', 'splitMaxMessages', 'textImageThreshold', 'inboundImageMaxPx', 'autoAcceptAdminRequests', 'autoAllowInvitedGroups', 'groupSplitLines', 'humanTypingPace', 'typingDelayPerCharMs', 'typingDelayMinMs', 'typingDelayMaxMs', 'sendMinIntervalMs', 'sendPerMinute', 'sendPerHour', 'sendPerDay', 'groupReplyMaxPerWindow', 'groupReplyWindowMinutes'],
+  companion: ['ownerTitle', 'agentPreset', 'adminPreset', 'adminPermission', 'adminWorkspacePath', 'splitLines', 'splitMaxMessages', 'textImageThreshold', 'inboundImageMaxPx', 'autoAcceptAdminRequests', 'autoAllowInvitedGroups', 'groupSplitLines', 'humanTypingPace', 'typingDelayPerCharMs', 'typingDelayMinMs', 'typingDelayMaxMs'],
   memory: ['idleResetHours', 'privateResetDays', 'groupResetDays', 'publicMemoryFile', 'publicMemoryMaxBytes', 'groupMemoryDir', 'groupMemoryMaxBytes'],
   proactive: ['proactiveEnabled', 'proactiveChatId', 'proactiveWindowStart', 'proactiveWindowEnd', 'proactiveMinPerDay', 'proactiveMaxPerDay', 'proactiveMinGapMinutes', 'proactiveSkipIfActiveMinutes', 'proactiveMaxUnanswered'],
 }
@@ -118,12 +118,6 @@ export const SCHEMA_DEFAULTS: Readonly<Record<string, unknown>> = {
   typingDelayMinMs: 500,
   typingDelayMaxMs: 2500,
   groupSplitLines: true,
-  sendMinIntervalMs: 0,
-  sendPerMinute: 0,
-  sendPerHour: 0,
-  sendPerDay: 0,
-  groupReplyMaxPerWindow: 0,
-  groupReplyWindowMinutes: 10,
   ownerTitle: '管理员',
   agentPreset: '',
   adminPreset: '',
@@ -168,7 +162,6 @@ const ENUM_KEYS: Readonly<Record<string, readonly string[]>> = {
 }
 const NUMBER_KEYS: readonly string[] = ['port', 'interimRecallMs', 'rateLimitPerMinute', 'deferredTimeoutMs',
   'splitMaxMessages', 'textImageThreshold', 'inboundImageMaxPx', 'idleResetHours', 'privateResetDays', 'groupResetDays', 'publicMemoryMaxBytes', 'groupMemoryMaxBytes', 'proactiveMinPerDay', 'proactiveMaxPerDay', 'proactiveMinGapMinutes', 'proactiveSkipIfActiveMinutes', 'proactiveMaxUnanswered',
-  'sendMinIntervalMs', 'sendPerMinute', 'sendPerHour', 'sendPerDay', 'groupReplyMaxPerWindow', 'groupReplyWindowMinutes',
   'typingDelayPerCharMs', 'typingDelayMinMs', 'typingDelayMaxMs']
 /** 数字键取值范围（评审 B4：port 1–65535、时长/频控 ≥0；越界在 Remote 层拒绝，不再只依赖宿主回滚兜底）。 */
 const NUMBER_RANGE: Readonly<Record<string, readonly [number, number | undefined]>> = {
@@ -179,12 +172,6 @@ const NUMBER_RANGE: Readonly<Record<string, readonly [number, number | undefined
   typingDelayPerCharMs: [0, undefined],
   typingDelayMinMs: [0, undefined],
   typingDelayMaxMs: [0, undefined],
-  sendMinIntervalMs: [0, undefined],
-  sendPerMinute: [0, undefined],
-  sendPerHour: [0, undefined],
-  sendPerDay: [0, undefined],
-  groupReplyMaxPerWindow: [0, undefined],
-  groupReplyWindowMinutes: [0, undefined],
   splitMaxMessages: [0, undefined],
   textImageThreshold: [0, undefined],
   inboundImageMaxPx: [0, undefined],
