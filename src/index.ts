@@ -41,8 +41,6 @@ let VOICE_MAX_BYTES: number
 let MEDIA_MAX_BYTES: number
 let Transcriber: typeof import('./stt.js').Transcriber
 let TraceSink: typeof import('./trace.js').TraceSink
-let InboundRecorder: typeof import('./record.js').InboundRecorder
-let InjectChannel: typeof import('./inject.js').InjectChannel
 let redactSnapshot: typeof import('./health.js').redactSnapshot
 let describeError: typeof import('./errors.js').describeError
 
@@ -53,8 +51,6 @@ try {
   ;({ MediaStore, IMAGE_MAX_BYTES, VOICE_MAX_BYTES, MEDIA_MAX_BYTES } = await import('./media.js'))
   ;({ Transcriber } = await import('./stt.js'))
   ;({ TraceSink } = await import('./trace.js'))
-  ;({ InboundRecorder } = await import('./record.js'))
-  ;({ InjectChannel } = await import('./inject.js'))
   ;({ redactSnapshot } = await import('./health.js'))
   ;({ describeError } = await import('./errors.js'))
 } catch (error) {
@@ -207,16 +203,6 @@ export interface Config {
   traceEnabled: boolean
   /** W1: trace level; 'warn' records only ok:false (rejected/failed/dropped) events. */
   traceLevel: 'debug' | 'warn'
-  /** W1/T5: record every inbound event into mediaDir/qq-inbox.jsonl (default off). */
-  recordInbound: boolean
-  /** W1/T5: mask 6+ digit runs (QQ/group numbers) in the recording (default off). */
-  inboxRedact: boolean
-  /** W1/T5 (DEBUG-ONLY): enable the qq-inject.jsonl injection channel (default off). */
-  injectEnabled: boolean
-  /** W1/T5: intercept all outbound writes of injected rounds (default true). */
-  injectDryRun: boolean
-  /** W1/T5: inject queue poll interval in ms (min 500). */
-  injectIntervalMs: number
   /** Console log gate: messages below this level are dropped (debug < info < warn < error). */
   logLevel: 'debug' | 'info' | 'warn' | 'error'
 }
@@ -421,16 +407,6 @@ export const Config: Z<Config> = z.object({
     .description('链路追踪（W1）：为每条入站消息生成 traceId 并贯穿入站→模型回合→出站，决策事件（含限流/去重/白名单/@ 门控/闸门拒发与每个静默丢弃分支的中文 reason）逐行 JSON 落盘 mediaDir/qq-trace.jsonl（4MiB 改名轮转，保留 qq-trace.1/2.jsonl；同一原因 5 分钟限频）；默认关闭——关闭时不生成 traceId、不落盘、决策行为与 0.6.0 完全一致'),
   traceLevel: z.union([z.const('debug'), z.const('warn')]).default('debug')
     .description('追踪事件级别（W1）：debug=记录全部决策事件；warn=仅记录 ok:false（被拒/失败/丢弃）事件'),
-  recordInbound: z.boolean().default(false)
-    .description('入站录制（W1）：把收到的每条入站事件（含被门控跳过的，附当时决策 reason）按可回放形状逐行 JSON 追加写 mediaDir/qq-inbox.jsonl（2MiB 改名轮转，保留 qq-inbox.1/2.jsonl；注入的帧不会被二次录制）；纯旁路：写失败仅 warn 限频，绝不影响回复管线；默认关闭——零文件零开销'),
-  inboxRedact: z.boolean().default(false)
-    .description('录制脱敏（W1）：落盘前把帧中 6 位以上的数字串（QQ 号/群号等）脱敏为前 3 位+****（数字型 id 字段一并处理），便于把录制文件发给别人离线回放；默认关闭'),
-  injectEnabled: z.boolean().default(false)
-    .description('事件注入通道（W1，仅调试用——信任边界：注入是调试通道，默认全关，勿在生产开启）：开启后按 injectIntervalMs 轮询 mediaDir/qq-inject.jsonl，把新行喂进真实入站管线（trace 事件标 stage=inject）；启动时已存在的历史行跳过并记一条说明；默认关闭'),
-  injectDryRun: z.boolean().default(true)
-    .description('注入干跑（W1）：true（默认，强烈建议保持）=注入回合触发的全部出站写操作（发消息/撤回等，含异步模型回合的最终回复——拦截点在出站动作层）被拦截计数、原文进 trace 事件、绝不真发 QQ；false=注入内容会真实发送，仅限隔离环境实验'),
-  injectIntervalMs: z.number().default(2000)
-    .description('注入队列轮询间隔（毫秒，W1；最小 500）'),
   logLevel: z.union([z.const('debug'), z.const('info'), z.const('warn'), z.const('error')]).default('info')
     .description('控制台日志级别门槛（debug < info < warn < error）：低于该级别的日志不输出。debug=全部输出（含「session 事件早退」等调试行）；info=常规信息（启动、连接建立、meta 事件等，默认）；warn=仅警告与错误；error=仅错误'),
 })
@@ -547,23 +523,6 @@ export function apply(ctx: Context, config: Config): void {
   // means no sink, no traceIds, no jsonl, zero behavior difference.
   const traceSink = config.traceEnabled
     ? new TraceSink({ dir: mediaDir, level: config.traceLevel, log: (level, message) => log(level, message) })
-    : undefined
-  // W1/T5: the inbound recorder exists only when recordInbound is on (pure
-  // bypass: its own writer, failures only warn); the inject channel only
-  // when injectEnabled is on (DEBUG-ONLY) — both absent by default.
-  const recorder = config.recordInbound
-    ? new InboundRecorder({ dir: mediaDir, redact: config.inboxRedact, log: (level, message) => log(level, message) })
-    : undefined
-  const injectChannel: import('./inject.js').InjectChannel | undefined = config.injectEnabled
-    ? new InjectChannel({
-        dir: mediaDir,
-        dryRun: config.injectDryRun,
-        intervalMs: config.injectIntervalMs,
-        handleEvent: async (event: import('./connection.js').OneBotEvent): Promise<void> =>
-          bridge.handleInbound(event, { injected: true }),
-        trace: traceSink,
-        log: (level, message) => log(level, message),
-      })
     : undefined
   const transcriber = new Transcriber({
     enabled: config.sttEnabled,
@@ -693,8 +652,6 @@ export function apply(ctx: Context, config: Config): void {
       chatIdleEvictDays: config.chatIdleEvictDays,
       ...gateConfig,
       trace: traceSink,
-      recorder,
-      inject: injectChannel,
     },
     policy,
     groupAccess,
@@ -760,13 +717,11 @@ export function apply(ctx: Context, config: Config): void {
     void Promise.all([activityLoaded, scheduler.load(), proactive?.load(), noteCounter.load()]).then(() => { scheduler.start(); proactive?.start() })
     liveness.start()
     connection.start()
-    injectChannel?.start()
     // QQ 平台说明与 qq_* 工具现按会话 agent 注入（见 ChatBridge.installChannelScope）
     return async () => {
       scheduler.stop()
       proactive?.stop()
       liveness.stop()
-      await injectChannel?.stop()
       await bridge.stop()
       // After the bridge: its last replies are recorded too.
       await activity.flush()

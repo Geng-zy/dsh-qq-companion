@@ -70,8 +70,6 @@ export const TRACE_STAGES = {
   queue: '离线队列',
   interim: '中间消息',
   notice: '通知',
-  inject: '事件注入',
-  replay: '离线回放',
   connection: '连接故障（W3/T4 参考号）',
 } as const
 export type TraceStage = keyof typeof TRACE_STAGES

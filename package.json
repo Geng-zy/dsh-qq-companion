@@ -106,8 +106,6 @@
     "test": "vitest run",
     "e2e": "node scripts/e2e.mjs",
     "coverage": "vitest run --coverage",
-    "replay": "node scripts/replay.mjs",
-    "verify:injected-context": "node scripts/verify-injected-context.mjs",
     "verify:lan-management": "node scripts/verify-lan-management.mjs"
   },
   "author": "Geng-zy",

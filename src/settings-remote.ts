@@ -70,7 +70,7 @@ export const SETTINGS_GROUPS: Readonly<Record<string, readonly string[]>> = {
   connection: ['mode', 'host', 'port', 'url', 'accessToken', 'botQQ', 'workspacePath'],
   permissions: ['requireMention', 'adminUsers', 'dmPolicy', 'groupPolicy', 'allowAllUsers', 'allowFrom', 'groupAllowFrom'],
   behavior: ['interimMessages', 'interimRecall', 'interimRecallMs', 'sendErrorNotice', 'unknownCommand', 'rateLimitPerMinute', 'newMessagePolicy', 'autoSteerPolicy', 'deferredTimeoutMs'],
-  diagnostics: ['actionAuditEnabled', 'traceEnabled', 'recordInbound', 'inboxRedact', 'injectEnabled', 'injectDryRun'],
+  diagnostics: ['actionAuditEnabled', 'traceEnabled'],
   companion: ['ownerTitle', 'agentPreset', 'adminPreset', 'adminPermission', 'adminWorkspacePath', 'splitLines', 'splitMaxMessages', 'textImageThreshold', 'inboundImageMaxPx', 'autoAcceptAdminRequests', 'autoAllowInvitedGroups', 'groupSplitLines', 'humanTypingPace', 'typingDelayPerCharMs', 'typingDelayMinMs', 'typingDelayMaxMs'],
   memory: ['idleResetHours', 'privateResetDays', 'groupResetDays', 'publicMemoryFile', 'publicMemoryMaxBytes', 'groupMemoryDir', 'groupMemoryMaxBytes'],
   proactive: ['proactiveEnabled', 'proactiveChatId', 'proactiveWindowStart', 'proactiveWindowEnd', 'proactiveMinPerDay', 'proactiveMaxPerDay', 'proactiveMinGapMinutes', 'proactiveSkipIfActiveMinutes', 'proactiveMaxUnanswered'],
@@ -108,10 +108,6 @@ export const SCHEMA_DEFAULTS: Readonly<Record<string, unknown>> = {
   // W6：W1/W2 可观测/调试布尔键（schema 默认值摘自 src/index.ts:297-317）。
   actionAuditEnabled: true,
   traceEnabled: false,
-  recordInbound: false,
-  inboxRedact: false,
-  injectEnabled: false,
-  injectDryRun: true,
   // dsh-qq-companion 陪伴配置（默认值 = src/index.ts schema）。
   humanTypingPace: false,
   typingDelayPerCharMs: 80,
@@ -192,7 +188,7 @@ const NUMBER_RANGE: Readonly<Record<string, readonly [number, number | undefined
  *  面板仅布尔开关与既有 19 键，调优键仍走 patch config 手改，取舍见 DEVLOG W6）。 */
 const BOOLEAN_KEYS: readonly string[] = [
   'requireMention', 'allowAllUsers', 'interimMessages', 'interimRecall', 'sendErrorNotice',
-  'actionAuditEnabled', 'traceEnabled', 'recordInbound', 'inboxRedact', 'injectEnabled', 'injectDryRun',
+  'actionAuditEnabled', 'traceEnabled',
   'splitLines', 'autoAcceptAdminRequests', 'autoAllowInvitedGroups', 'proactiveEnabled',
   'groupSplitLines',
   'humanTypingPace',

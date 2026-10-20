@@ -44,9 +44,6 @@ import { DEFAULT_DEFERRED_TIMEOUT_MS } from './deferred.js'
 import { describeError, errorStack } from './errors.js'
 import { currentTrace, newTraceId, runWithTrace, TRACE_REASONS } from './trace.js'
 import type { TraceSink, TraceScope } from './trace.js'
-import { runInjectRound, currentInjectRound, isWriteAction, INTERCEPTED_MESSAGE_ID } from './inject.js'
-import type { InjectChannel } from './inject.js'
-import type { InboundRecorder } from './record.js'
 import { healthReport, exportDiagnostics, redactSnapshot } from './health.js'
 import type { HealthDeps } from './health.js'
 import { FailureRefRegistry, failureRefSuffix } from './ref.js'
@@ -161,10 +158,6 @@ export interface TraceBridgeConfig {
   /** W1: decision-trace sink; absent/disabled = no traceIds, no jsonl, zero
    * behavior difference vs 0.6.0. */
   trace?: TraceSink | undefined
-  /** W1/T5: inbound recorder (recordInbound); absent = recording off. */
-  recorder?: InboundRecorder | undefined
-  /** W1/T5: inject channel (injectEnabled, DEBUG-ONLY); absent = channel off. */
-  inject?: InjectChannel | undefined
 }
 
 /** Agent-preset service (dsh-agent-presets): joins agents to a preset composition. */
@@ -346,7 +339,6 @@ export class ChatBridge {
    * (independent of the trace sink, so the dry-run guard covers the async
    * agent reply even with tracing off). Cleared by a real dispatch to the
    * chat or when the chat is removed. */
-  private readonly injectRoundByChat = new Map<ChatId, string>()
   /** T2 (P1): chats that already got the QUEUE_NOTICE_TEXT for their current
    * running turn (one notice per turn; cleared at turn/end and on chat
    * removal — bounded by the chat population). */
@@ -373,10 +365,7 @@ export class ChatBridge {
       isStopping: () => this.stopping,
       onChatRemoved: chat => {
         this.stopTyping(chat)
-        // W1/T5: forget the chat's injected round (and its trace mapping).
-        this.deps.config.inject?.clearChat(chat.chatId)
         this.traceByChat.delete(chat.chatId)
-        this.injectRoundByChat.delete(chat.chatId)
         this.queueNoticeChats.delete(chat.chatId)
       },
       installChannelScope: agentCtx => this.installChannelScope(agentCtx),
@@ -634,28 +623,10 @@ export class ChatBridge {
    * contained: a failure here logs and drops the message, never the host.
    * W1: the whole inbound chain runs inside one trace scope (ALS), so every
    * pipeline decision point can attribute its event to this message's
-   * traceId; disabled = no scope, no id, 0.6.0 behavior. W1/T5: injected
-   * events (opts.injected) run inside their inject round (ALS) so the
-   * dry-run guard covers the whole synchronous chain, and real events are
-   * recorded by the inbound recorder when recordInbound is on (injected
-   * events are never recorded — no inject→record→replay feedback loop).
+   * traceId; tracing off = no scope.
    */
-  async handleInbound(event: OneBotEvent, opts: { injected?: boolean } = {}): Promise<void> {
-    const run = (): Promise<void> => this.handleInboundOnce(event, opts.injected === true)
-    return opts.injected === true
-      ? runInjectRound({ traceId: newTraceId(), intercepted: 0 }, run)
-      : run()
-  }
-
-  private async handleInboundOnce(event: OneBotEvent, injected: boolean): Promise<void> {
-    // Recording: skipped for injected events (they would otherwise feed the
-    // injector again through replay) and skipped when no recorder exists.
-    const recorder = injected ? undefined : this.deps.config.recorder
-    const session = recorder?.begin(event) ?? undefined
-    const trace = this.beginInboundTrace(event)
-    const scope = trace !== undefined
-      ? (session !== undefined ? session.wrapScope(trace) : trace)
-      : session?.captureScope()
+  async handleInbound(event: OneBotEvent): Promise<void> {
+    const scope = this.beginInboundTrace(event)
     try {
       await runWithTrace(scope, async () => {
         if (this.stopping) {
@@ -674,16 +645,11 @@ export class ChatBridge {
     } catch (error) {
       scope?.emit('dispatch', { ok: false, reason: '入站处理失败: ' + describeError(error) })
       this.deps.log('error', 'inbound handling failed: ' + describeError(error) + errorStack(error))
-    } finally {
-      session?.end()
     }
   }
 
   /** W1: mint the inbound traceId + scope and record the first (收到消息)
-   * event; undefined when tracing is off (zero overhead, zero difference).
-   * W1/T5: an injected event REUSES its inject round's traceId, so the whole
-   * injected round (pipeline decisions + intercepted outbound calls) shares
-   * one traceId in the trace stream. */
+   * event; undefined when tracing is off. */
   private beginInboundTrace(event: OneBotEvent): TraceScope | undefined {
     const sink = this.deps.config.trace
     if (sink === undefined || !sink.enabled) return undefined
@@ -692,7 +658,7 @@ export class ChatBridge {
       ? buildChatId(kind, String(kind === 'group' ? event.group_id ?? '' : event.user_id ?? ''))
       : ''
     const messageId = event.message_id === undefined || event.message_id === null ? undefined : String(event.message_id)
-    const traceId = currentInjectRound()?.traceId ?? newTraceId(sink.now())
+    const traceId = newTraceId(sink.now())
     const scope = sink.scope(traceId, chatId, messageId)
     sink.emit({ traceId: scope.traceId, stage: 'inbound', ok: true, chatId, messageId, data: { messageType: String(event.message_type ?? '') } })
     return scope
@@ -739,15 +705,6 @@ export class ChatBridge {
       this.traceByChat.set(chatId, trace.traceId)
       trace.emit('dispatch', { ok: true, reason: '消息已投递给模型' })
     }
-    // W1/T5 inject bookkeeping: an injected dispatch registers its round for
-    // this chat (the async reply stays attributable — INDEPENDENT of tracing,
-    // so the dry-run guard also works with the trace sink off); a real
-    // dispatch clears any leftover injected round so real users are never
-    // collaterally intercepted by the dry-run guard.
-    const injectedRound = currentInjectRound()
-    if (injectedRound !== undefined) this.injectRoundByChat.set(chatId, injectedRound.traceId)
-    else this.injectRoundByChat.delete(chatId)
-    this.deps.config.inject?.noteDispatch(chatId)
     this.startTyping(chat)
   }
 
@@ -993,37 +950,8 @@ export class ChatBridge {
     return this.outbound.sendForward(chatId, nodes)
   }
 
-  // ------------------------------------------------------------ inject dry-run guard
-
-  /**
-   * W1/T5: the single connection-call gate every bridge pipeline
-   * (inbound/outbound/interim/typing) routes through. In inject dry-run
-   * mode, WRITE actions of an injected round are intercepted at this
-   * outbound action layer: counted, traced with the original text, resolved
-   * with the marker message id — the real OneBot connection never sees them.
-   * Attribution: (a) the synchronous chain via the inject round's ALS, (b)
-   * the async agent reply via the chat→round association (injectRoundByChat,
-   * independent of the trace sink), (c) recalls of already-intercepted sends
-   * via the marker message id (a real OneBot id is never negative).
-   */
-  private guardedConnectionCall(action: string, params: Record<string, unknown>, chatId?: ChatId): Promise<unknown> {
-    const inject = this.deps.config.inject
-    if (inject === undefined || !inject.intercepting || !isWriteAction(action)) {
-      return this.deps.connection.call(action, params)
-    }
-    const alsRound = currentInjectRound()
-    if (alsRound !== undefined) return inject.intercept(alsRound, action, params)
-    if (chatId !== undefined) {
-      const round = inject.activeRoundFor(chatId)
-      if (round !== undefined && this.injectRoundByChat.get(chatId) === round.traceId) {
-        return inject.intercept(round, action, params)
-      }
-    }
-    if ((params as { message_id?: unknown }).message_id === INTERCEPTED_MESSAGE_ID) {
-      // Recall of an intercepted send (interim path has no chatId): count it
-      // on the marker rule even without a resolvable round.
-      return inject.intercept(undefined, action, params)
-    }
+  /** Every OneBot action of the bridge goes through here. */
+  private guardedConnectionCall(action: string, params: Record<string, unknown>, _chatId?: ChatId): Promise<unknown> {
     return this.deps.connection.call(action, params)
   }
 
@@ -1038,8 +966,6 @@ export class ChatBridge {
       config?: { mode?: string; host?: string; port?: number }
     }
     const transport = conn.config ?? {}
-    const recorder = this.deps.config.recorder
-    const inject = this.deps.config.inject
     return {
       mediaDir: this.deps.config.mediaDir,
       connection: { connected: this.deps.connection.connected, selfId: this.deps.connection.selfId },
@@ -1055,18 +981,6 @@ export class ChatBridge {
         windowSeconds: (this.deps.config as { dedupWindowSeconds?: number }).dedupWindowSeconds ?? 300,
       },
       writeGate: this.outbound.writeGateStats(),
-      ...(recorder !== undefined
-        ? { recorder: { enabled: true, redact: recorder.redact, written: recorder.getStats().written } }
-        : {}),
-      ...(inject !== undefined
-        ? {
-            inject: {
-              enabled: true, dryRun: inject.intercepting,
-              consumed: inject.getStats().consumed, intercepted: inject.getStats().intercepted,
-              skippedHistory: inject.getStats().skippedHistory,
-            },
-          }
-        : {}),
       configSnapshot: this.deps.configSnapshot?.() ?? {},
       // T4 (P3): the recent fault references for the report section.
       failureRefs: () => this.failureRefs.recent(),
