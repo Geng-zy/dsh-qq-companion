@@ -39,7 +39,8 @@
   "files": [
     "lib",
     "!lib/*.bak-*",
-    "cordis.patch.yml"
+    "cordis.patch.yml",
+    "THIRD-PARTY-NOTICES.md"
   ],
   "license": "BSD-3-Clause",
   "repository": {

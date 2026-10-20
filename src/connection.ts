@@ -53,7 +53,7 @@ export interface ConnectionConfig {
    */
   reconnectMaxAttempts?: number
   /**
-   * M3-E3b: injected log sink (level, message). Absent → a console fallback
+   * injected log sink (level, message). Absent → a console fallback
    * keeps the transport independently usable; index.ts wires the same
    * deps.log the bridge uses.
    */
@@ -79,8 +79,8 @@ const MAX_FRAME_BYTES = 64 * 1024 * 1024
 const CHURN_WINDOW_MS = 60_000
 const CHURN_MAX_REPLACES = 5
 /**
- * W2-① reverse EADDRINUSE retry: fixed 15s backoff until the port is released
- * (competitor parity: measured ≤15s takeover) and no attempt cap — stop() is
+ * reverse EADDRINUSE retry: fixed 15s backoff until the port is released
+ * (measured ≤15s takeover) and no attempt cap — stop() is
  * the only exit. The retry is scheduled, never awaited, so a busy port cannot
  * block or crash the host's startup.
  */
@@ -88,7 +88,7 @@ const REVERSE_RETRY_MS = 15_000
 /** Steady-state log dedup: the first failure plus one error line every 10 minutes. */
 const REVERSE_LOG_EVERY = Math.max(1, Math.round(600_000 / REVERSE_RETRY_MS))
 /**
- * W2-④ forward self-heal (after the reconnect ladder gave up): 15s dials with
+ * forward self-heal (after the reconnect ladder gave up): 15s dials with
  * a rolling-hour cap of SELF_HEAL_HOURLY_CAP attempts; once the budget is
  * exhausted the interval stretches to 60s so a multi-hour outage cannot hammer
  * the peer. The ladder itself ([2,5,10,30,60] + reconnectMaxAttempts) is
@@ -139,7 +139,7 @@ export class OneBotConnection {
    * join/leave notices). Unwired = ignored, the upstream v1 behavior. */
   onNoticeOrRequest: (event: OneBotEvent) => void = () => undefined
   /**
-   * W3/T4 (P3): fault-reference hook, called at the significant connection
+   * fault-reference hook, called at the significant connection
    * failure points (forward reconnect give-up, reverse bind failure, reverse
    * server error) — the bridge implements it by minting/recording/tracing a
    * `QQ-CONN-…` reference; the returned reference is appended to the log
@@ -160,15 +160,15 @@ export class OneBotConnection {
   private connectedFlag = false
   /** Reverse churn guard: timestamps (ms) of recent healthy-socket replacements. */
   private reverseReplaces: number[] = []
-  /** W2-①: pending EADDRINUSE bind retry timer (reverse mode). */
+  /** pending EADDRINUSE bind retry timer (reverse mode). */
   private reverseRetryTimer: ReturnType<typeof setTimeout> | undefined
-  /** W2-①: bind failures since the last successful listen (log dedup + takeover count). */
+  /** bind failures since the last successful listen (log dedup + takeover count). */
   private reverseRetryAttempts = 0
-  /** W2-④: pending self-heal dial timer (forward mode, after the ladder gave up). */
+  /** pending self-heal dial timer (forward mode, after the ladder gave up). */
   private selfHealTimer: ReturnType<typeof setTimeout> | undefined
-  /** W2-④: true from a self-heal dial start until it succeeds (routes failures back to self-heal). */
+  /** true from a self-heal dial start until it succeeds (routes failures back to self-heal). */
   private selfHealing = false
-  /** W2-④: start timestamps (ms) of self-heal dials within the rolling hour. */
+  /** start timestamps (ms) of self-heal dials within the rolling hour. */
   private selfHealTimes: number[] = []
 
   /** The bot's own QQ id, learned from meta events (or config botQQ). */
@@ -208,7 +208,7 @@ export class OneBotConnection {
   }
 
   /**
-   * M3-E3b: the transport's single log exit. The injected config.log is the
+   * the transport's single log exit. The injected config.log is the
    * production sink (index.ts wires the same deps.log the bridge uses); the
    * console fallback keeps the class independently usable. Messages carry no
    * '[qq-companion] ' prefix — the sink owns prefixing.
@@ -247,14 +247,14 @@ export class OneBotConnection {
       this.reconnectTimer = undefined
     }
     this.reconnectPromise = undefined
-    // W2-①: cancel a pending EADDRINUSE bind retry (stop() is the only exit
+    // cancel a pending EADDRINUSE bind retry (stop() is the only exit
     // of that loop, so it must be able to kill it).
     if (this.reverseRetryTimer !== undefined) {
       clearTimeout(this.reverseRetryTimer)
       this.reverseRetryTimer = undefined
     }
     this.reverseRetryAttempts = 0
-    // W2-④: cancel a pending self-heal dial the same way.
+    // cancel a pending self-heal dial the same way.
     if (this.selfHealTimer !== undefined) {
       clearTimeout(this.selfHealTimer)
       this.selfHealTimer = undefined
@@ -339,7 +339,7 @@ export class OneBotConnection {
         this.scheduleReverseRetry(server, error)
         return
       }
-      // W3/T4: a non-EADDRINUSE server error is a significant bridge fault —
+      // a non-EADDRINUSE server error is a significant bridge fault —
       // mint a QQ-CONN reference (bridge hook) and share it with the log line.
       const ref = this.onFailure?.('reverse-server-error', '反向 WS 服务器错误: ' + describeError(error))
       this.log('error', 'reverse WS server error: ' + describeError(error) + (ref !== undefined ? '（参考号 ' + ref + '）' : '') + errorStack(error))
@@ -378,7 +378,7 @@ export class OneBotConnection {
       const address = server.address()
       const shown = typeof address === 'object' && address !== null ? address.address + ':' + address.port : String(address)
       if (this.reverseRetryAttempts > 0) {
-        // W2-①: the port was released while a retry loop was pending — the
+        // the port was released while a retry loop was pending — the
         // takeover is the user-visible payoff, so it gets its own info line.
         this.log('info', 'reverse WS server took over ' + this.config.host + ':' + this.config.port + ' after ' + this.reverseRetryAttempts + ' retry attempt(s): the port was released')
       }
@@ -392,7 +392,7 @@ export class OneBotConnection {
   }
 
   /**
-   * W2-①: EADDRINUSE is no longer a dead end. ws does not emit 'close' after
+   * EADDRINUSE is no longer a dead end. ws does not emit 'close' after
    * a failed bind, so the failed instance would hang on this.server forever —
    * and the start() reentrancy guard would then block even a manual restart.
    * This handler (1) closes and detaches the dead instance, (2) logs with
@@ -421,7 +421,7 @@ export class OneBotConnection {
       // already handled above
     }
     // 2) Log with dedup: attempts 2..REVERSE_LOG_EVERY-1 stay at debug level.
-    //    W3/T4: the reference is minted only when a line is actually logged
+    //    the reference is minted only when a line is actually logged
     //    (steady-state dedup — bind retries must not spam references).
     this.reverseRetryAttempts += 1
     if (this.reverseRetryAttempts === 1 || this.reverseRetryAttempts % REVERSE_LOG_EVERY === 0) {
@@ -456,7 +456,7 @@ export class OneBotConnection {
     this.socket = socket
     socket.on('open', () => {
       this.reconnectAttempts = 0
-      // W2-④: a successful dial (initial, ladder retry, or self-heal) fully
+      // a successful dial (initial, ladder retry, or self-heal) fully
       // restores normal reconnect semantics and resets the self-heal budget.
       this.selfHealing = false
       this.selfHealTimes = []
@@ -494,7 +494,7 @@ export class OneBotConnection {
     // delay at its last value).
     const max = this.config.reconnectMaxAttempts ?? MAX_RECONNECT_ATTEMPTS
     if (max > 0 && this.reconnectAttempts > max) {
-      // W3/T4: the give-up is the ladder's terminal fault point — one
+      // the give-up is the ladder's terminal fault point — one
       // QQ-CONN reference for the whole outage (individual ladder retries
       // stay reference-free to avoid fault storms).
       const ref = this.onFailure?.('forward-reconnect-give-up', 'forward 重连 ' + max + ' 次后放弃（reconnectMaxAttempts=' + max + '），转入慢速自愈')
@@ -529,7 +529,7 @@ export class OneBotConnection {
   }
 
   /**
-   * W2-④: long-period recovery after the reconnect ladder gave up. Dials every
+   * long-period recovery after the reconnect ladder gave up. Dials every
    * 15s, but a rolling-hour budget of SELF_HEAL_HOURLY_CAP attempts applies;
    * once exhausted the interval stretches to 60s, so a multi-hour outage dials
    * at most 15s×budget + 60/hour afterwards instead of hammering the peer.

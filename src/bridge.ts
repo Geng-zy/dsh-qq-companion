@@ -49,7 +49,7 @@ import type { HealthDeps } from './health.js'
 import { FailureRefRegistry, failureRefSuffix } from './ref.js'
 import type { FailureRefKind } from './ref.js'
 import type { TraceStage } from './trace.js'
-/** T2 (P1): the queue notice sent to a chat when a message arrives while its
+/** the queue notice sent to a chat when a message arrives while its
  * task is running under the default 'queue' policy — at most ONE per running
  * turn (the flag resets at turn/end) so a burst of queued messages never
  * spams the chat. Exported for the deterministic text wait in tests. */
@@ -60,7 +60,7 @@ export interface BridgeConfig {
   botQQ: string
   ignoreSelf: boolean
   requireMention: boolean
-  /** Unknown slash-command handling (R1): 'intercept' (default) consumes the
+  /** Unknown slash-command handling: 'intercept' (default) consumes the
    * message with a closest-match suggestion or a hint; 'passthrough' restores
    * the old fall-through to the model. */
   unknownCommand?: 'intercept' | 'passthrough'
@@ -69,12 +69,12 @@ export interface BridgeConfig {
    * while the turn is still running (QQ recall window ~2 min); absent → 90s.
    * At turn/end the remaining originals are recalled immediately regardless. */
   interimRecallMs?: number
-  /** M3-D2b degrade switch: false = send-only interims — no auto-recall
+  /** degrade switch: false = send-only interims — no auto-recall
    * timers, no turn/end immediate recall and no summary card (the turn ends
    * with the final text only). Absent/true = the full recall behavior. */
   interimRecall?: boolean
   sendErrorNotice: boolean
-  /** B7: per-chat per-minute sliding-window cap for normal (non-command)
+  /** per-chat per-minute sliding-window cap for normal (non-command)
    * messages; absent → 30, 0 disables. */
   rateLimitPerMinute?: number
   restrictedMemberPrefix: boolean
@@ -113,7 +113,7 @@ export interface BridgeConfig {
   ownerTitle?: string
   /** public memory size cap for qq_memory_note (bytes). */
   publicMemoryMaxBytes?: number
-  /** per-group memory root (groups/<群号>/AGENTS.md); '' = shared. */
+  /** per-group memory root; '' = shared. */
   groupMemoryDir?: string
   /** per-group memory size cap (bytes). */
   groupMemoryMaxBytes?: number
@@ -126,11 +126,11 @@ export interface BridgeConfig {
   workspacePath: string
   /** Max inbound file bytes fetched via QQ direct link / base64 (0 = no cap). */
   maxInboundFileBytes: number
-  /** B8c: chats idle longer than this many days are evicted on the next
+  /** chats idle longer than this many days are evicted on the next
    * inbound message (0 disables; default 7). Evicted chats keep their
    * chat→session mapping, so a later message resumes the same session. */
   chatIdleEvictDays?: number
-  /** T2 (P1): how a new ordinary message is handled while the chat's task
+  /** how a new ordinary message is handled while the chat's task
    * (agent turn) is running; absent → 'queue' (the default). 'queue' = the
    * message keeps the 0.8.1 dispatch path (agent.followup queues it as the
    * next turn — consumed AFTER the current turn ends, in arrival order) and
@@ -139,23 +139,23 @@ export interface BridgeConfig {
    * supplementary instruction into the running turn via the same
    * agent.steer kernel as steerTranscript, with a per-message submit notice. */
   newMessagePolicy?: 'queue' | 'steer'
-  /** T9-B (用户裁决 2026-10-12)：steer 模式下自动插话的发送者资格档位；
+  /** (用户裁决 2026-10-12)：steer 模式下自动插话的发送者资格档位；
    * absent → 'admin'（缺省）。'admin' = 仅管理员可自动插话；'all' = 所有
    * 非受限发送者均可。不改变 /steer 命令（始终仅管理员）与 queue 模式行为，
    * 也不放宽受限用户软限制（受限消息任何档都排队）。 */
   autoSteerPolicy?: 'admin' | 'all'
-  /** T3 (P2)：等待模型回复超时阈值（ms）——回合超过该时长没有任何模型输出
+  /** 等待模型回复超时阈值（ms）——回合超过该时长没有任何模型输出
    * 时提示超时并登记补发跟踪（deferred delivery），回合完成后向原聊天补发
    * 最终文字（「（超时补发）」前缀，走既有 outbound 管线）；absent →
    * 600000（保守 10 分钟），0 = 关闭超时补发。 */
   deferredTimeoutMs?: number
 }
 
-/** W1 trace/config extensions: the observability knobs ride as optional
- * members (same pattern as the W2-②③ gate keys) so the declared BridgeConfig
- * shape above stays untouched; absent = the feature is off (0.6.0 behavior). */
+/** trace/config extensions: the observability knobs ride as optional
+ * members (same pattern as the dedup / write-gate keys) so the declared
+ * BridgeConfig shape above stays untouched; absent = the feature is off. */
 export interface TraceBridgeConfig {
-  /** W1: decision-trace sink; absent/disabled = no traceIds, no jsonl, zero
+  /** decision-trace sink; absent/disabled = no traceIds, no jsonl, zero
    * behavior difference vs 0.6.0. */
   trace?: TraceSink | undefined
 }
@@ -223,7 +223,7 @@ export interface AgentDefaultModelLike {
   saveSelection(next: ModelSelection): Promise<void>
 }
 
-/** Live model-catalog port (M2-C5b): the only llm surface the command domain
+/** Live model-catalog port: the only llm surface the command domain
  * reads (/model). index.ts implements it over a live llm-service lookup so
  * late-registered providers stay visible; commands never touch Context. */
 export interface LlmCatalogPort {
@@ -231,7 +231,7 @@ export interface LlmCatalogPort {
   listModels(provider: string): Promise<LlmModelInfo[]>
 }
 
-/** Session-event feed port (M2-C5b): the narrowed event-bus surface the bridge
+/** Session-event feed port: the narrowed event-bus surface the bridge
  * subscribes to, replacing the whole-plugin Context. index.ts satisfies it
  * with the host context itself (its event-bus `on` IS the implementation); the
  * BridgeDeps field keeps the historical name `ctx` because existing test
@@ -241,7 +241,7 @@ export interface SessionEventPort {
   on(type: 'session/flush', handler: (session: Session) => void): () => void
 }
 
-/** Services the bridge needs (M2-C5b: the plugin Context enters only through
+/** Services the bridge needs (the plugin Context enters only through
  * the two explicit ports below — session events and the /model catalog). */
 export interface BridgeDeps {
   ctx: SessionEventPort
@@ -262,7 +262,7 @@ export interface BridgeDeps {
    * Absent in test assemblies = no gate (matches the previously swallowed
    * lookup). Must not reject. */
   hostReady?: (() => Promise<void>) | undefined
-  /** Live model-catalog port for /model (M2-C5b); index.ts implements it over
+  /** Live model-catalog port for /model; index.ts implements it over
    * the live llm service. Absent only in assemblies that never route /model. */
   llmCatalog?: LlmCatalogPort | undefined
   connection: OneBotConnection
@@ -288,7 +288,7 @@ export interface BridgeDeps {
   defaultModel: (() => ModelSelection | undefined) | undefined
   config: BridgeConfig & TraceBridgeConfig
   policy: AccessPolicyConfig
-  /** W1/T5 health: the ALREADY-redacted plugin config snapshot (secrets
+  /** health: the ALREADY-redacted plugin config snapshot (secrets
    * replaced by 已配置/未配置 — see health.redactSnapshot). Absent = the
    * /healthcheck diagnostics export renders without a config section. */
   configSnapshot?: (() => Record<string, unknown>) | undefined
@@ -302,21 +302,21 @@ export interface BridgeDeps {
  */
 export class ChatBridge {
   private readonly deps: BridgeDeps
-  /** Outbound pipeline (D1-PR2): the same-name bridge methods below delegate here. */
+  /** Outbound pipeline: the same-name bridge methods below delegate here. */
   private readonly outbound: OutboundPipeline
-  /** The chat↔session registry (D1-PR3): chats/bySession dual index, the
+  /** The chat↔session registry: chats/bySession dual index, the
    * persistence pair, per-chat settings and the create/resume assembly. */
   private readonly registry: ChatRegistry
-  /** Inbound pipeline (D1-PR4): normalizeOneBot11 + the policy→media→quote→
+  /** Inbound pipeline: normalizeOneBot11 + the policy→media→quote→
    * dispatch path; the same-name bridge methods below delegate here. */
   private readonly inbound: InboundPipeline
-  /** Interim domain (D1-PR5): the assistant/message interim routing, the
+  /** Interim domain: the assistant/message interim routing, the
    * per-message recall timers and the turn/end settlement. */
   private readonly interim: InterimTracker
-  /** T3 (P2): the deferred-delivery tracker (超时补发) — timeout timers, the
+  /** the deferred-delivery tracker (超时补发) — timeout timers, the
    * JSONL registry, bounded send retries and restart recovery. */
   private readonly deferred: DeferredDelivery
-  /** T4 (P3): the bounded registry of recent fault references — every minted
+  /** the bounded registry of recent fault references — every minted
    * QQ-CONN-/MF- number is recorded here for the /healthcheck report and the
    * diagnostics archive file name. */
   private readonly failureRefs = new FailureRefRegistry()
@@ -326,7 +326,7 @@ export class ChatBridge {
   private get bySession(): Map<string, ChatId> { return this.registry.bySession }
   private sessionEventOff: (() => void) | undefined
   private sessionFlushOff: (() => void) | undefined
-  /** W1: chat-level traceId association table — session events arrive on a
+  /** chat-level traceId association table — session events arrive on a
    * different async chain than the inbound pipeline, so dispatchFollowup
    * records the initiating traceId per chat here and onSessionEvent reads it
    * back (agent 回复事件归属发起 traceId). Last dispatch wins; entries are
@@ -335,11 +335,11 @@ export class ChatBridge {
    * would orphan exactly that reply's outbound events. One entry per chat
    * id (bounded by the chat population), so growth is not a concern. */
   private readonly traceByChat = new Map<ChatId, string>()
-  /** W1/T5: chatId → the traceId of the chat's unsettled INJECTED round
+  /** chatId → the traceId of the chat's unsettled INJECTED round
    * (independent of the trace sink, so the dry-run guard covers the async
    * agent reply even with tracing off). Cleared by a real dispatch to the
    * chat or when the chat is removed. */
-  /** T2 (P1): chats that already got the QUEUE_NOTICE_TEXT for their current
+  /** chats that already got the QUEUE_NOTICE_TEXT for their current
    * running turn (one notice per turn; cleared at turn/end and on chat
    * removal — bounded by the chat population). */
   private readonly queueNoticeChats = new Set<ChatId>()
@@ -386,7 +386,7 @@ export class ChatBridge {
       config: deps.config,
       ...(deps.sendCounter !== undefined ? { onSent: () => deps.sendCounter!.record() } : {}),
       ...(deps.typingPacer !== undefined ? { typingPacer: deps.typingPacer } : {}),
-      // W1: outbound decision events ride the chat's initiating traceId; a
+      // outbound decision events ride the chat's initiating traceId; a
       // write with no mapped trace (proactive tool sends) starts a fresh one.
       trace: (chatId, event) => {
         const sink = deps.config.trace
@@ -468,7 +468,7 @@ export class ChatBridge {
       await this.registry.loadRetired()
       await this.registry.loadSwitchable()
       await this.registry.loadMapping()
-      // T3 (P2): restore deferred-delivery tracking（未完结条目在该会话的
+      // restore deferred-delivery tracking（未完结条目在该会话的
       // 下一次 turn/end 兑现；损坏行降级跳过）。
       await this.deferred.loadPersisted()
     }).then(() => {
@@ -489,7 +489,7 @@ export class ChatBridge {
       this.sessionFlushOff = undefined
     }
     await this.registry.stop()
-    // T3 (P2): disarm the deferred silent-wait timers（pending 条目已落盘，
+    // disarm the deferred silent-wait timers（pending 条目已落盘，
     // 重启后 loadPersisted 恢复跟踪续投）。
     this.deferred.stopAll()
   }
@@ -502,7 +502,7 @@ export class ChatBridge {
   /** Whether a caller backing an agent session may perform file edits. QQ chats
    * require the currently running turn's initiator to be an admin (role frozen
    * from the dispatch queue at turn/start); non-QQ sessions (Web and other
-   * channels) are trusted by default (A1 scoping). Unknown states fail closed
+   * channels) are trusted by default. Unknown states fail closed
    * as member. */
   canEditFiles(sessionId: string): boolean {
     const chatId = this.bySession.get(sessionId)
@@ -511,9 +511,9 @@ export class ChatBridge {
   }
 
   /**
-   * Outbound media fence roots for one agent session's current turn (M1-A3b):
+   * Outbound media fence roots for one agent session's current turn:
    * the plugin media dir always, plus the chat's workspace directory when the
-   * running turn's initiator is an admin. The role reuses the M1-A2 turn-level
+   * running turn's initiator is an admin. The role reuses the turn-level
    * semantics (canEditFiles: frozen at turn/start, fail-closed member); a
    * session with no known chat stays mediaDir-only even though canEditFiles
    * would trust it — the media gate itself fails closed. Roots are
@@ -619,7 +619,7 @@ export class ChatBridge {
   /**
    * Inbound OneBot message event → agent turn. All policy and media work is
    * contained: a failure here logs and drops the message, never the host.
-   * W1: the whole inbound chain runs inside one trace scope (ALS), so every
+   * the whole inbound chain runs inside one trace scope (ALS), so every
    * pipeline decision point can attribute its event to this message's
    * traceId; tracing off = no scope.
    */
@@ -646,7 +646,7 @@ export class ChatBridge {
     }
   }
 
-  /** W1: mint the inbound traceId + scope and record the first (收到消息)
+  /** mint the inbound traceId + scope and record the first (收到消息)
    * event; undefined when tracing is off. */
   private beginInboundTrace(event: OneBotEvent): TraceScope | undefined {
     const sink = this.deps.config.trace
@@ -678,11 +678,11 @@ export class ChatBridge {
     if (nickname !== undefined && nickname !== '') chat.lastNickname = nickname
     chat.lastFollowup = text
     chat.lastActivityAt = Date.now()
-    // M3-D2a: a dispatched user turn starts a fresh interim cycle (the
+    // a dispatched user turn starts a fresh interim cycle (the
     // inbound residue reset already cleared the loop fields directly).
     this.interim.onNewUserTurn(chat)
     // Queue this turn's initiator role; the host's turn/start freezes it as
-    // the running turn's role (M1-A2). Push and followup happen synchronously,
+    // the running turn's role. Push and followup happen synchronously,
     // so the role cannot interleave with another dispatch.
     chat.pendingTurnRoles.push(role)
     // no message text in the host log (it is the system journal).
@@ -694,7 +694,7 @@ export class ChatBridge {
       content: [{ type: 'text', text: final }],
       source: { kind: 'plugin:dsh-onebot' },
     }))
-    // W1 cross-stream join: the turn's session events arrive on a different
+    // cross-stream join: the turn's session events arrive on a different
     // async chain, so record this dispatch's traceId per chat for
     // onSessionEvent to pick up (runs inside the inbound ALS scope — command
     // dispatches reach here through the same await chain).
@@ -728,7 +728,7 @@ export class ChatBridge {
     relayCards(this.cardRelayCtx, chatId, content)
   }
 
-  /** The CardRelayContext handed to the card relay (D1-PR2): the outbound
+  /** The CardRelayContext handed to the card relay: the outbound
    * send path plus the bridge log — the only capabilities the relay touches. */
   private get cardRelayCtx(): CardRelayContext {
     return {
@@ -747,7 +747,7 @@ export class ChatBridge {
    * @param chatId - the chat the command arrived in.
    * @param text - parsed inbound text.
    * @param userId - sender QQ number.
-   * @param nickname - sender display name (pre-sanitized; T9-A /steer boundary).
+   * @param nickname - sender display name (pre-sanitized at the /steer boundary).
    * @returns true when the message was consumed by a command.
    */
   private tryHandleCommand(chatId: ChatId, text: string, userId: string, nickname?: string): Promise<boolean> {
@@ -755,7 +755,7 @@ export class ChatBridge {
   }
 
   /**
-   * The CommandContext handed to the command table (D1-PR1): exposes exactly
+   * The CommandContext handed to the command table: exposes exactly
    * the bridge capabilities the routed commands use, resolved live per
    * invocation (the llm catalog especially must stay a live service lookup).
    */
@@ -773,15 +773,15 @@ export class ChatBridge {
       hasChat: chatId => bridge.chats.has(chatId),
       resetChat: chatId => bridge.resetChat(chatId),
       dispatchFollowup: (chatId, text, role, nickname) => bridge.dispatchFollowup(chatId, text, role, nickname),
-      // T3 (P2): /stop 也显式终止该聊天的超时补发跟踪（其他聊天不受影响）。
+      // /stop 也显式终止该聊天的超时补发跟踪（其他聊天不受影响）。
       stopDeferredTracking: chatId => bridge.deferred.cancelChat(chatId),
-      // T2 (P1): /steer — the bridge-owned steer core keeps the createUserMessage
+      // /steer — the bridge-owned steer core keeps the createUserMessage
       // source write point in bridge.ts (producer-owned kind, session-v4 guard).
       steerRunningTurn: (chatId, text) => bridge.steerMessage(chatId, text),
       effectiveCwd: chatId => bridge.effectiveCwd(chatId),
       sessionIdFromMapping: chatId => bridge.sessionIdFromMapping(chatId),
       resolvePresetId: chatId => bridge.resolvePresetId(chatId),
-      // T3: /workspace persists with the chat mapping (debounced). When the
+      // /workspace persists with the chat mapping (debounced). When the
       // chat is not live, noteWorkspaceOverride snapshots it into the registry
       // so the flush actually reaches the mapping file instead of being
       // dropped by the chats/evictedChats-only rewrite.
@@ -794,13 +794,13 @@ export class ChatBridge {
       setPresetOverride: (chatId, id) => { bridge.registry.setPresetOverride(chatId, id) },
       hasPresetOverride: chatId => bridge.registry.getSettings(chatId).presetOverride !== undefined,
       interimOverride: chatId => bridge.registry.getSettings(chatId).interimOverride,
-      // D4b: /mode and /goal persist with the chat mapping (debounced).
+      // /mode and /goal persist with the chat mapping (debounced).
       setInterimOverride: (chatId, value) => { bridge.registry.getSettings(chatId).interimOverride = value; bridge.registry.saveMappingDebounced() },
       goal: chatId => bridge.registry.getSettings(chatId).goal,
       setGoal: (chatId, value) => { bridge.registry.getSettings(chatId).goal = value; bridge.registry.saveMappingDebounced() },
       deleteGoal: chatId => { bridge.registry.getSettings(chatId).goal = undefined; bridge.registry.saveMappingDebounced() },
       lastImagePath: chatId => bridge.registry.getSettings(chatId).lastImagePath,
-      // R2: pending serial-number selection snapshot (lazy TTL lives in commands).
+      // pending serial-number selection snapshot (lazy TTL lives in commands).
       pendingSelection: chatId => bridge.registry.getSettings(chatId).pendingSelection,
       setPendingSelection: (chatId, value) => { bridge.registry.getSettings(chatId).pendingSelection = value },
       // /session: the per-chat switchable history and the switch itself.
@@ -823,11 +823,11 @@ export class ChatBridge {
       commands: bridge.deps.commands,
       connection: bridge.deps.connection,
       dshHome: bridge.deps.dshHome,
-      // W1/T5: the healthcheck command renders/packs through the bridge.
+      // the healthcheck command renders/packs through the bridge.
       healthReport: () => bridge.buildHealthReport(),
-      // T4 (P3): export takes an optional trigger reference (file-name stamp).
+      // export takes an optional trigger reference (file-name stamp).
       exportDiagnostics: triggerRef => bridge.exportDiagnosticsPackage(triggerRef),
-      // T4 (P3): command-plane failures (/retry) mint an MF- reference through
+      // command-plane failures (/retry) mint an MF- reference through
       // the bridge's single entry point (registry + trace + structured log).
       reportFailure: (chatId, stage, detail) => bridge.registerMessageFailure(chatId, stage, detail),
       config: { interimMessages: bridge.deps.config.interimMessages, maxImageBytes: bridge.deps.config.maxImageBytes, unknownCommand: bridge.deps.config.unknownCommand },
@@ -852,7 +852,7 @@ export class ChatBridge {
     return this.inbound.resolveMediaRef(ref, chatId)
   }
 
-  /** M3-D4c: steer a completed voice transcript into the chat's agent — the
+  /** steer a completed voice transcript into the chat's agent — the
    * running turn consumes it at its nearest step boundary; an idle agent
    * opens a turn. No live chat (dispatch dropped/never happened) drops it. */
   private steerTranscript(chatId: ChatId, text: string): void {
@@ -861,7 +861,7 @@ export class ChatBridge {
     currentTrace()?.emit('dispatch', { ok: false, reason: TRACE_REASONS.transcriptNoChat })
   }
 
-  /** T2 (P1): the single agent.steer write point — one createUserMessage with
+  /** the single agent.steer write point — one createUserMessage with
    * the producer-owned source kind (the session-v4 guard counts the source
    * write points; this and dispatchFollowup are the only two). Shared by the
    * voice transcript path (steerTranscript), the 'steer' policy and /steer.
@@ -877,13 +877,13 @@ export class ChatBridge {
   }
 
   /**
-   * T2 (P1): the busy-turn policy seam (inbound ctx.interceptBusyTurn).
+   * the busy-turn policy seam (inbound ctx.interceptBusyTurn).
    * Called for every non-command message AFTER all gates, only when deciding
    * what to do with it while the chat's task is running:
    * - no running turn → false (caller dispatches normally; the 0.8.1 path,
    *   byte-identical — also the path for newMessagePolicy缺省 idle traffic);
    * - 'steer' policy + plain text + non-restricted sender + autoSteerPolicy
-   *   eligibility ('admin' 档缺省 = 仅管理员；'all' 档不限，T9-B 用户裁决
+   *   eligibility ('admin' 档缺省 = 仅管理员；'all' 档不限，用户裁决
    *   2026-10-12) → the message is submitted into the running turn via the
    *   steerMessage kernel (consumed at the nearest step boundary, NO new turn)
    *   and a submit notice goes out;
@@ -905,7 +905,7 @@ export class ChatBridge {
     // in the inbound pipeline (group + non-admin + restrictedMemberPrefix).
     const restricted = splitChatId(chatId).kind === 'group'
       && role !== 'admin' && this.deps.config.restrictedMemberPrefix
-    // T9-B: auto-steer eligibility (user ruling 2026-10-12) — 'admin' (缺省)
+    // auto-steer eligibility (user ruling 2026-10-12) — 'admin' (缺省)
     // = admins only; 'all' = anyone. Restricted members stay excluded under
     // both; /steer remains admin-only regardless of this knob; queue mode is
     // untouched.
@@ -953,7 +953,7 @@ export class ChatBridge {
     return this.deps.connection.call(action, params)
   }
 
-  // ------------------------------------------------------------ health (W1/T5)
+  // ------------------------------------------------------------ health
 
   /** The health deps the /healthcheck command renders from (resolved live). */
   private healthDeps(): HealthDeps {
@@ -975,12 +975,12 @@ export class ChatBridge {
       },
       dedup: {
         entries: this.inbound.dedupWindowEntries,
-        // The W2-② window key rides as an optional intersection member.
+        // The window key rides as an optional intersection member.
         windowSeconds: (this.deps.config as { dedupWindowSeconds?: number }).dedupWindowSeconds ?? 300,
       },
       writeGate: this.outbound.writeGateStats(),
       configSnapshot: this.deps.configSnapshot?.() ?? {},
-      // T4 (P3): the recent fault references for the report section.
+      // the recent fault references for the report section.
       failureRefs: () => this.failureRefs.recent(),
       ...(this.deps.companionStatus !== undefined ? { companion: this.deps.companionStatus } : {}),
       log: (level, message) => this.deps.log(level, message),
@@ -992,7 +992,7 @@ export class ChatBridge {
     return healthReport(this.healthDeps())
   }
 
-  /** /healthcheck export: pack the redacted diagnostics archive. T4 (P3): the
+  /** /healthcheck export: pack the redacted diagnostics archive. the
    * file name carries the trigger reference — the explicit command argument,
    * or the most recent recorded fault reference when omitted. */
   private async exportDiagnosticsPackage(triggerRef?: string): Promise<string> {
@@ -1006,7 +1006,7 @@ export class ChatBridge {
     if (this.stopping) return
     const chatId = this.bySession.get(session.id)
     if (chatId === undefined) {
-      // pipeline-hooks.md #20: non-QQ sessions (web/host) ride this same bus;
+      // non-QQ sessions (web/host) ride this same bus;
       // keep the early exit visible at debug without emitting any trace.
       this.deps.log('debug', 'session 事件早退：无 chat 映射（session=' + session.id + ' type=' + String(event.type) + '）')
       return
@@ -1016,22 +1016,22 @@ export class ChatBridge {
     const trace = this.traceForChat(chatId)
     if (event.type === 'turn/start') {
       trace?.emit('agent', { ok: true, reason: '模型回合开始' })
-      // B8: a new turn begins — prune the previous turn's recalled-id
+      // a new turn begins — prune the previous turn's recalled-id
       // residue (see InterimTracker.onTurnStart for the safety analysis).
       this.interim.onTurnStart(chat)
       // Freeze the running turn's initiator role from the dispatch FIFO
-      // (M1-A2): turns the plugin did not dispatch (host/web input) find an
+      //: turns the plugin did not dispatch (host/web input) find an
       // empty queue and fail closed as member.
       chat.activeTurnRole = chat.pendingTurnRoles.shift() ?? 'member'
       chat.lastActivityAt = Date.now()
       chat.busy = true
-      // T3 (P2): arm the deferred silent-wait window for this turn（每次模型
+      // arm the deferred silent-wait window for this turn（每次模型
       // 输出重置；turn/end 解除；deferredTimeoutMs<=0 时为 no-op）。
       this.deferred.onTurnStart(chatId, session.id)
       return
     }
     if (event.type === 'assistant/message') {
-      // T3 (P2): a deferred-registered (timed-out) turn is muted — its text
+      // a deferred-registered (timed-out) turn is muted — its text
       // messages are captured for the final补发 only（不插播 interim、不转
       // 审批/提问卡：超时后只补最终文字与终态通知）。
       if (this.deferred.onAssistantMessage(chatId, session.id, event.data.message)) return
@@ -1040,20 +1040,20 @@ export class ChatBridge {
     }
     if (event.type === 'turn/end') {
       const reason = event.data.reason
-      // T4 (P3): a message-turn fault mints ONE MF- reference before any
+      // a message-turn fault mints ONE MF- reference before any
       // consumer runs — the trace event (data.ref), the structured log line,
       // the ⚠️ notice tail and the deferred terminal text all carry the same
       // number. Normal (completed/cancelled) turns mint nothing.
       const errorRef = reason.kind === 'error'
         ? this.mintFailureRef('msg', 'agent', '模型回合出错: ' + reason.error.message, { chatId })
         : undefined
-      // T3 (P2): complete a deferred entry（补发异步进行）；true = the turn was
+      // complete a deferred entry（补发异步进行）；true = the turn was
       // under deferred tracking — the terminal-state notice rides the补发
       // path, so the normal error notice below is suppressed（同一故障不双发）.
       const deferredTracked = this.deferred.onTurnEnd(chatId, session.id, reason, errorRef)
       this.interim.onTurnEnd(chatId, chat)
       if (reason.kind === 'error') {
-        // T4: the ok:false agent event is emitted by mintFailureRef (with
+        // the ok:false agent event is emitted by mintFailureRef (with
         // data.ref) — no second event for the same decision point.
       } else {
         trace?.emit('agent', { ok: true, reason: '模型回合结束（' + reason.kind + '）' })
@@ -1068,7 +1068,7 @@ export class ChatBridge {
         }
         if (!deferredTracked && this.deps.config.sendErrorNotice) {
           this.sendToChat(chatId, '⚠️ 运行出错：' + message + failureRefSuffix(errorRef), { queuable: true }).catch((error: unknown) => {
-            // pipeline-hooks.md #21: the send failure used to be swallowed.
+            // the send failure used to be swallowed.
             this.deps.log('debug', '错误通知发送失败: ' + describeError(error))
             trace?.emit('notice', { ok: false, reason: TRACE_REASONS.noticeErrorSendFailed })
           })
@@ -1077,7 +1077,7 @@ export class ChatBridge {
       this.stopTyping(chat)
       chat.lastActivityAt = Date.now()
       chat.busy = false
-      // T2 (P1): the turn that armed the queue notice is over — a later
+      // the turn that armed the queue notice is over — a later
       // running turn notifies again.
       this.queueNoticeChats.delete(chatId)
       this.deps.log('info', 'turn/end for ' + chatId + ': ' + event.data.reason.kind)
@@ -1090,7 +1090,7 @@ export class ChatBridge {
     }
   }
 
-  /** W1: the trace scope for one chat's session events, resolved through the
+  /** the trace scope for one chat's session events, resolved through the
    * chat-level association table; undefined when tracing is off or the chat
    * has no recorded dispatch (host-initiated turns stay untraced). */
   private traceForChat(chatId: ChatId): TraceScope | undefined {
@@ -1100,10 +1100,10 @@ export class ChatBridge {
     return traceId !== undefined ? sink.scope(traceId, chatId) : undefined
   }
 
-  // ------------------------------------------------------ failure references (W3/T4)
+  // ------------------------------------------------------ failure references
 
   /**
-   * T4 (P3): the single fault-reference entry point. Mints one QQ-CONN-/MF-
+   * the single fault-reference entry point. Mints one QQ-CONN-/MF-
    * number, records it in the bounded registry, emits the ok:false trace
    * event carrying `data.ref` (traceId = the chat's mapped id, or a fresh id
    * for chat-less connection faults), and writes the structured error log
@@ -1129,14 +1129,14 @@ export class ChatBridge {
     return ref
   }
 
-  /** T4: connection-fault reference entry (wired from index.ts via
+  /** connection-fault reference entry (wired from index.ts via
    * `connection.onFailure`); the returned reference is appended to the
    * transport's own log line. */
   registerConnectionFailure(stage: string, detail: string): string {
     return this.mintFailureRef('conn', 'connection', stage !== '' ? '[' + stage + '] ' + detail : detail)
   }
 
-  /** T4: message-fault reference entry for command-plane failures (e.g. the
+  /** message-fault reference entry for command-plane failures (e.g. the
    * /retry dispatch throw); the caller appends the returned reference to the
    * user-visible ⚠️ notice. */
   registerMessageFailure(chatId: ChatId, stage: TraceStage, detail: string): string {
@@ -1147,14 +1147,14 @@ export class ChatBridge {
     if (this.stopping) return
     const chatId = this.bySession.get(session.id)
     if (chatId === undefined) return
-    // M1-E2: arbitrary session flushes debounce like turn/end — stop() still
+    // arbitrary session flushes debounce like turn/end — stop() still
     // forces the final saveMapping directly.
     this.saveMappingDebounced()
   }
 
   // ------------------------------------------------------------ registry facades
 
-  /** Same-name delegations to the chat registry (D1-PR3): the command table's
+  /** Same-name delegations to the chat registry: the command table's
    * ctx, the interim/turn event links and the outbound pipeline keep calling
    * the bridge exactly as before the split. */
 

@@ -3,7 +3,7 @@
  * TextMeasurer / split_inline_lines / _seg_width). Pure layout logic with an
  * injectable width source so unit tests run without real fonts.
  *
- * Iron rule (T2I_DEV_DOC §5.1): every wrap/center/column computation uses the
+ * Iron rule: every wrap/center/column computation uses the
  * ACTUAL drawn width — inline-code capsules add their padding, bold adds 1px,
  * italic adds 8px — and split_to_fit reserves that extra width so a single
  * styled segment never overflows a line.

@@ -1,12 +1,11 @@
 /**
- * Deferred delivery（T3/P2 超时后结果补发）：等待模型回复超时后不放弃回合——
+ * Deferred delivery：等待模型回复超时后不放弃回合——
  * 把仍在运行的回合登记进补发注册表（chatId/sessionId/traceId/超时时刻），
  * 继续监听该会话的 assistant/message（静音捕获最终文字，不再插播 interim/
  * 交互卡片）与 turn/end（兑现补发）；完成后向原聊天补发最终文字
  * （「（超时补发）」前缀，走既有 outbound 管线的分段/t2i 规则）。
  *
- * 语义对齐 dsh-im「超时后的结果补发」（research/dsh-im-readme-fetched.md
- * L91-95）：
+ * 语义对齐 dsh-im 的「超时后的结果补发」：
  * - 发送明确失败最多尝试 3 次（退避 2s/10s）；OneBot 动作超时或非网关错误
  *   视为「结果不确定」（消息可能已到达 QQ），保留记录并停止自动重试防重复。
  * - 注册表逐行 JSONL 落盘 mediaDir（deferred-delivery.jsonl），写纪律对齐
@@ -64,7 +63,7 @@ export interface DeferredEntry {
   state: DeferredEntryState
   /** Terminal-state reason (Chinese; also set on success as 已送达). */
   reason?: string
-  /** T4 (P3): the fault reference of the turn's error ending（bridge 在错误
+  /** the fault reference of the turn's error ending（bridge 在错误
    * 回合 mint 的 MF- 参考号；终态补发文本与 trace 事件携带同号）。 */
   ref?: string
   /** The final text captured after the timeout (last text-only assistant
@@ -96,7 +95,7 @@ export interface DeferredContext {
   /** The chat's dispatch traceId (chat-level association table; undefined when tracing off). */
   traceIdFor?(chatId: string): string | undefined
   log(level: 'info' | 'warn' | 'error' | 'debug', message: string): void
-  /** W1-style outbound/queue decision events（reason 一律中文）。 */
+  /** outbound/queue decision events（reason 一律中文）。 */
   trace?(chatId: string, event: { stage: TraceStage; ok?: boolean; reason?: string; data?: Record<string, unknown> }): void
   mediaDir: string
   /** The resolved timeout window (ms); 0 disables the whole feature. */
@@ -142,7 +141,7 @@ function textOnly(message: DeferredAssistantMessage): string {
   }
 }
 
-/** Build the deferred delivery text for a finished turn. T4 (P3): an error
+/** Build the deferred delivery text for a finished turn. an error
  * ending carries the turn's MF- reference so the补发 terminal notice and the
  * trace/log/healthcheck surfaces share one number. */
 export function buildDeferredText(entry: DeferredEntry, reason: DeferredTurnReason | undefined): string {
@@ -238,7 +237,7 @@ export class DeferredDelivery {
 
   /** turn/end: cancel the silent-wait timer; complete a pending entry by
    * delivering the final text (async, bounded retries). `ref` is the turn's
-   * fault reference（T4：bridge 在错误回合 mint 的 MF- 号——终态补发文本与
+   * fault reference（bridge 在错误回合 mint 的 MF- 号——终态补发文本与
    * trace 携带同号；正常回合为 undefined）. Returns true when
    * the turn was under deferred tracking AND its ending is success-class
    * （bridge 据此抑制常规错误通知——终态通知由补发通道送达，避免同一故障

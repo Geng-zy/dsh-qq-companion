@@ -27,7 +27,7 @@ import type { AccessPolicyConfig } from './chat.js'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 
-// R1 部署加固：peer 依赖解析失败/关键模块缺失时必须显眼报错并 fail-loud，
+// 部署加固：peer 依赖解析失败/关键模块缺失时必须显眼报错并 fail-loud，
 // 不能静默不挂载。静态 import 会在本模块任何代码运行之前就以晦涩的
 // ERR_MODULE_NOT_FOUND 失败（宿主侧表现为插件被静默跳过），因此运行时
 // 值依赖改为入口顶部受控动态加载：失败时先输出含「peer/依赖」的显式
@@ -108,11 +108,11 @@ export interface Config {
   requireMention: boolean
   /** Unknown slash-command handling: intercept（默认）=拦截并给建议；passthrough=透传给模型。 */
   unknownCommand: 'intercept' | 'passthrough'
-  /** T2 (P1): 任务运行中的新消息处理策略：queue=排队（默认）；steer=插话进当前任务。 */
+  /** 任务运行中的新消息处理策略：queue=排队（默认）；steer=插话进当前任务。 */
   newMessagePolicy: 'queue' | 'steer'
-  /** T9-B (用户裁决 2026-10-12)：steer 模式下自动插话资格：admin=仅管理员（默认）；all=不限。 */
+  /** (用户裁决 2026-10-12)：steer 模式下自动插话资格：admin=仅管理员（默认）；all=不限。 */
   autoSteerPolicy: 'admin' | 'all'
-  /** T3 (P2): 等待模型回复超时阈值（毫秒）——超时后登记补发跟踪、回合完成后向原聊天补发最终文字；0=关闭。 */
+  /** 等待模型回复超时阈值（毫秒）——超时后登记补发跟踪、回合完成后向原聊天补发最终文字；0=关闭。 */
   deferredTimeoutMs: number
   dmPolicy: 'open' | 'allowlist' | 'disabled'
   groupPolicy: 'open' | 'allowlist' | 'disabled'
@@ -127,7 +127,7 @@ export interface Config {
   interimMessages: boolean
   /** Per-interim auto-recall delay (ms) from each interim's send completion. */
   interimRecallMs: number
-  /** M3-D2b: interim recall degrade switch (false = send-only interims). */
+  /** interim recall degrade switch (false = send-only interims). */
   interimRecall: boolean
   sendErrorNotice: boolean
   /** Per-chat per-minute sliding-window cap for normal (non-command) messages; 0 disables. */
@@ -140,9 +140,9 @@ export interface Config {
   maxVoiceBytes: number
   maxFileBytes: number
   inboundImageMaxPx: number
-  /** @deprecated D4a alias of inboundImageMaxPx; honored for one release. */
+  /** @deprecated alias of inboundImageMaxPx; honored for one release. */
   imageMaxSize?: number
-  /** @deprecated D4a alias of outboundImageMaxBytes; honored for one release. */
+  /** @deprecated alias of outboundImageMaxBytes; honored for one release. */
   maxImageBytes?: number
   sttEnabled: boolean
   sttEngine: 'auto' | 'openai' | 'whisper-cpp' | 'custom'
@@ -184,24 +184,24 @@ export interface Config {
   proactiveMaxUnanswered: number
   workspacePath: string
   inboundFileMaxBytes: number
-  /** @deprecated D4a alias of inboundFileMaxBytes; honored for one release. */
+  /** @deprecated alias of inboundFileMaxBytes; honored for one release. */
   maxInboundFileBytes?: number
-  /** B8c: chats idle longer than this many days are evicted (0 disables). */
+  /** chats idle longer than this many days are evicted (0 disables). */
   chatIdleEvictDays: number
   /** Escape hatch: skip the download private-address check (local reverse proxy). */
   allowPrivateHosts: boolean
-  /** W2-②: inbound (chatId, message_id) dedup window in seconds; 0 disables. */
+  /** inbound (chatId, message_id) dedup window in seconds; 0 disables. */
   dedupWindowSeconds: number
-  /** W2-③: bridge-wide proactive-write (qq_send_* tools) cap per minute; 0 disables. */
+  /** bridge-wide proactive-write (qq_send_* tools) cap per minute; 0 disables. */
   actionRatePerMinute: number
-  /** W2-③: bridge-wide proactive-write cap per calendar day; 0 disables. */
+  /** bridge-wide proactive-write cap per calendar day; 0 disables. */
   actionRatePerDay: number
-  /** W2-③: proactive-write audit jsonl (mediaDir/qq-actions.log). */
+  /** proactive-write audit jsonl (mediaDir/qq-actions.log). */
   actionAuditEnabled: boolean
-  /** W1: decision-trace jsonl (mediaDir/qq-trace.jsonl); default off — zero
+  /** decision-trace jsonl (mediaDir/qq-trace.jsonl); default off — zero
    * file, zero behavior difference vs 0.6.0. */
   traceEnabled: boolean
-  /** W1: trace level; 'warn' records only ok:false (rejected/failed/dropped) events. */
+  /** trace level; 'warn' records only ok:false (rejected/failed/dropped) events. */
   traceLevel: 'debug' | 'warn'
   /** Console log gate: messages below this level are dropped (debug < info < warn < error). */
   logLevel: 'debug' | 'info' | 'warn' | 'error'
@@ -223,7 +223,7 @@ export function dshHome(): string {
   return ENV('DSH_HOME') !== '' ? ENV('DSH_HOME') : join(homedir() || '/tmp', '.dsh')
 }
 
-/** D4a: schema defaults for the renamed fields (referenced by the deprecated-name fallback). */
+/** schema defaults for the renamed fields (referenced by the deprecated-name fallback). */
 const INBOUND_IMAGE_MAX_PX = 2048
 const OUTBOUND_IMAGE_MAX_BYTES = IMAGE_MAX_BYTES
 const INBOUND_FILE_MAX_BYTES = 20 * 1024 * 1024
@@ -248,11 +248,11 @@ export const Config: Z<Config> = z.object({
   unknownCommand: z.union([z.const('intercept'), z.const('passthrough')]).default('intercept')
     .description('未知斜杠命令处理：intercept（默认）=拦截并提示相近命令或 /help；passthrough=透传给模型（旧行为）'),
   newMessagePolicy: z.union([z.const('queue'), z.const('steer')]).default('queue')
-    .description('任务运行中的新消息处理策略（P1）：queue（默认）=排队——新消息在当前任务结束后按序处理为后续回合，等待期间至多提示一次；steer=插话——运行中收到的新普通纯文字消息作为补充指令加入当前任务（模型在下一步读取）并回复提交提示；图片/文件/语音/带引用消息与 [受限用户:仅问答] 消息两种模式下都按排队处理，/steer 命令两种模式下均可用'),
+    .description('任务运行中的新消息处理策略：queue（默认）=排队——新消息在当前任务结束后按序处理为后续回合，等待期间至多提示一次；steer=插话——运行中收到的新普通纯文字消息作为补充指令加入当前任务（模型在下一步读取）并回复提交提示；图片/文件/语音/带引用消息与 [受限用户:仅问答] 消息两种模式下都按排队处理，/steer 命令两种模式下均可用'),
   autoSteerPolicy: z.union([z.const('admin'), z.const('all')]).default('admin')
-    .description('steer 模式下自动插话的发送者资格（T9-B 用户裁决 2026-10-12）：admin（默认）=仅管理员可自动插话；all=所有非受限发送者均可。不具备资格的消息按排队处理；/steer 命令始终仅管理员、不受本项影响；queue 模式行为不变'),
+    .description('steer 模式下自动插话的发送者资格：admin（默认）=仅管理员可自动插话；all=所有非受限发送者均可。不具备资格的消息按排队处理；/steer 命令始终仅管理员、不受本项影响；queue 模式行为不变'),
   deferredTimeoutMs: z.number().default(600_000)
-    .description('等待模型回复超时阈值（毫秒，T3/P2 超时补发）：回合超过该时长没有任何模型输出时提示超时并登记补发跟踪，任务完成后向原聊天自动补发最终文字（走既有出站管线）；发送明确失败最多尝试 3 次（退避），结果不确定时保留记录停止自动重试；/stop 终止该聊天的补发跟踪；0=关闭超时补发'),
+    .description('等待模型回复超时阈值（毫秒超时补发）：回合超过该时长没有任何模型输出时提示超时并登记补发跟踪，任务完成后向原聊天自动补发最终文字（走既有出站管线）；发送明确失败最多尝试 3 次（退避），结果不确定时保留记录停止自动重试；/stop 终止该聊天的补发跟踪；0=关闭超时补发'),
   dmPolicy: z.union([z.const('open'), z.const('allowlist'), z.const('disabled')]).default('open')
     .description('私聊策略：open=仅管理员；allowlist=仅 allowFrom；disabled=拒绝所有私聊'),
   groupPolicy: z.union([z.const('open'), z.const('allowlist'), z.const('disabled')]).default('open')
@@ -360,7 +360,7 @@ export const Config: Z<Config> = z.object({
   publicMemoryMaxBytes: z.number().default(6 * 1024)
     .description('公开记忆文件达到这个大小（字节）后 qq_memory_note 不再追加'),
   groupMemoryDir: z.string().default('')
-    .description('每个群一份记忆的根目录（<根>/<群号>/AGENTS.md，群会话以此为工作目录）；留空=所有群共用 publicMemoryFile'),
+    .description('每个群一份记忆的根目录；留空=所有群共用 publicMemoryFile'),
   groupMemoryMaxBytes: z.number().default(8 * 1024)
     .description('每个群的记忆文件达到这个大小（字节）后 qq_memory_note 不再追加'),
   privateResetDays: z.number().default(0)
@@ -396,22 +396,22 @@ export const Config: Z<Config> = z.object({
   chatIdleEvictDays: z.number().default(7)
     .description('会话空闲淘汰天数：chat 超过该天数无任何活动时，在下一条入站消息处理前清理其 agent（会话先落盘 flush、映射保留，之后同一 chat 的消息可 resume 恢复原会话）；0 = 禁用'),
   dedupWindowSeconds: z.number().default(300)
-    .description('入站消息去重窗口（秒，W2-②）：同一会话内相同 message_id 在该窗口内重投（断线重连重放等）只处理第一条，后续静默跳过并记 debug；仅对会触发回复处理的消息事件生效（notice/meta 类不经过此闸）；0 = 禁用去重'),
+    .description('入站消息去重窗口（秒）：同一会话内相同 message_id 在该窗口内重投（断线重连重放等）只处理第一条，后续静默跳过并记 debug；仅对会触发回复处理的消息事件生效（notice/meta 类不经过此闸）；0 = 禁用去重'),
   actionRatePerMinute: z.number().default(20)
-    .description('主动写操作每分钟全桥合计上限（W2-③）：约束 qq_send_image/voice/video/file/segments 与 qq_send_forward 等工具发起的主动发送（回合内的被动回复/interim/通知不受此闸，由 rateLimitPerMinute 与离线队列上限约束）；超限拒发并记 warn 与审计；0 = 禁用分钟限额'),
+    .description('主动写操作每分钟全桥合计上限：约束 qq_send_image/voice/video/file/segments 与 qq_send_forward 等工具发起的主动发送（回合内的被动回复/interim/通知不受此闸，由 rateLimitPerMinute 与离线队列上限约束）；超限拒发并记 warn 与审计；0 = 禁用分钟限额'),
   actionRatePerDay: z.number().default(500)
-    .description('主动写操作每日（本地自然日）全桥合计上限（W2-③）：口径同 actionRatePerMinute；超限拒发并记 warn 与审计，次日自动恢复；0 = 禁用日限额'),
+    .description('主动写操作每日（本地自然日）全桥合计上限：口径同 actionRatePerMinute；超限拒发并记 warn 与审计，次日自动恢复；0 = 禁用日限额'),
   actionAuditEnabled: z.boolean().default(true)
-    .description('主动写审计（W2-③）：每次主动写（成功/失败）与拒发事件追加写一行 JSON 到 mediaDir/qq-actions.log（含 ts/chatId/action/ok/reason）；写失败仅 warn 不影响发送'),
+    .description('主动写审计：每次主动写（成功/失败）与拒发事件追加写一行 JSON 到 mediaDir/qq-actions.log（含 ts/chatId/action/ok/reason）；写失败仅 warn 不影响发送'),
   traceEnabled: z.boolean().default(false)
-    .description('链路追踪（W1）：为每条入站消息生成 traceId 并贯穿入站→模型回合→出站，决策事件（含限流/去重/白名单/@ 门控/闸门拒发与每个静默丢弃分支的中文 reason）逐行 JSON 落盘 mediaDir/qq-trace.jsonl（4MiB 改名轮转，保留 qq-trace.1/2.jsonl；同一原因 5 分钟限频）；默认关闭——关闭时不生成 traceId、不落盘、决策行为与 0.6.0 完全一致'),
+    .description('链路追踪：为每条入站消息生成 traceId 并贯穿入站→模型回合→出站，决策事件（含限流/去重/白名单/@ 门控/闸门拒发与每个静默丢弃分支的中文 reason）逐行 JSON 落盘 mediaDir/qq-trace.jsonl（4MiB 改名轮转，保留 qq-trace.1/2.jsonl；同一原因 5 分钟限频）；默认关闭——关闭时不生成 traceId、不落盘、决策行为与 0.6.0 完全一致'),
   traceLevel: z.union([z.const('debug'), z.const('warn')]).default('debug')
-    .description('追踪事件级别（W1）：debug=记录全部决策事件；warn=仅记录 ok:false（被拒/失败/丢弃）事件'),
+    .description('追踪事件级别：debug=记录全部决策事件；warn=仅记录 ok:false（被拒/失败/丢弃）事件'),
   logLevel: z.union([z.const('debug'), z.const('info'), z.const('warn'), z.const('error')]).default('info')
     .description('控制台日志级别门槛（debug < info < warn < error）：低于该级别的日志不输出。debug=全部输出（含「session 事件早退」等调试行）；info=常规信息（启动、连接建立、meta 事件等，默认）；warn=仅警告与错误；error=仅错误'),
 })
 
-/** D4a: the deprecated config names kept for one release, mapped onto their
+/** the deprecated config names kept for one release, mapped onto their
  * renamed fields. */
 const DEPRECATED_CONFIG_ALIASES: ReadonlyArray<readonly [oldName: string, newName: string, defaultValue: number]> = [
   ['imageMaxSize', 'inboundImageMaxPx', INBOUND_IMAGE_MAX_PX],
@@ -466,12 +466,12 @@ export function logMetaEvent(selfId: string, event: OneBotEvent, minLevel: Confi
 
 /** Mount the plugin. */
 export function apply(ctx: Context, config: Config): void {
-  // D4a: honor the deprecated config names before any consumer reads them.
+  // honor the deprecated config names before any consumer reads them.
   config = resolveDeprecatedConfig(config)
   const mediaDir = config.mediaDir !== '' ? config.mediaDir : defaultMediaDir()
   const policy = resolvePolicy(config)
   /** Console log line callback (level, message) — shared by the bridge deps,
-   * the connection log port and the host-ready boot gate below (M2-C5b). */
+   * the connection log port and the host-ready boot gate below. */
   const log = (level: 'info' | 'warn' | 'error' | 'debug', message: string): void => {
     if (LOG_LEVEL_RANK[level] < LOG_LEVEL_RANK[config.logLevel]) return
     const prefix = '[qq-companion] '
@@ -479,7 +479,7 @@ export function apply(ctx: Context, config: Config): void {
     else if (level === 'warn') console.warn(prefix + message)
     else console.log(prefix + message)
   }
-  // T3 方案 B: the host exposes no queryable default workspace —
+  // 方案 B: the host exposes no queryable default workspace —
   // WorkspaceRegistry has no default getter and the session controller's
   // defaultCwd is assembly-internal — so the unconfigured fallback stays the
   // host process cwd. Say so once at mount so a /root surprise is explainable.
@@ -519,7 +519,7 @@ export function apply(ctx: Context, config: Config): void {
     },
   )
   const media = new MediaStore(mediaDir, config.tempTtlHours, config.inboundImageMaxPx, { maxBytes: config.inboundFileMaxBytes, allowPrivateHosts: config.allowPrivateHosts })
-  // W1: the trace sink exists only when explicitly enabled — default off
+  // the trace sink exists only when explicitly enabled — default off
   // means no sink, no traceIds, no jsonl, zero behavior difference.
   const traceSink = config.traceEnabled
     ? new TraceSink({ dir: mediaDir, level: config.traceLevel, log: (level, message) => log(level, message) })
@@ -559,7 +559,7 @@ export function apply(ctx: Context, config: Config): void {
     liveness.onMeta(event)
     logMetaEvent(connection.selfId, event, config.logLevel)
   }
-  // W2-②③ gate keys: BridgeConfig (bridge.ts) keeps its declared shape; the
+  // Dedup / write-gate keys: BridgeConfig (bridge.ts) keeps its declared shape; the
   // pipelines read them off the runtime object via optional intersection
   // members (see InboundContext/OutboundContext.config), so the spread here
   // is the wiring — no bridge.ts change.
@@ -571,7 +571,7 @@ export function apply(ctx: Context, config: Config): void {
   }
   const bridge: import('./bridge.js').ChatBridge = new ChatBridge({
     ctx,
-    // M2-C5b: the bridge sees only explicit ports — the session-event feed
+    // the bridge sees only explicit ports — the session-event feed
     // (this context's own `on`) and the two injectables below; the 'loader'
     // service lookup lives here, not in the bridge.
     hostReady: async () => {
@@ -671,13 +671,13 @@ export function apply(ctx: Context, config: Config): void {
       groupMemoryDir: config.groupMemoryDir,
       groupMemoryMaxBytes: config.groupMemoryMaxBytes,
     }),
-    // W1/T5 health: the config snapshot is redacted at the source — secrets
+    // health: the config snapshot is redacted at the source — secrets
     // (token/password/apikey…) never leave this closure in the clear.
     configSnapshot: () => redactSnapshot(config as unknown as Record<string, unknown>),
     log,
   })
 
-  // W3/T4 (P3): connection faults mint QQ-CONN-… references through the
+  // connection faults mint QQ-CONN-… references through the
   // bridge (registry + trace + structured log); the transport appends the
   // returned reference to its own log line, so host logs and qq-trace.jsonl
   // share the same number for one fault.

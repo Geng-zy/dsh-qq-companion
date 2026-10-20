@@ -70,7 +70,7 @@ function runProcess(
 
 /**
  * Detect a command on PATH by scanning each dir for an executable match
- * (A8: no shell involved, so the configured name is never shell-interpreted;
+ * (no shell involved, so the configured name is never shell-interpreted;
  * builtins/aliases stop being visible — callers only need real binaries).
  */
 export async function findCommand(name: string): Promise<string | undefined> {

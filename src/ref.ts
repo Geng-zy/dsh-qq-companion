@@ -1,8 +1,8 @@
 /**
- * Diagnostic failure references (W3/T4, P3): one fault, one reference number.
+ * Diagnostic failure references: one fault, one reference number.
  * Connection/bridge faults mint `QQ-CONN-<ts><rand>`; message-turn faults mint
  * `MF-<ts><rand>` (format aligned with the dsh-im `WX-CONN-…`/`MF-…`
- * precedent, research/dsh-im-readme-fetched.md 诊断段). The same reference is
+ * convention). The same reference is
  * carried by every surface of one fault: the structured log line, the trace
  * event (`data.ref`), the user-visible error notice tail, and the
  * /healthcheck report + diagnostics archive file name — so a user can grep

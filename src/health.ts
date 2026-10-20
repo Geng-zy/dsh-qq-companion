@@ -1,5 +1,5 @@
 /**
- * Healthcheck + diagnostics export (W1/T5): `/healthcheck` renders a
+ * Healthcheck + diagnostics export: `/healthcheck` renders a
  * snapshot summary of the bridge's live state — connection state, transport
  * retry/self-heal counters, dedup window and write-gate counters, the trace/
  * inbox/audit file sizes, and the most recent ok:false trace events — and
@@ -17,9 +17,9 @@
  *
  * MIT attribution: the "health snapshot + redacted diagnostics bundle"
  * concept is aligned with dsh-qq-onebot-bridge (MIT License, Copyright (c)
- * 2026 dsh-qq-onebot-bridge contributors, v0.4.0 硬约束④可体检/⑤可导出);
- * the zip packer, the secret scrubbing and the report layout are original to
- * this plugin. The full borrowed-item list lives in DEVLOG.md (2026-10-04).
+ * 2026 dsh-qq-onebot-bridge contributors); the zip packer, the secret
+ * scrubbing and the report layout are original to this plugin. See
+ * THIRD-PARTY-NOTICES.md.
  * @module dsh-qq-companion/health
  */
 import { readFile, stat, writeFile } from 'node:fs/promises'
@@ -53,10 +53,10 @@ export interface HealthDeps {
   secrets?: readonly string[]
   /** How many recent ok:false events to include (default HEALTH_RECENT_FAILURES). */
   recentFailures?: number
-  /** W3/T4 (P3): the recent fault references (resolved live by the bridge);
+  /** the recent fault references (resolved live by the bridge);
    * absent = the report omits the reference section. */
   failureRefs?: () => FailureRefRecord[]
-  /** W3/T4 (P3): the reference stamped into the exported archive file name
+  /** the reference stamped into the exported archive file name
    * (explicit /healthcheck export argument, or the latest recorded fault). */
   triggerRef?: string
   /** Extra report lines from the companion features (QQ liveness, plans,
@@ -138,7 +138,7 @@ export async function healthReport(deps: HealthDeps): Promise<string> {
       lines.push('  ' + new Date(event.ts).toISOString() + ' [' + event.stage + '] ' + (event.reason ?? '') + ' (' + event.traceId + ')' + (ref !== undefined ? '（参考号 ' + ref + '）' : ''))
     }
   }
-  // W3/T4 (P3): the recent fault references + the trace-file lookup guidance.
+  // the recent fault references + the trace-file lookup guidance.
   const refs = deps.failureRefs?.() ?? []
   if (refs.length === 0) {
     lines.push('最近故障参考号：无（参考号仅在故障事件生成，正常流量零发号）')
@@ -187,7 +187,7 @@ interface TraceLine {
   data?: { ref?: unknown }
 }
 
-/** The fault reference carried by a trace event's data (W3/T4), when present
+/** The fault reference carried by a trace event's data, when present
  * and well-formed; undefined otherwise (old events and non-fault events). */
 function traceEventRef(event: TraceLine): string | undefined {
   return typeof event.data?.ref === 'string' && event.data.ref !== '' ? event.data.ref : undefined
@@ -240,7 +240,7 @@ export async function exportDiagnostics(deps: HealthDeps): Promise<string> {
     }
   }
   const stamp = new Date().toISOString().replace(/[-:]/g, '').replace('T', '-').slice(0, 15)
-  // W3/T4 (P3): the file name carries the trigger reference (sanitized — the
+  // the file name carries the trigger reference (sanitized — the
   // command layer validates the format, this layer strips defensively) so the
   // archive is bound to the fault being investigated. No reference = the
   // 0.8.1-compatible name.

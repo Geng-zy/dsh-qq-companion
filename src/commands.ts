@@ -1,5 +1,5 @@
 /**
- * Slash-command surface (M2-D1-PR1): the routed command table, the narrow
+ * Slash-command surface: the routed command table, the narrow
  * CommandContext through which handlers touch the bridge, and the router.
  * Extracted verbatim from bridge.ts — reply texts, argument parsing and
  * error behavior are byte-identical to the pre-split if-chain; /help is now
@@ -67,10 +67,10 @@ export interface CommandContext {
   /** Registry capabilities the commands legitimately trigger. */
   resetChat(chatId: ChatId): Promise<void>
   dispatchFollowup(chatId: ChatId, text: string, role: UserRole, nickname?: string): Promise<void>
-  /** T3 (P2): /stop — 显式终止该聊天的超时补发跟踪（pending 条目转
+  /** /stop — 显式终止该聊天的超时补发跟踪（pending 条目转
    * cancelled，其他聊天不受影响）。无补发条目时为 no-op。 */
   stopDeferredTracking(chatId: ChatId): void
-  /** T2 (P1): /steer — the bridge-owned steer core (agent.steer with the
+  /** /steer — the bridge-owned steer core (agent.steer with the
    * producer-owned source kind; the createUserMessage write point stays in
    * bridge.ts). Returns false when the chat has no live agent. */
   steerRunningTurn(chatId: ChatId, text: string): boolean
@@ -89,7 +89,7 @@ export interface CommandContext {
   deleteGoal(chatId: ChatId): void
   lastImagePath(chatId: ChatId): string | undefined
   lastImagePath(chatId: ChatId): string | undefined
-  /** R2: per-chat pending serial-number selection snapshot (the numbered list
+  /** per-chat pending serial-number selection snapshot (the numbered list
    * a bare /workspace|/model|/preset|/session rendered; lazy 5-min TTL, see below). */
   /** /session: this chat's switchable retired sessions (newest first). */
   switchableSessions(chatId: ChatId): SwitchableSession[]
@@ -101,12 +101,12 @@ export interface CommandContext {
   sessionPersistence: SessionPersistenceLike | undefined
   pendingSelection(chatId: ChatId): PendingSelection | undefined
   setPendingSelection(chatId: ChatId, value: PendingSelection | undefined): void
-  /** Lazy media resolution for the /ocr pending image ref (C6a). */
+  /** Lazy media resolution for the /ocr pending image ref. */
   resolveMediaRef(ref: MediaRef, chatId: ChatId): Promise<string>
   /** Consume the pending pre-routing image ref (get + delete, /ocr only). */
   takePendingImageRef(chatId: ChatId): MediaRef | undefined
   /** Services (narrow slices of the bridge deps). */
-  /** Live model catalog for /model (M2-C5b port; index.ts wires it over the
+  /** Live model catalog for /model (port; index.ts wires it over the
    * live llm service — commands never touch Context). */
   llmCatalog: LlmCatalogPort | undefined
   workspaceRegistry: WorkspaceRegistryLike | undefined
@@ -115,15 +115,15 @@ export interface CommandContext {
   commands: BridgeDeps['commands']
   connection: OneBotConnection
   dshHome: string | undefined
-  /** W1/T5 /healthcheck: render the health summary (absent = the bridge has
+  /** /doctor: render the health summary (absent = the bridge has
    * no health wiring — the command replies with a hint instead). */
   healthReport?: (() => Promise<string>) | undefined
-  /** W1/T5 /healthcheck export: pack the redacted diagnostics archive,
-   * returning its path. T4 (P3): the optional trigger reference is stamped
+  /** /doctor export: pack the redacted diagnostics archive,
+   * returning its path. the optional trigger reference is stamped
    * into the archive file name (absent = the bridge's latest fault reference,
    * or a reference-free name when none was recorded). */
   exportDiagnostics?: ((triggerRef?: string) => Promise<string>) | undefined
-  /** T4 (P3): command-plane failure reference entry (/retry dispatch throw).
+  /** command-plane failure reference entry (/retry dispatch throw).
    * Mints an MF- reference through the bridge (registry + trace + structured
    * log) and returns it for the ⚠️ notice tail. */
   reportFailure?: ((chatId: ChatId, stage: TraceStage, detail: string) => string) | undefined
@@ -131,10 +131,10 @@ export interface CommandContext {
   config: Pick<BridgeConfig, 'interimMessages' | 'maxImageBytes' | 'unknownCommand'>
 }
 
-/** T9-A: the sender identity the inbound pipeline already resolved for the
+/** the sender identity the inbound pipeline already resolved for the
  * command message — threaded through tryHandleCommand so /steer can wrap its
  * argument in the same <user_message> boundary as every inbound payload
- * (M3-D5 invariant: all user content enters the prompt behind the boundary).
+ *.
  * The nickname is the pre-sanitized value from inbound.ts; wrapUserMessage
  * re-sanitizes defensively. */
 export interface CommandSender {
@@ -142,7 +142,7 @@ export interface CommandSender {
   nickname: string
 }
 
-/** One routed slash command: the table row IS the registration (D1-PR1) —
+/** One routed slash command: the table row IS the registration —
  * adding a command is exactly one row here and /help picks it up for free. */
 export interface CommandDefinition {
   /** Command word after the leading slash (matched case-insensitively). */
@@ -200,7 +200,7 @@ const HELP_GROUP_ORDER = ['会话', '输出', '查询', '操作', '其他']
 
 /** /help body: grouped multi-line card generated from the table — adding a
  * command stays a one-row change and its group header comes from the row
- * (unlisted groups append). The R1 tail line documents the unknown-command
+ * (unlisted groups append). The tail line documents the unknown-command
  * behavior. Exported for the full-text snapshot gate in tests/commands.spec.ts. */
 export function helpText(): string {
   const groups = new Map<string, CommandDefinition[]>()
@@ -270,7 +270,7 @@ function editDistanceWithin2(a: string, b: string): boolean {
  * @param text - parsed inbound text.
  * @param userId - sender QQ number.
  * @param nickname - sender display name (pre-sanitized by inbound.ts); used
- *   by /steer for the <user_message> boundary attribute (T9-A).
+ *   by /steer for the <user_message> boundary attribute.
  * @returns true when the message was consumed by a command.
  */
 export async function tryHandleCommand(ctx: CommandContext, chatId: ChatId, text: string, userId: string, nickname?: string): Promise<boolean> {
@@ -317,29 +317,29 @@ async function handleStopCommand(ctx: CommandContext, chatId: ChatId): Promise<v
   } else {
     await ctx.sendToChat(chatId, '当前没有正在进行的生成。')
   }
-  // T3 (P2): 无论是否有运行中生成，都显式终止该聊天的超时补发跟踪——
+  // 无论是否有运行中生成，都显式终止该聊天的超时补发跟踪——
   // /stop 的语义边界是「只终止当前聊天提交的回合」，补发跟踪随行终止；
   // 其他聊天的条目不受影响。
   ctx.stopDeferredTracking(chatId)
 }
 
-/** T2 (P1): the /steer submit notice — one line per accepted instruction.
+/** the /steer submit notice — one line per accepted instruction.
  * Shared with the bridge's auto-steer path ('steer' policy) so both surfaces
  * word the confirmation identically; exported for the deterministic text
  * wait in tests. */
 export const STEER_ACCEPTED_NOTICE = '✅ 已作为补充指令提交给当前任务，模型将在下一步读取。'
 
-/** T2 (P1): the /steer usage hint — replied whenever the command cannot
+/** the /steer usage hint — replied whenever the command cannot
  * steer (empty argument, no live chat, or no running task). Never crashes,
  * never silently no-ops. */
 export const STEER_USAGE_HINT = '用法：/steer <补充内容> —— 在任务运行期间向当前任务追加一条补充指令，模型会在下一步读取；当前没有运行中的任务，直接发送消息即可开始新任务。'
 
-/** T2 (P1) /steer: steer one supplementary instruction into the RUNNING
+/** /steer: steer one supplementary instruction into the RUNNING
  * turn (both newMessagePolicy modes — an explicit /steer is always allowed).
  * Without a running task (or with an empty argument, or no live chat) it
  * replies with the usage hint instead of steering — the idle-driver steer
  * would otherwise open a turn, which is what plain messages already do.
- * T9-A: the argument enters the prompt wrapped in the same <user_message>
+ * the argument enters the prompt wrapped in the same <user_message>
  * boundary as every inbound payload (same wrapUserMessage shape, qq +
  * nickname attributes) — /steer is admin-gated (trusted sender) but the
  * boundary posture must not fork between the two steerMessage callers. */
@@ -356,7 +356,7 @@ async function handleSteerCommand(ctx: CommandContext, chatId: ChatId, arg: stri
   await ctx.sendToChat(chatId, STEER_ACCEPTED_NOTICE)
 }
 
-/** R2: TTL of a pending serial-number selection — judged lazily at the next
+/** TTL of a pending serial-number selection — judged lazily at the next
  * same-kind numeric reply (no timers): a snapshot older than 5 minutes is
  * expired and treated as stateless. */
 const PENDING_SELECTION_TTL_MS = 5 * 60 * 1000
@@ -370,7 +370,7 @@ interface PendingPick {
 }
 
 /**
- * R2 serial-number resolution. When `arg` is a pure number AND the chat holds
+ * serial-number resolution. When `arg` is a pure number AND the chat holds
  * a pending selection snapshot of the same kind, the argument is read as a
  * 1-based index into that snapshot:
  *  - in-range hit     → clears the snapshot and returns the item (the handler
@@ -408,7 +408,7 @@ async function resolveNumericSelection(
 }
 
 /** /model: show the current model (+ discoverable providers), or switch.
- * A bare switch retargets ONLY this chat's selection ref (M2-C5a: it no
+ * A bare switch retargets ONLY this chat's selection ref (it no
  * longer rewrites the deployment default — that is the explicit --default
  * form's job). */
 async function handleModelCommand(ctx: CommandContext, chatId: ChatId, arg: string): Promise<void> {
@@ -436,7 +436,7 @@ async function handleModelCommand(ctx: CommandContext, chatId: ChatId, arg: stri
       ctx.log('warn', 'listProviders failed: ' + String(error))
     }
     if (providerIds.length > 0) {
-      // R2: level-1 snapshot — provider ids only, capped like the display above.
+      // level-1 snapshot — provider ids only, capped like the display above.
       out += '\n可选来源：\n' + providerIds.map((id, i) => `${i + 1}. ${id}`).join('\n')
       out += '\n回复 /model <序号> 查看该来源的模型。'
       ctx.setPendingSelection(chatId, {
@@ -449,7 +449,7 @@ async function handleModelCommand(ctx: CommandContext, chatId: ChatId, arg: stri
     await ctx.sendToChat(chatId, out)
     return
   }
-  // R2: a pure-numeric argument is a serial-number pick against the snapshot
+  // a pure-numeric argument is a serial-number pick against the snapshot
   // the bare form rendered — without a live one, the original semantics below
   // run unchanged (and /model --default keeps working: it is not numeric).
   const picked = await resolveNumericSelection(ctx, chatId, 'model', arg, '/model')
@@ -487,7 +487,7 @@ async function handleModelCommand(ctx: CommandContext, chatId: ChatId, arg: stri
   }
   const next = { provider, model }
   if (toDefault) {
-    // Explicit --default: rewrite the deployment-wide default only (M2-C5a).
+    // Explicit --default: rewrite the deployment-wide default only.
     if (ctx.agentDefaultModel !== undefined) {
       try {
         await ctx.agentDefaultModel.saveSelection(next)
@@ -499,14 +499,14 @@ async function handleModelCommand(ctx: CommandContext, chatId: ChatId, arg: stri
     return
   }
   // Bare switch: retarget only this chat's selection ref — never the global
-  // default (M2-C5a; the old silent saveSelection here was a scope leak).
+  // default.
   if (chat?.selectionRef !== undefined) {
     chat.selectionRef.current = next
   }
   await ctx.sendToChat(chatId, `✅ 已切换当前会话模型：${provider}/${model}（下一步生效）`)
 }
 
-/** R2 level-2 model list for one provider: renders the numbered models and
+/** level-2 model list for one provider: renders the numbered models and
  * snapshots them (phase 'models') so the next `/model <序号>` hits the
  * original per-chat switch path with '<provider> <model>'. */
 async function sendModelPickList(ctx: CommandContext, chatId: ChatId, provider: string): Promise<void> {
@@ -545,7 +545,7 @@ async function handleWorkspaceCommand(ctx: CommandContext, chatId: ChatId, arg: 
       ctx.log('debug', 'resolveByPath failed: ' + String(error))
     }
     let out = `当前工作目录：${cwd} ${suffix}\n用法：/workspace <目录路径> 切换；/workspace list 列出全部`
-    // R2: snapshot the numbered list — a following `/workspace <序号>` switches
+    // snapshot the numbered list — a following `/workspace <序号>` switches
     // without re-typing the path (payload = the exact path; lazy 5-min TTL).
     try {
       const list = ctx.workspaceRegistry?.list() ?? []
@@ -584,7 +584,7 @@ async function handleWorkspaceCommand(ctx: CommandContext, chatId: ChatId, arg: 
     }
     return
   }
-  // R2: a pure-numeric argument is a serial-number pick against the snapshot
+  // a pure-numeric argument is a serial-number pick against the snapshot
   // above — without a live one it keeps the original path semantics below.
   const picked = await resolveNumericSelection(ctx, chatId, 'workspace', arg, '/workspace')
   if (picked === null) return
@@ -667,12 +667,12 @@ async function handleStatusCommand(ctx: CommandContext, chatId: ChatId): Promise
     '可切回   : ' + switchableCount + ' 条历史会话（/session 查看列表）')
 }
 
-/** W1/T5 /healthcheck: render the health summary, or pack the redacted
+/** /doctor: render the health summary, or pack the redacted
  * diagnostics archive with the `export` argument. Failures are reported to
  * the chat as a ⚠️ line, never thrown past the router. */
 async function handleHealthcheckCommand(ctx: CommandContext, chatId: ChatId, arg: string): Promise<void> {
   const trimmed = arg.trim()
-  // T4 (P3): `export [参考号]` — an explicit reference is validated against
+  // `export [参考号]` — an explicit reference is validated against
   // the reference format before it reaches the archive file name (fail-closed:
   // junk input gets the usage line, never a sanitized-weird file name).
   const exportMatch = /^export(\s+(\S+))?$/.exec(trimmed)
@@ -754,11 +754,11 @@ async function handleRetryCommand(ctx: CommandContext, chatId: ChatId): Promise<
   chat.loopPending = null
   ctx.log('info', 'retry for ' + chatId)
   // /retry is admin-gated in tryHandleCommand, so the retried turn's role is
-  // the admin who issued the command (M1-A2).
+  // the admin who issued the command.
   try {
     await ctx.dispatchFollowup(chatId, text, 'admin', chat.lastNickname)
   } catch (error) {
-    // T4 (P3): a failed retry is a message fault — mint an MF- reference
+    // a failed retry is a message fault — mint an MF- reference
     // (trace + structured log via the bridge) and surface it in the ⚠️ notice
     // instead of letting the throw escape the router silently.
     const ref = ctx.reportFailure?.(chatId, 'command', '/retry 重试失败: ' + describeError(error))
@@ -768,7 +768,7 @@ async function handleRetryCommand(ctx: CommandContext, chatId: ChatId): Promise<
 
 /** /ocr: OCR the most recent inbound image via NapCat's ocr_image. */
 async function handleOcrCommand(ctx: CommandContext, chatId: ChatId): Promise<void> {
-  // C6a: the command routed before media parsing — resolve the registered
+  // the command routed before media parsing — resolve the registered
   // pending image ref now (downloads on first use, records the last-image
   // path exactly like the normal path).
   const pending = ctx.takePendingImageRef(chatId)
@@ -815,7 +815,7 @@ async function handlePresetCommand(ctx: CommandContext, chatId: ChatId, arg: str
     let out = '当前预设：' + (current ?? '（未记录）') + (ctx.hasPresetOverride(chatId) ? '（/preset 覆盖）' : '')
     if (listed.length > 0) {
       out += '\n可用预设：\n' + listed.map((s, i) => `${i + 1}. ${s}`).join('\n')
-      // R2: snapshot — payload is the preset id (listPresets renders `id（name）`;
+      // snapshot — payload is the preset id (listPresets renders `id（name）`;
       // ids are directory names, so the first fullwidth paren splits them off).
       ctx.setPendingSelection(chatId, {
         kind: 'preset',
@@ -828,7 +828,7 @@ async function handlePresetCommand(ctx: CommandContext, chatId: ChatId, arg: str
     await ctx.sendToChat(chatId, out)
     return
   }
-  // R2: a pure-numeric argument is a serial-number pick against the snapshot
+  // a pure-numeric argument is a serial-number pick against the snapshot
   // above — without a live one it keeps the original <id> semantics below.
   const picked = await resolveNumericSelection(ctx, chatId, 'preset', arg, '/preset')
   if (picked === null) return
@@ -1002,7 +1002,7 @@ async function sessionPreviewFor(ctx: CommandContext, sessionId: string): Promis
  * to one by serial number. Each list item carries a one-line content preview
  * (the session's first real user input), the creation time and a truncated
  * id, so the admin can recognize a session without switching back. The
- * numbered list is snapshotted (R2, kind 'session') so a following
+ * numbered list is snapshotted so a following
  * `/session <序号>` picks without re-listing. */
 async function handleSessionCommand(ctx: CommandContext, chatId: ChatId, arg: string): Promise<void> {
   if (arg.trim() === '') {

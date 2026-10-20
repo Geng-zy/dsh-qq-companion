@@ -1,11 +1,11 @@
 /**
- * The chat↔session registry (M2-D1-PR3): one live ChatAgent per QQ chat with
+ * The chat↔session registry: one live ChatAgent per QQ chat with
  * the chats/bySession dual index, session-id minting and retirement
  * (brokenSessions + the durable retired-sessions.json record), the per-chat
  * switchable-session list (switchable-sessions.json, the /session switch-back
  * history), the chat-sessions.json mapping persistence (save + debounced flush
  * + restart resume), the per-chat settings that survive /new, and the shared
- * create/resume assembly (C2) behind ensureChat/loadMapping. Extracted from
+ * create/resume assembly behind ensureChat/loadMapping. Extracted from
  * bridge.ts — persistence formats, retirement semantics and assembly
  * behavior are unchanged; the bridge keeps same-name facades so the command
  * table, the outbound pipeline and the session-event links keep working.
@@ -50,7 +50,7 @@ export type SessionSwitchOutcome =
   | { ok: true; sessionId: string }
   | { ok: false; reason: 'busy' | 'not-switchable' | 'broken' | 'resume-failed'; message: string }
 
-/** R2: one pending serial-number selection snapshot — the numbered list a
+/** one pending serial-number selection snapshot — the numbered list a
  * bare /workspace|/model|/preset|/session rendered, kept per chat so a
  * following `/cmd <序号>` picks an entry without re-listing. `payload` stores the exact
  * resolved value (workspace path / provider id / preset id / switchable session
@@ -69,10 +69,10 @@ export interface PendingSelection {
   createdAt: number
 }
 
-/** Per-chat settings that survive /new and collision heals (M2-D1-PR3):
+/** Per-chat settings that survive /new and collision heals:
  * resetChat and healSessionCollision never clear the entry, so every field
  * below keeps its value across session resets — exactly the pre-PR3 map
- * semantics. The entry is removed only by idle eviction (B8c). */
+ * semantics. The entry is removed only by idle eviction. */
 export interface ChatSettings {
   /** /workspace override (survives /new, so the next agent for the chat is
    * created under the new directory). */
@@ -86,17 +86,17 @@ export interface ChatSettings {
   goal?: string
   /** Most recent inbound image path (for /ocr), survives /new resets. */
   lastImagePath?: string
-  /** C6a: most recent inbound image ref, registered before command routing
+  /** most recent inbound image ref, registered before command routing
    * so /ocr can resolve it lazily when the message carried a command. */
   pendingImageRef?: MediaRef
-  /** R2: pending serial-number selection snapshot (see PendingSelection);
+  /** pending serial-number selection snapshot (see PendingSelection);
    * ephemeral UI state — survives /new like every field here but never
    * persisted, and bounded by the lazy 5-minute TTL instead. */
   pendingSelection?: PendingSelection
 }
 
-/** D4b: the persisted per-chat settings carried in one chat-sessions.json
- * entry (additive format: a legacy file holds a bare session-id string). T3:
+/** the persisted per-chat settings carried in one chat-sessions.json
+ * entry (additive format: a legacy file holds a bare session-id string). 
  * `workspacePath` joins the additive set so a per-chat /workspace override
  * survives a restart even when the session resume fails — loadMapping
  * restores it BEFORE the resume attempt (hole B), and the /workspace switch
@@ -108,7 +108,7 @@ interface PersistedChatSettings {
   workspacePath?: string
 }
 
-/** D4b: build one mapping entry — a bare session id when the chat carries no
+/** build one mapping entry — a bare session id when the chat carries no
  * persisted settings (byte-identical to the legacy format), else an object
  * with the optional mode/goal/workspace fields. An empty workspacePath counts
  * as unset (never persisted). */
@@ -128,12 +128,12 @@ export interface ChatAgent {
   sessionId: SessionId
   agent: Agent
   dispose(): Promise<void>
-  /** B8c: last activity timestamp (creation, dispatchFollowup, turn events);
+  /** last activity timestamp (creation, dispatchFollowup, turn events);
    * the idle sweep evicts chats idle longer than chatIdleEvictDays. */
   lastActivityAt: number
   /** Text deferred one step in either outbound mode — proven interim by the
    * next assistant/message (flushed live), else the final at turn/end.
-   * M3-D2a: the former instant-mode-only pendingFinal folded in. */
+   * the former instant-mode-only pendingFinal folded in. */
   loopPending: string | null
   /** Sent interim messages awaiting turn/end summary (text kept for the recap
    * t2i card). `sentAt` drives the per-message auto-recall scheduled after
@@ -150,10 +150,10 @@ export interface ChatAgent {
   lastHandledMessageId: string | undefined
   /** Whether a turn is currently generating. */
   busy: boolean
-  /** B7: dispatch timestamps of normal (non-command) messages inside the
+  /** dispatch timestamps of normal (non-command) messages inside the
    * current 60s sliding window (rateLimitPerMinute). */
   dispatchTimes: number[]
-  /** B7: when the last rate-limit notice was sent (at most one per window). */
+  /** when the last rate-limit notice was sent (at most one per window). */
   rateLimitNoticeAt: number | undefined
   typingTimer: ReturnType<typeof setInterval> | undefined
   lastNickname: string
@@ -191,7 +191,7 @@ export function resolveRecordedPreset(
  * agent setup closure cannot be assembled without it). */
 export interface RegistryDeps {
   agents: AgentRegistry
-  /** Durable session store: B8c flushes a session before its chat is evicted. */
+  /** Durable session store: flushes a session before its chat is evicted. */
   sessions: SessionStore
   sessionPersistence: SessionPersistenceLike | undefined
   workspaceRegistry: WorkspaceRegistryLike | undefined
@@ -261,7 +261,7 @@ export class ChatRegistry {
 
   // ------------------------------------------------------------ chat lifecycle
 
-  /** C2: default-model wiring shared by the create and resume assembly paths
+  /** default-model wiring shared by the create and resume assembly paths
    * — agent options for the registry call plus the mutable per-agent
    * selection ref (undefined when the deployment has no default model). */
   private modelWiring(): { agentOptions: { provider?: string; model?: string }; selectionRef: ModelSelectionRef | undefined } {
@@ -277,7 +277,7 @@ export class ChatRegistry {
     return { agentOptions, selectionRef }
   }
 
-  /** C2: the AgentSetup closure shared by the create and resume assembly
+  /** the AgentSetup closure shared by the create and resume assembly
    * paths. The only difference between the callers is the preset: a resumed
    * session rejoins the preset it recorded itself; a fresh create reuses the
    * config/default resolution already recorded in its header meta. */
@@ -291,11 +291,11 @@ export class ChatRegistry {
     }
   }
 
-  /** C2: the ChatAgent literal shared by the create and resume assembly
+  /** the ChatAgent literal shared by the create and resume assembly
    * paths — every field starts at its neutral initial value. `nickname` is
    * the one deliberate divergence between the callers (create seeds it from
-   * the inbound message, resume keeps the pre-C2 hardcoded ''); pinned by
-   * the M2-C2 characterization tests in bridge.spec.ts. */
+   * the inbound message, resume starts with ''); pinned by
+   * the characterization tests in bridge.spec.ts. */
   private createChatAgent(
     chatId: ChatId,
     handle: { agent: Agent; dispose(): Promise<void> },
@@ -325,15 +325,15 @@ export class ChatRegistry {
     }
   }
 
-  /** B8a: in-flight creates keyed by chat id — concurrent first messages for
-   * one chat join a single create instead of racing (pre-B8a, two dispatches
+  /** in-flight creates keyed by chat id — concurrent first messages for
+   * one chat join a single create instead of racing (otherwise two dispatches
    * could both pass the empty-map check and agents.create ran twice with the
    * same derived session id; the second chats.set won and the first agent
    * leaked). */
   private readonly pendingCreates = new Map<ChatId, Promise<ChatAgent>>()
 
-  /** B8c: chats evicted for idleness, kept resumable (chat id → last session
-   * id plus the D4b persisted-settings snapshot, since chatSettings is cleared
+  /** chats evicted for idleness, kept resumable (chat id → last session
+   * id plus the persisted-settings snapshot, since chatSettings is cleared
    * on eviction). NOT retired: saveMapping keeps writing them, so the mapping
    * file never drops an evicted chat and a later message resumes its session. */
   private readonly evictedChats = new Map<ChatId, PersistedChatSettings>()
@@ -354,12 +354,12 @@ export class ChatRegistry {
 
   private async createChat(chatId: ChatId, nickname: string): Promise<ChatAgent> {
     await this.mappingLoaded
-    // B8c: a chat evicted for idleness resumes its recorded session instead
+    // a chat evicted for idleness resumes its recorded session instead
     // of forking a fresh one — the mapping entry was kept for exactly this.
     const evicted = this.evictedChats.get(chatId)
     if (evicted !== undefined) {
       if (this.isSessionIdBlocked(evicted.session)) {
-        // T3: the snapshot records a retired session (resetChat keeps the
+        // the snapshot records a retired session (resetChat keeps the
         // mapping entry as a settings carrier after /new or a /workspace
         // switch). Resuming it would resurrect retired history — skip the
         // resume, keep the settings, and fall through to a fresh create.
@@ -368,13 +368,13 @@ export class ChatRegistry {
       } else {
         try {
           const resumed = await this.resumeChat(chatId, evicted.session)
-          // D4b/T3: the evicted chat's persisted mode/goal/workspace come back with it.
+          // the evicted chat's persisted mode/goal/workspace come back with it.
           this.restoreEvictedSettings(chatId, evicted)
           this.evictedChats.delete(chatId)
           return resumed
         } catch (error) {
           this.retireSession(evicted.session)
-          // T3-R2: mirror the blocked-snapshot fast path above — the failed
+          // mirror the blocked-snapshot fast path above — the failed
           // resume retires the session but must not lose the snapshot's
           // settings: restore them onto chatSettings so the fresh create
           // below keys them in (and, if that create also fails, saveMapping's
@@ -444,7 +444,7 @@ export class ChatRegistry {
     try {
       await handle.agent.whenIdle()
     } catch (error) {
-      // B8b: create succeeded but the first idle wait failed — dispose the
+      // create succeeded but the first idle wait failed — dispose the
       // orphan agent instead of leaking it.
       try {
         await handle.dispose()
@@ -467,7 +467,7 @@ export class ChatRegistry {
     return chat
   }
 
-  /** T3: apply the persisted-settings snapshot (mode/goal/workspace override)
+  /** apply the persisted-settings snapshot (mode/goal/workspace override)
    * of an evicted or reset chat onto its settings entry — shared by the
    * evicted-resume path and its retired-session fast path. */
   private restoreEvictedSettings(chatId: ChatId, evicted: PersistedChatSettings): void {
@@ -481,7 +481,7 @@ export class ChatRegistry {
   async loadMapping(): Promise<void> {
     try {
       const content = await readFile(this.mappingPath(), 'utf8')
-      // D4b/T3: additive format — a legacy entry is a bare session-id string; a
+      // additive format — a legacy entry is a bare session-id string; a
       // new entry is { session, interimOverride?, goal?, workspacePath? }.
       const mapping = JSON.parse(content) as Record<string, string | PersistedChatSettings>
       this.deps.log('debug', 'mapping file has ' + Object.keys(mapping).length + ' chat(s)')
@@ -490,7 +490,7 @@ export class ChatRegistry {
         if (typeof sessionId !== 'string' || sessionId === '') continue
         // Restore the persisted mode/goal/workspace override BEFORE the resume
         // attempt (old files carry neither — the settings then fall back to
-        // their current defaults). T3: restoring the override first closes the
+        // their current defaults). restoring the override first closes the
         // hole where a failed resume (retire → fresh session) lost the
         // per-chat /workspace choice.
         if (typeof entry === 'object' && entry !== null) {
@@ -499,9 +499,9 @@ export class ChatRegistry {
           if (typeof entry.goal === 'string' && entry.goal !== '') settings.goal = entry.goal
           if (typeof entry.workspacePath === 'string' && entry.workspacePath !== '') settings.workspacePath = entry.workspacePath
         }
-        // T3: a durably retired session id (recorded by resetChat's settings
+        // a durably retired session id (recorded by resetChat's settings
         // snapshot) must never be resumed — the entry only carries the
-        // settings for the chat's NEXT session. T3-R1 (review closure): keep
+        // settings for the chat's NEXT session. (review closure): keep
         // the object entry in evictedChats so any mid-flight saveMapping
         // (stop(), another chat's createChat) still writes it — a
         // settings-only chat sits in neither chats nor evictedChats, and one
@@ -518,7 +518,7 @@ export class ChatRegistry {
           await this.resumeChat(chatId, sessionId)
         } catch (error) {
           this.retireSession(sessionId)
-          // T3-R2: mirror the retired-skip branch above — keep the object
+          // mirror the retired-skip branch above — keep the object
           // entry in evictedChats as a settings carrier so any later
           // saveMapping keeps writing it (otherwise one dropped save erases
           // workspacePath/goal/mode from the file before the next restart).
@@ -532,7 +532,7 @@ export class ChatRegistry {
   }
 
   /** Resume one persisted chat from its recorded session id (shared by
-   * loadMapping and the B8c evicted-chat resume). */
+   * loadMapping and the evicted-chat resume). */
   private async resumeChat(chatId: ChatId, sessionId: string): Promise<ChatAgent> {
     const { agentOptions, selectionRef } = this.modelWiring()
     const recordedPreset = await this.recordedPresetFor(makeSessionId(sessionId))
@@ -559,7 +559,7 @@ export class ChatRegistry {
     try {
       await handle.agent.whenIdle()
     } catch (error) {
-      // B8b: same orphan rule as the create path — dispose before rethrowing.
+      // same orphan rule as the create path — dispose before rethrowing.
       try {
         await handle.dispose()
       } catch {
@@ -578,9 +578,9 @@ export class ChatRegistry {
       : this.deps.config.mediaDir + '/' + MAPPING_FILE
   }
 
-  /** T3 (hole C): make a just-set /workspace override durable even when the
+  /** (hole C): make a just-set /workspace override durable even when the
    * chat is not live (before its first message, or after a failed resume).
-   * saveMapping covers chats/evictedChats plus (T3-R2) a settings-only
+   * saveMapping covers chats/evictedChats plus a settings-only
    * fallback, so the settings survive either way — the snapshot still pins
    * the chat's real mapping session id over the derived bare id. Snapshots
    * the chat into evictedChats under its mapping session id — or the derived bare id
@@ -622,7 +622,7 @@ export class ChatRegistry {
   private buildMapping(): Record<string, string | PersistedChatSettings> {
     const mapping: Record<string, string | PersistedChatSettings> = {}
     for (const [chatId, evicted] of this.evictedChats) {
-      // T3: prefer the live settings entry over the snapshot — later
+      // prefer the live settings entry over the snapshot — later
       // /mode, /goal or /workspace changes on a not-yet-resumed chat must
       // reach the file (union semantics: a field kept in only one of the
       // two places still survives).
@@ -633,7 +633,7 @@ export class ChatRegistry {
       const settings = this.chatSettings.get(chat.chatId)
       mapping[chat.chatId] = persistEntry(chat.sessionId, settings?.interimOverride, settings?.goal, settings?.workspacePath)
     }
-    // T3-R2: a chat that sits in neither evictedChats nor chats but owns
+    // a chat that sits in neither evictedChats nor chats but owns
     // persisted settings must not be dropped from the file by a save —
     // write it under the noteWorkspaceOverride-derived bare session id,
     // and only when it carries at least one persistable field (no empty
@@ -654,7 +654,7 @@ export class ChatRegistry {
     }, 2_000).unref()
   }
 
-  /** B8c: dispose chats whose last activity is older than chatIdleEvictDays
+  /** dispose chats whose last activity is older than chatIdleEvictDays
    * (0 disables; default 7). Called before each inbound message: the session
    * is flushed, the agent disposed, and the chat removed from
    * chats/bySession/settings — NOT retired, the mapping keeps the pair so a
@@ -682,7 +682,7 @@ export class ChatRegistry {
     this.clearInterimTimers(chat)
     this.chats.delete(chatId)
     this.bySession.delete(chat.sessionId)
-    // D4b/T3: snapshot the persisted settings before the eviction clears them,
+    // snapshot the persisted settings before the eviction clears them,
     // so saveMapping keeps writing the chat's mode/goal/workspace override
     // while it is idle.
     const evictedSettings = this.chatSettings.get(chatId)
@@ -989,12 +989,12 @@ export class ChatRegistry {
     return { ok: true, sessionId: target }
   }
 
-  /** T3-R1 (review closure): carry the chat's persisted settings across a
+  /** (review closure): carry the chat's persisted settings across a
    * reset or a collision heal — snapshot them into evictedChats under the
    * (about-to-be-retired) session id, so the trailing saveMapping keeps the
    * entry instead of dropping the chat's workspace/goal/mode on a restart.
    * Only persisted fields trigger the snapshot (a plain /new or heal keeps
-   * the exact pre-T3 on-disk behavior: entry dropped); the recorded session
+   * the old on-disk behavior: entry dropped); the recorded session
    * id is retired by the caller, so the carrier is never resumed. Shared by
    * resetChat and healSessionCollision — logic frozen to the original
    * resetChat inline snapshot. */
@@ -1018,7 +1018,7 @@ export class ChatRegistry {
   async healSessionCollision(chatId: ChatId): Promise<void> {
     const chat = this.chats.get(chatId)
     if (chat === undefined) return
-    // T3-R1 (review closure): same settings carrier as resetChat — without
+    // (review closure): same settings carrier as resetChat — without
     // the snapshot the trailing saveMapping drops the chat entirely (it sits
     // in neither chats nor evictedChats), losing workspacePath/goal/mode on a
     // restart before the next message. Only persisted fields trigger it.
@@ -1203,14 +1203,14 @@ export class ChatRegistry {
   async resetChat(chatId: ChatId): Promise<void> {
     const chat = this.chats.get(chatId)
     if (chat !== undefined) {
-      // T3 (hole C): keep the mapping entry alive across the reset — without a
+      // (hole C): keep the mapping entry alive across the reset — without a
       // snapshot the trailing saveMapping drops the chat entirely (it sits in
       // neither chats nor evictedChats), losing the /workspace override (and
       // mode/goal) on any restart before the next message. The retired session
       // id is never resumed: createChat skips blocked snapshots and loadMapping
       // skips durably retired ids. Only persisted fields trigger the snapshot —
-      // a plain /new keeps the exact pre-T3 on-disk behavior (entry dropped).
-      // T3-R1 (review): the identical snapshot now also covers collision heals.
+      // a plain /new keeps the old on-disk behavior (entry dropped).
+      // (review): the identical snapshot now also covers collision heals.
       this.snapshotRetainedSettings(chatId, chat.sessionId)
       this.deps.onChatRemoved(chat)
       this.clearInterimTimers(chat)

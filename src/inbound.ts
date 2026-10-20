@@ -1,5 +1,5 @@
 /**
- * Inbound pipeline (M2-D1-PR4): the OneBot-11 → agent-turn path. Two pieces:
+ * Inbound pipeline: the OneBot-11 → agent-turn path. Two pieces:
  * `normalizeOneBot11`, the pure protocol-adaptation seam that reduces one
  * raw message event to a neutral NormalizedInbound (null = not processable),
  * and `InboundPipeline`, which runs the normalized message through the
@@ -7,8 +7,8 @@
  * quote/forward expansion → rate limit → turn dispatch. Extracted verbatim
  * from bridge.ts — gate order, prefix assembly, media annotation and
  * rate-limit behavior are identical; the bridge keeps same-name facade
- * methods so the onFrame call site, the command table and the M2-T0
- * pipeline-order overrides keep working unchanged.
+ * methods so the onFrame call site, the command table and the
+ * pipeline-order tests keep working unchanged.
  * @module dsh-qq-companion/inbound
  */
 import { writeFile } from 'node:fs/promises'
@@ -58,12 +58,12 @@ export interface NormalizedInbound {
   replyId?: string
   /** OneBot forward id embedded in the message, if any. */
   forwardId?: string
-  /** W2-②: the event's own message_id, stringified. Absent when the
+  /** the event's own message_id, stringified. Absent when the
    * implementation didn't send one — the pipeline's message_id dedup window
    * is skipped for those (nothing to key on). */
   messageId?: string
   /** Raw sender-controlled nickname (card ?? nickname ?? userId) — NOT yet
-   * sanitized; the pipeline's M3-D5 identity whitelist sanitizes it before it
+   * sanitized; the pipeline's identity whitelist sanitizes it before it
    * reaches the prefix, the boundary attribute or lastNickname. */
   nickname: string
 }
@@ -113,7 +113,7 @@ export function normalizeOneBot11(event: OneBotEvent): NormalizedInbound | null 
 
 /** Narrow view of a live chat the inbound pipeline may touch — the
  * structural subset of the bridge's ChatAgent the pipeline reads/writes:
- * the unmerged-loop residue reset on each new user message, and the B7
+ * the unmerged-loop residue reset on each new user message, and the
  * sliding-window rate-limit fields. */
 export interface InboundChat {
   loopBuffer: Array<{ id: string; text: string; sentAt: number }>
@@ -127,7 +127,7 @@ export interface InboundChat {
  * (chat lookup, per-chat settings, the idle sweep), media/transcriber, the
  * OneBot action gate, the outbound facade for the rate-limit notice, the
  * log, and the bridge-owned seams (command router, body building, quote
- * expansion, turn dispatch) kept as callbacks so the M2-T0 pipeline-order
+ * expansion, turn dispatch) kept as callbacks so the pipeline-order
  * test's bridge-instance overrides stay observable. dispatchFollowup is one
  * of those seams but its body stays bridge-resident (it orchestrates
  * ensureChat and the per-turn prefixes). */
@@ -139,21 +139,21 @@ export interface InboundContext {
   selfId(): string
   /** Access policy: DM/group allow lists and the admin set. */
   policy: AccessPolicyConfig
-  /** Live chat lookup (loop-residue reset + the B7 rate-limit window). */
+  /** Live chat lookup (loop-residue reset + the rate-limit window). */
   getChat(chatId: ChatId): InboundChat | undefined
   /** Per-chat settings (recent-image registration for /ocr). */
   getSettings(chatId: ChatId): ChatSettings
-  /** B8c: lazy idle-chat sweep before each inbound message. */
+  /** lazy idle-chat sweep before each inbound message. */
   sweepIdleChats(): Promise<void>
   /** Media store: ref resolution, URL downloads, fresh-path writes, temp cleanup. */
   media: MediaStore
   /** Voice transcriber. */
   transcriber: Transcriber
-  /** M3-D4c: deliver a completed voice transcript into the chat's agent
+  /** deliver a completed voice transcript into the chat's agent
    * (bridge-owned: steers the running turn, or opens one when idle). */
   steerTranscript(chatId: ChatId, text: string): void
   /** Slash-command router (bridge facade: the command table's ctx lives there).
-   * nickname (T9-A): pre-sanitized sender display name for the /steer
+   * nickname: pre-sanitized sender display name for the /steer
    * <user_message> boundary attribute. */
   tryHandleCommand(chatId: ChatId, text: string, userId: string, nickname?: string): Promise<boolean>
   /** Message body assembly (bridge facade: overridable, see the pipeline-order test). */
@@ -162,7 +162,7 @@ export interface InboundContext {
   expandQuote(messageId: string): Promise<string>
   /** Turn dispatch — bridge-owned orchestration (ensureChat + per-turn prefixes). */
   dispatchFollowup(chatId: ChatId, text: string, role: UserRole, nickname?: string): Promise<void>
-  /** T2 (P1): busy-turn policy seam — invoked for every non-command message
+  /** busy-turn policy seam — invoked for every non-command message
    * after ALL gates (dedup/policy/mention/media/rate-limit), right before the
    * turn dispatch, so queue/steer can never bypass an existing gate. Returns
    * true when the seam consumed the message (queued with a once-per-turn
@@ -170,25 +170,25 @@ export interface InboundContext {
    * dispatch normally (the 0.8.1 path, byte-identical). `plain` = the message
    * carries no media, no quote and no forward (steer eligibility precondition:
    * media-bearing messages always queue, never steer). Optional: absent =
-   * the pre-T2 pipeline (0.8.1 behavior for every message). */
+   * straight dispatch for every message. */
   interceptBusyTurn?(chatId: ChatId, text: string, role: UserRole, nickname: string | undefined, plain: boolean): Promise<boolean>
-  /** Outbound facade (the B7 rate-limit notice). */
+  /** Outbound facade (the rate-limit notice). */
   sendToChat(chatId: ChatId, text: string): Promise<string[]>
   /** Bridge log line callback. */
   log(level: 'info' | 'warn' | 'error' | 'debug', message: string): void
-  /** The only config fields the inbound pipeline reads. The W2-② dedup
+  /** The only config fields the inbound pipeline reads. The dedup
    * window rides as an optional intersection member so the bridge's
    * BridgeConfig type stays untouched (absent → the default window). */
   config: Pick<BridgeConfig, 'botQQ' | 'ignoreSelf' | 'requireMention' | 'rateLimitPerMinute' | 'restrictedMemberPrefix' | 'maxInboundFileBytes'> & Partial<{
-    /** W2-② (chatId, message_id) dedup window in seconds; 0 disables. */
+    /** (chatId, message_id) dedup window in seconds; 0 disables. */
     dedupWindowSeconds: number
   }>
 }
 
-/** W2-②: default (chatId, message_id) dedup window, aligned with the MIT
- * competitor's dedupWindowSeconds (300s). */
+/** default (chatId, message_id) dedup window, aligned with the MIT
+ * dsh-qq-onebot-bridge's dedupWindowSeconds (300s). */
 export const DEFAULT_DEDUP_WINDOW_SECONDS = 300
-/** W2-②: max entries kept in the dedup window map (LRU-evicted beyond this)
+/** max entries kept in the dedup window map (LRU-evicted beyond this)
  * so a flood of distinct message_ids cannot grow memory unbounded. */
 export const DEDUP_MAX_ENTRIES = 4096
 
@@ -203,15 +203,15 @@ export interface InboundPipelineOptions {
 
 /**
  * The inbound pipeline: one normalized OneBot event → one agent turn.
- * Owns media resolution, quote/forward expansion and the B7 rate limit;
+ * Owns media resolution, quote/forward expansion and the rate limit;
  * turn dispatch stays behind the context callback.
  */
 export class InboundPipeline {
   private readonly ctx: InboundContext
-  /** W2-② dedup knobs (see InboundPipelineOptions). */
+  /** dedup knobs (see InboundPipelineOptions). */
   private readonly dedupMaxEntries: number
   private readonly now: () => number
-  /** W2-② dedup window state: "chatId#messageId" → first-seen epoch ms, in
+  /** dedup window state: "chatId#messageId" → first-seen epoch ms, in
    * insertion order (Map) so the oldest entry is the LRU victim. */
   private readonly seenMessages = new Map<string, number>()
 
@@ -221,7 +221,7 @@ export class InboundPipeline {
     this.now = options.now ?? Date.now
   }
 
-  /** W1/T5 health snapshot: how many message_ids are currently held in the
+  /** health snapshot: how many message_ids are currently held in the
    * dedup window (LRU-capped; see DEDUP_MAX_ENTRIES). */
   get dedupWindowEntries(): number {
     return this.seenMessages.size
@@ -231,7 +231,7 @@ export class InboundPipeline {
     if (this.duplicated(inbound)) return
     const { kind, userId, groupId, chatId } = inbound
     if (this.ctx.config.ignoreSelf && this.ctx.selfId() !== '' && userId === this.ctx.selfId()) {
-      // pipeline-hooks.md #5: this drop used to be fully silent.
+      // this drop used to be fully silent.
       this.ctx.log('debug', '机器人自己的消息已忽略: ' + chatId)
       currentTrace()?.emit('self', { ok: false, reason: TRACE_REASONS.inboundSelf })
       return
@@ -258,12 +258,12 @@ export class InboundPipeline {
       return
     }
 
-    // M3-D5 identity whitelist: the sanitized nickname feeds the single-line
+    // identity whitelist: the sanitized nickname feeds the single-line
     // prefix, the <user_message> attribute and lastNickname — one value,
     // provably line-safe and markup-free for all three surfaces.
     const nickname = sanitizeNickname(inbound.nickname)
 
-    // B8c: lazy idle eviction before processing each inbound message (flush →
+    // lazy idle eviction before processing each inbound message (flush →
     // dispose → remove; the mapping is kept so the chat can resume).
     await this.ctx.sweepIdleChats()
 
@@ -278,7 +278,7 @@ export class InboundPipeline {
     // Fire-and-forget temp cleanup on each inbound.
     void this.ctx.media.cleanupExpired()
 
-    // C6a: route slash commands BEFORE any media/quote I/O — a message that
+    // route slash commands BEFORE any media/quote I/O — a message that
     // happens to carry media must not pay for downloads or get_msg calls just
     // to be consumed as a command (admin-only; unknown /-words still fall
     // through to the model). The most recent inbound image is registered from
@@ -315,14 +315,14 @@ export class InboundPipeline {
     const isAdmin = classifyUserRole(userId, policy.adminUsers) === 'admin'
     if (this.rateLimited(chatId)) return
 
-    // M3-D5: the whole sender-controlled payload (body + quote/forward
+    // the whole sender-controlled payload (body + quote/forward
     // expansions) enters the prompt inside the <user_message> boundary, so
     // forged prefix lines, restricted-member tags and system-prompt-like text
     // stay pure data. The framework-generated group prefix and
     // RESTRICTED_PREFIX remain outside — the only trusted metadata.
     const content = [forward, quote, body].filter(part => part !== '').join('\n')
     if (content.trim() === '') {
-      // pipeline-hooks.md #17: this drop used to be fully silent.
+      // this drop used to be fully silent.
       this.ctx.log('debug', '消息展开后无有效文本内容，已丢弃: ' + chatId)
       currentTrace()?.emit('dispatch', { ok: false, reason: TRACE_REASONS.inboundEmptyContent })
       return
@@ -335,13 +335,13 @@ export class InboundPipeline {
       }
     }
     const role: UserRole = isAdmin ? 'admin' : 'member'
-    // T2 (P1): the busy-turn policy seam runs AFTER every gate above (dedup /
+    // the busy-turn policy seam runs AFTER every gate above (dedup /
     // self / policy / mention / command / rate-limit) and only around the
     // final dispatch — a queued or steered message has already paid for its
     // rate-limit slot and passed the whole pipeline. `plain` = no media, no
     // quote, no forward: the only shape eligible for steer (media-bearing
     // messages always queue so the full media pipeline runs for their own
-    // turn). Seam absent = pre-T2 behavior (straight dispatch).
+    // turn). Seam absent = straight dispatch.
     const plain = inbound.media.length === 0 && inbound.replyId === undefined && inbound.forwardId === undefined
     if (this.ctx.interceptBusyTurn !== undefined
       && await this.ctx.interceptBusyTurn(chatId, final, role, nickname, plain)) {
@@ -350,12 +350,12 @@ export class InboundPipeline {
     await this.ctx.dispatchFollowup(chatId, final, role, nickname)
   }
 
-  /** W2-②: (chatId, message_id) sliding-window dedup against OneBot
+  /** (chatId, message_id) sliding-window dedup against OneBot
    * re-delivery (reconnect replay / ws retry). Runs before every other gate
    * so a redelivered message can neither re-trigger a command nor reset the
    * loop residue; only events that normalize to processable chat messages
-   * reach this — notice/meta/request events never enter the pipeline (see
-   * docs/m1-characterization/pipeline-hooks.md #1/#3). Events without a
+   * reach this — notice/meta/request events never enter the pipeline.
+   * Events without a
    * message_id are not deduped (nothing to key on). Window entries live in
    * an LRU-capped map: hits refresh recency (keeping the first-seen time, so
    * the window opens at first delivery), the oldest entry is evicted beyond
@@ -385,7 +385,7 @@ export class InboundPipeline {
     return false
   }
 
-  /** B7: sliding-window inbound rate limit for normal (non-command) messages.
+  /** sliding-window inbound rate limit for normal (non-command) messages.
    * Commands consumed by tryHandleCommand never reach this. Returns true when
    * the message must be dropped; at most one notice is sent per window. */
   private rateLimited(chatId: ChatId): boolean {
@@ -399,7 +399,7 @@ export class InboundPipeline {
       chat.dispatchTimes.push(now)
       return false
     }
-    // pipeline-hooks.md #16: the drop decision itself used to be silent (only
+    // the drop decision itself used to be silent (only
     // the user-facing notice text existed).
     currentTrace()?.emit('ratelimit', { ok: false, reason: TRACE_REASONS.inboundRateLimited })
     if (chat.rateLimitNoticeAt === undefined || now - chat.rateLimitNoticeAt >= 60_000) {
@@ -430,7 +430,7 @@ export class InboundPipeline {
       if (idx >= 0 && annotation !== '') {
         out = out.slice(0, idx) + annotation + out.slice(idx + placeholder.length)
       } else if (idx >= 0) {
-        // pipeline-hooks.md #10: a failed resolution used to leave the
+        // a failed resolution used to leave the
         // placeholder silently unresolved.
         this.ctx.log('debug', '媒体解析失败，占位符保留原文: ' + placeholder)
         currentTrace()?.emit('media', { ok: false, reason: TRACE_REASONS.mediaResolveFailed })
@@ -465,7 +465,7 @@ export class InboundPipeline {
         settings.pendingImageRef = undefined
         return '[图片:' + resolved.path + ']'
       case 'voice': {
-        // M3-D4c: dispatch must not wait on STT — the [语音] placeholder ships
+        // dispatch must not wait on STT — the [语音] placeholder ships
         // now and the transcript steers into the turn when it completes. A
         // failure/timeout keeps the placeholder as the final state.
         if (this.ctx.transcriber.enabled) {
@@ -480,7 +480,7 @@ export class InboundPipeline {
     }
   }
 
-  /** M3-D4c: transcribe in the background and deliver the labeled transcript
+  /** transcribe in the background and deliver the labeled transcript
    * into the chat's turn (steer at the running turn's nearest step boundary,
    * or a new turn when the agent is idle). Failure keeps [语音] as final. */
   private async transcribeLater(path: string, chatId: ChatId): Promise<void> {

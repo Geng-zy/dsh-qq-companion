@@ -382,7 +382,7 @@ export async function resolveContainedPath(allowedRoots: string[], target: strin
  * @param path - absolute file path.
  * @param maxBytes - size cap; exceeding it throws.
  * @param allowedRoots - when provided, the path is refused unless it
- *   resolves inside one of the roots (M1-A3a outbound fence; tools pass it
+ *   resolves inside one of the roots (outbound fence; tools pass it
  *   once wired, until then absence keeps the legacy uncaged behavior).
  * @returns "base64://<data>".
  */

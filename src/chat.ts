@@ -112,7 +112,7 @@ export function groupAllowed(groupId: string, policy: AccessPolicyConfig): boole
 }
 
 /**
- * M3-D5 nickname whitelist: sanitize an attacker-controlled display name for
+ * nickname whitelist: sanitize an attacker-controlled display name for
  * every identity surface it reaches — the single-line message prefix and the
  * <user_message> boundary attribute (see wrapUserMessage). The whitelist
  * guarantees neither surface can be forged:
@@ -153,7 +153,7 @@ export function buildGroupMessagePrefix(nickname: string, userId: string, mentio
 export const RESTRICTED_PREFIX = '[受限用户:仅问答] '
 
 /**
- * M3-D5: wrap untrusted user content (message body + quote/merged-forward
+ * wrap untrusted user content (message body + quote/merged-forward
  * expansions) in the explicit prompt-injection boundary. Everything between
  * the tags is data by platform declaration (src/prompt.ts): forged prefix
  * lines, restricted-member tags or system-prompt-like text inside it can

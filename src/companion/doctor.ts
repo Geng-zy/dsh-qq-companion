@@ -17,7 +17,7 @@ export interface CompanionStatusDeps {
   proactive?: () => { remaining: string[]; firedToday: number }
   /** Memory files to size; `max` (bytes) renders a percentage. */
   memoryFiles?: Array<{ label: string; path: string; max?: number }>
-  /** Root of per-group memory dirs (<root>/<group>/AGENTS.md). */
+  /** Root of per-group memory dirs. */
   groupMemoryDir?: string
   groupMemoryMaxBytes?: number
   now?: () => number

@@ -112,7 +112,7 @@ const CQ_REPLY_RE = /\[CQ:reply,id=([^,\]]+)\]/g
  * falls back to CQ-string scanning. @-detection stays fail-closed: with an
  * unknown bot id and no configured botQQ, group messages are never treated
  * as mentioning us. Reply segments count only when the replied-to user is
- * determinably the bot itself (M1-A8); an undeterminable target (segment
+ * determinably the bot itself; an undeterminable target (segment
  * carries no qq) falls back to the previous always-mention behavior — a
  * deliberate fail-open so tightening the gate never breaks existing setups.
  * @param segments - segment array (may be undefined for CQ-only payloads).

@@ -1,12 +1,11 @@
 /**
- * dsh-onebot — `onebotSettings` Typert Remote service（T3 · T1 定案 B 路径）
+ * dsh-onebot — `onebotSettings` Typert Remote service
  *
  * Host-plane root service declared in cordis.patch.yml（仓库模板同名文件）via an
  * independent insert row (`- id: onebot-settings-remote / name:
  * <DEPLOY_DIR>/lib/settings-remote.js`)，so the api-gateway discovers the
- * `onebotSettings` Remote namespace and the settings page client（T4,
- * lib/client.js）can read/write the dsh-onebot entry's config override row.
- * 契约唯一来源：docs/settings-page-design.md（T1 定案）§2 / §3 / §3.1 / §4。
+ * `onebotSettings` Remote namespace and the settings page client
+ * (lib/client.js) can read/write the plugin entry's config override row.
  *
  * Contract — namespace `onebotSettings`，每方法一个 descriptor，全 positional
  * （宿主网关按 descriptor 位置序调用，methodParameterNames 拒绝解构/默认值/
@@ -14,17 +13,17 @@
  *
  *   getSettings()                            → OnebotSettingsSnapshot
  *   updateSettings(patch, expectedRevision)  → OnebotSettingsSnapshot
- *   listWorkspaces()                         → WorkspaceListResult（W7：只读查询宿主
+ *   listWorkspaces()                         → WorkspaceListResult（只读查询宿主
  *     dsh-workspace 注册表，供设置页「快速填入 workspace」；registry 缺席/list()
  *     失败一律降级为 {available:false, workspaces:[]}，不抛错——辅助查询绝不
  *     阻塞 getSettings/updateSettings 主链路，也绝不打开 registry 内部态）
  *
- * 持久层 = profile patch 中 `dsh-onebot` 条目的 config 覆盖行（T1 §3——设置页
+ * 持久层 = profile patch 中 `dsh-onebot` 条目的 config 覆盖行（设置页
  * /手改 patch/宿主原生设置页三方同源，无第二优先级）。写入经宿主
  * configEditor.edit（dsh-config-editor/lib/index.js:63-123：文件锁 + 原子写 +
  * reconcile 热生效 + 激活失败自动回滚），本模块不发明第二条写路径。
  *
- * revision 语义（T1 §3.1，对齐宿主 SettingsForms）：
+ * revision 语义：
  * - 每宿主进程、每服务实例一个内存计数器，从 0 开始，不持久化；
  * - 读侧每次调用将 entry.options.config 序列化为指纹与上次比较，任何来源的
  *   已提交变更都 +1（本 Remote / 宿主原生设置页 / HMR 后的手改 patch）；
@@ -36,7 +35,7 @@
  *   当前生效 config 全等，跳过 edit）。
  *
  * 敏感字段：accessToken 快照返回侧脱敏——snapshot.config.accessToken 恒为
- * ''，明文是否已配置由 snapshot.secrets 标记（T1 §3 敏感字段行；写入侧在
+ * ''，明文是否已配置由 snapshot.secrets 标记（敏感字段行；写入侧在
  * patch 文件明文落盘是宿主既有管道默认行为，加密存储范围外）。
  *
  * @deepseek-ai/dsh-typert-protocol 不可解析时（裸 dev checkout；装好的 profile
@@ -52,19 +51,19 @@ import type { Context } from '@deepseek-ai/cordis'
  *  list()，不打开 registry 内部态——import type 零运行时依赖，不改 bridge.ts）。 */
 import type { WorkspaceRegistryLike } from './bridge.js'
 
-/** patch insert 中 dsh-onebot 主条目的 id（T1 §2/§3：唯一持久层条目）。 */
+/** patch insert 中 dsh-onebot 主条目的 id。 */
 export const ENTRY_ID = 'dsh-onebot'
-/** Typert Remote 命名空间 = cordis 服务键（T1 §4）。 */
+/** Typert Remote 命名空间 = cordis 服务键。 */
 export const NAMESPACE = 'onebotSettings'
-/** 快照固定值：29 键均为插件级热重启生效（T1 §5；W1/W2 新增 6 布尔键同粒度）。 */
+/** 快照固定值：29 键均为插件级热重启生效。 */
 export const REMOTE_EFFECT = 'restart'
 
-/** 设置页 UI 四组 29 键（T1 §4 + T9 autoSteerPolicy + T3 deferredTimeoutMs；与 src/index.ts Config schema 一一对应）。
- *  W6：permissions/behavior 三组 19 键保持不动，W1/W2 的 6 个布尔键独立成
+/** 设置页 UI 四组 29 键。
+ *  permissions/behavior 三组 19 键保持不动，的 6 个布尔键独立成
  *  「diagnostics（诊断）」组——它们全部默认关（除 actionAuditEnabled 默认开）、
  *  属观测/调试面，与连接权限行为组的使用频率与风险等级都不同，独立分组让
- *  「默认全关的调试开关」一眼可辨（对齐竞品 v0.6.0 面板的开关分组话术）。
- *  W7：connection 组追加 workspacePath（会话默认工作区；schema 已有该键
+ *  「默认全关的调试开关」一眼可辨。
+ *  connection 组追加 workspacePath（会话默认工作区；schema 已有该键
  *  src/index.ts:287，本批次起入面板白名单，键序追加在组尾）。 */
 export const SETTINGS_GROUPS: Readonly<Record<string, readonly string[]>> = {
   connection: ['mode', 'host', 'port', 'url', 'accessToken', 'botQQ', 'workspacePath'],
@@ -76,7 +75,7 @@ export const SETTINGS_GROUPS: Readonly<Record<string, readonly string[]>> = {
   proactive: ['proactiveEnabled', 'proactiveChatId', 'proactiveWindowStart', 'proactiveWindowEnd', 'proactiveMinPerDay', 'proactiveMaxPerDay', 'proactiveMinGapMinutes', 'proactiveSkipIfActiveMinutes', 'proactiveMaxUnanswered'],
 }
 
-/** schema 默认值（T1 §4 表；摘自 src/index.ts:171-245），快照生效值的底层。 */
+/** schema 默认值，快照生效值的底层。 */
 export const SCHEMA_DEFAULTS: Readonly<Record<string, unknown>> = {
   mode: 'reverse',
   host: '127.0.0.1',
@@ -84,7 +83,7 @@ export const SCHEMA_DEFAULTS: Readonly<Record<string, unknown>> = {
   url: 'ws://127.0.0.1:3001',
   accessToken: '',
   botQQ: '',
-  // W7：会话默认工作区路径（schema 默认 ''，src/index.ts:287——留空 = 宿主进程 cwd）。
+  // 会话默认工作区路径（schema 默认 ''，src/index.ts:287——留空 = 宿主进程 cwd）。
   workspacePath: '',
   requireMention: true,
   adminUsers: [],
@@ -99,13 +98,13 @@ export const SCHEMA_DEFAULTS: Readonly<Record<string, unknown>> = {
   sendErrorNotice: true,
   unknownCommand: 'intercept',
   rateLimitPerMinute: 30,
-  // T2 (P1)：任务运行中的新消息处理策略（queue=排队默认；steer=插话）。
+  // 任务运行中的新消息处理策略（queue=排队默认；steer=插话）。
   newMessagePolicy: 'queue',
-  // T9-B (用户裁决 2026-10-12)：自动插话资格档位（admin=仅管理员默认；all=不限）。
+  // (用户裁决 2026-10-12)：自动插话资格档位（admin=仅管理员默认；all=不限）。
   autoSteerPolicy: 'admin',
-  // T3 (P2)：等待模型回复超时阈值（毫秒；0=关闭超时补发）。
+  // 等待模型回复超时阈值（毫秒；0=关闭超时补发）。
   deferredTimeoutMs: 600_000,
-  // W6：W1/W2 可观测/调试布尔键（schema 默认值摘自 src/index.ts:297-317）。
+  // 可观测/调试布尔键（schema 默认值摘自 src/index.ts:297-317）。
   actionAuditEnabled: true,
   traceEnabled: false,
   // dsh-qq-companion 陪伴配置（默认值 = src/index.ts schema）。
@@ -143,7 +142,7 @@ export const SCHEMA_DEFAULTS: Readonly<Record<string, unknown>> = {
   proactiveMaxUnanswered: 2,
 }
 
-/** 快照返回侧脱敏的键（T1 §3 敏感字段行；写入侧明文落盘属宿主既有行为）。 */
+/** 快照返回侧脱敏的键。 */
 export const SECRET_KEYS: readonly string[] = ['accessToken']
 
 const ENUM_KEYS: Readonly<Record<string, readonly string[]>> = {
@@ -151,15 +150,15 @@ const ENUM_KEYS: Readonly<Record<string, readonly string[]>> = {
   dmPolicy: ['open', 'allowlist', 'disabled'],
   groupPolicy: ['open', 'allowlist', 'disabled'],
   unknownCommand: ['intercept', 'passthrough'],
-  // T2 (P1)：queue=排队（默认）；steer=插话进运行中任务。
+  // queue=排队（默认）；steer=插话进运行中任务。
   newMessagePolicy: ['queue', 'steer'],
-  // T9-B (用户裁决 2026-10-12)：admin=仅管理员（默认）；all=不限。
+  // (用户裁决 2026-10-12)：admin=仅管理员（默认）；all=不限。
   autoSteerPolicy: ['admin', 'all'],
 }
 const NUMBER_KEYS: readonly string[] = ['port', 'interimRecallMs', 'rateLimitPerMinute', 'deferredTimeoutMs',
   'splitMaxMessages', 'textImageThreshold', 'inboundImageMaxPx', 'idleResetHours', 'privateResetDays', 'groupResetDays', 'publicMemoryMaxBytes', 'groupMemoryMaxBytes', 'proactiveMinPerDay', 'proactiveMaxPerDay', 'proactiveMinGapMinutes', 'proactiveSkipIfActiveMinutes', 'proactiveMaxUnanswered',
   'typingDelayPerCharMs', 'typingDelayMinMs', 'typingDelayMaxMs']
-/** 数字键取值范围（评审 B4：port 1–65535、时长/频控 ≥0；越界在 Remote 层拒绝，不再只依赖宿主回滚兜底）。 */
+/** 数字键取值范围（评审 port 1–65535、时长/频控 ≥0；越界在 Remote 层拒绝，不再只依赖宿主回滚兜底）。 */
 const NUMBER_RANGE: Readonly<Record<string, readonly [number, number | undefined]>> = {
   port: [1, 65535],
   interimRecallMs: [0, undefined],
@@ -182,10 +181,10 @@ const NUMBER_RANGE: Readonly<Record<string, readonly [number, number | undefined
   proactiveSkipIfActiveMinutes: [0, undefined],
   proactiveMaxUnanswered: [0, undefined],
 }
-/** 布尔键白名单（T1 §4 + W6 扩展：W1/W2 观测/调试 6 键入列；顺序与
+/** 布尔键白名单（+ 扩展：观测/调试 6 键入列；顺序与
  *  SETTINGS_GROUPS.diagnostics 一致。数值键 dedupWindowSeconds/actionRatePerMinute/
  *  actionRatePerDay/injectIntervalMs 与枚举键 traceLevel 本期不入 UI 白名单——
- *  面板仅布尔开关与既有 19 键，调优键仍走 patch config 手改，取舍见 DEVLOG W6）。 */
+ *  面板仅布尔开关与既有 19 键，调优键仍走 patch config 手改）。 */
 const BOOLEAN_KEYS: readonly string[] = [
   'requireMention', 'allowAllUsers', 'interimMessages', 'interimRecall', 'sendErrorNotice',
   'actionAuditEnabled', 'traceEnabled',
@@ -201,7 +200,7 @@ export const ALL_KEYS: readonly string[] = [
   ...Object.keys(ENUM_KEYS), ...NUMBER_KEYS, ...BOOLEAN_KEYS, ...STRING_KEYS, ...STRING_ARRAY_KEYS,
 ]
 
-/** OnebotSettingsSnapshot（T1 §3 快照结构）。 */
+/** OnebotSettingsSnapshot。 */
 export interface OnebotSettingsSnapshot {
   /** §3.1 乐观锁计数器。 */
   revision: number
@@ -279,7 +278,7 @@ function requireConfigEditor(ctx: { get(key: string): unknown } | undefined): Co
 }
 
 /** 在 profile patch 的可寻址条目中定位 dsh-onebot 主条目；不存在必须显式报错
- *  （T1 §2：条目不存在时返回明确错误，不得静默）。 */
+ *。 */
 function findEntry(editor: ConfigEditorLike): ConfigEditorEntry {
   const entry = editor.entries().find((candidate) => candidate?.options?.id === ENTRY_ID)
   if (!entry) {
@@ -292,7 +291,7 @@ function findEntry(editor: ConfigEditorLike): ConfigEditorEntry {
   return entry
 }
 
-/** T1 §2/§5：条目 fiber.state === 2 = active（与 configEditor.edit 的活性判据一致）。 */
+/** 条目 fiber.state === 2 = active（与 configEditor.edit 的活性判据一致）。 */
 function entryActiveOf(entry: ConfigEditorEntry): boolean {
   return entry.fiber !== undefined && entry.fiber.state === 2
 }
@@ -314,7 +313,7 @@ export function observeRevision(state: RevisionState, config: unknown): number {
   return state.revision
 }
 
-/** W7：listWorkspaces 返回的单条 workspace 摘要（sessionCount = 注册表里挂在
+/** listWorkspaces 返回的单条 workspace 摘要（sessionCount = 注册表里挂在
  *  该 workspace 下的会话数，纯展示用途）。 */
 export interface WorkspaceSummary {
   id: string
@@ -322,7 +321,7 @@ export interface WorkspaceSummary {
   sessionCount: number
 }
 
-/** W7：listWorkspaces 返回值。available=false = 宿主 workspaceRegistry 缺席或
+/** listWorkspaces 返回值。available=false = 宿主 workspaceRegistry 缺席或
  *  list() 抛错（降级语义：空列表 + 标注，不抛错——设置页隐藏快速填入行并提示
  *  可直接输入路径）。 */
 export interface WorkspaceListResult {
@@ -330,7 +329,7 @@ export interface WorkspaceListResult {
   workspaces: WorkspaceSummary[]
 }
 
-/** W7：listWorkspaces 纯实现（descriptor 方法体共用；对 registry 形状做防御性
+/** listWorkspaces 纯实现（descriptor 方法体共用；对 registry 形状做防御性
  *  校验——与 requireConfigEditor 同款「运行期再校验形状」风格，但绝不抛错：
  *  缺席/形状不符/list() 失败都归一为 unavailable 空列表）。 */
 export function listWorkspaces(registry: WorkspaceRegistryLike | undefined): WorkspaceListResult {
@@ -350,14 +349,14 @@ export function listWorkspaces(registry: WorkspaceRegistryLike | undefined): Wor
   }
 }
 
-/** W7：惰性解析宿主 workspaceRegistry（不经 static inject——保持可选依赖，
+/** 惰性解析宿主 workspaceRegistry（不经 static inject——保持可选依赖，
  *  registry 缺席时服务照常挂载，仅 listWorkspaces 降级 unavailable）。 */
 function resolveWorkspaceRegistry(ctx: { get(key: string): unknown } | undefined): WorkspaceRegistryLike | undefined {
   const registry = ctx?.get?.('workspaceRegistry') as WorkspaceRegistryLike | undefined
   return registry !== undefined && registry !== null && typeof registry.list === 'function' ? registry : undefined
 }
 
-/** 28 键生效值 = schema 默认值 ← 条目 config 覆盖（T1 §3 合并优先级一句话）。 */
+/** 28 键生效值 = schema 默认值 ← 条目 config 覆盖。 */
 export function effectiveConfig(raw: Record<string, unknown>): Record<string, unknown> {
   const effective: Record<string, unknown> = {}
   for (const key of ALL_KEYS) {
@@ -373,7 +372,7 @@ function buildSnapshot(entry: ConfigEditorEntry, state: RevisionState): OnebotSe
   const config = effectiveConfig(raw)
   const secrets = SECRET_KEYS.map((key) => {
     const set = typeof raw[key] === 'string' && (raw[key] as string).length > 0
-    config[key] = '' // 脱敏：快照不回显明文（T1 §3）
+    config[key] = '' // 脱敏：快照不回显明文
     return { path: [key], set }
   })
   return {
@@ -386,9 +385,9 @@ function buildSnapshot(entry: ConfigEditorEntry, state: RevisionState): OnebotSe
   }
 }
 
-/** updateSettings 入参校验（T1 §4：28 键的任意子集，扁平 JSON）。未知键整单
+/** updateSettings 入参校验。未知键整单
  *  拒绝（不静默丢弃）；类型/枚举不符拒绝；具体取值合法性交由宿主 schemastery
- *  校验 + reconcile 失败自动回滚兜底（T1 §5）。 */
+ *  校验 + reconcile 失败自动回滚兜底。 */
 export function validatePatch(patch: unknown): Record<string, unknown> {
   if (typeof patch !== 'object' || patch === null || Array.isArray(patch)) {
     throw new RemoteError('onebot-settings/bad-request', 'patch must be a flat JSON object keyed by setting names', {
@@ -430,9 +429,9 @@ export function getSettings(editor: ConfigEditorLike, state: RevisionState): One
   return buildSnapshot(findEntry(editor), state)
 }
 
-/** W6 错误归一：宿主 configEditor.edit 的原生失败（文件锁超时 / 活性检查 /
+/** 错误归一：宿主 configEditor.edit 的原生失败（文件锁超时 / 活性检查 /
  *  schema 校验 / home-patch 守卫 / 激活失败回滚后 rethrow）按
- *  docs/m1-characterization/config-editor.md §3 矩阵归类，转成面板可直接渲染的
+ *  宿主错误类型归类，转成面板可直接渲染的
  *  中文 RemoteError('onebot-settings/edit-failed')，原始错误挂 cause（网关透传
  *  detail 不吞诊断信息）。归类按宿主错误消息特征词匹配，未命中走通用文案；
  *  所有分支的共同事实（该文档 §3 已钉死）：失败时 patch 文件要么从未被写、要么
@@ -463,11 +462,11 @@ export function describeEditFailure(cause: unknown): string {
  * 除覆盖行，dsh-config-editor/lib/index.js:93-104）→ 成功后返回新快照（指纹
  * 变化 → revision +1）。
  *
- * W6：edit 失败不再裸抛宿主原生 Error（此前锁超时/激活回滚等错误绕开
+ * edit 失败不再裸抛宿主原生 Error（此前锁超时/激活回滚等错误绕开
  * onebot-settings/* 错误码体系直达网关，面板拿到的是英文技术文案）——按
  * describeEditFailure 归一为 onebot-settings/edit-failed 中文错误并保留 cause；
  * 失败路径 revision 不递增（指纹观察只在成功后的 buildSnapshot 发生）、不重试、
- * 不补偿写，patch 文件由宿主保证未被破坏（config-editor.md §3 矩阵）。 */
+ * 不补偿写，patch 文件由宿主保证未被破坏。 */
 export async function updateSettings(
   editor: ConfigEditorLike,
   state: RevisionState,
@@ -490,7 +489,7 @@ export async function updateSettings(
   try {
     await editor.edit(entry, (fresh) => ({ ...fresh, ...clean }))
   } catch (cause) {
-    // W6 错误归一：只翻译、不重试、不补偿写；宿主已保证 patch 文件未被破坏或已逐字节还原。
+    // 错误归一：只翻译、不重试、不补偿写；宿主已保证 patch 文件未被破坏或已逐字节还原。
     // details 带宿主原文（可跨网关序列化），cause 仅进程内诊断。
     throw new RemoteError(EDIT_FAILED_CODE, describeEditFailure(cause), { hostMessage: cause instanceof Error ? cause.message : String(cause) }, { cause })
   }
@@ -498,7 +497,7 @@ export async function updateSettings(
 }
 
 /** 组装 descriptor 方法对象（测试与降级类共用；与类方法同一实现）。
- *  W7：workspaceRegistry 可选注入——省略时 listWorkspaces 降级 unavailable
+ *  workspaceRegistry 可选注入——省略时 listWorkspaces 降级 unavailable
  *  （与类分支的惰性 ctx 解析同一 listWorkspaces 纯函数出口）。 */
 export function createOnebotSettingsMethods(
   editor: ConfigEditorLike,
@@ -565,7 +564,7 @@ if (protocol?.TypertRemoteService) {
       return updateSettings(this.configEditor(), this.state, patch, expectedRevision)
     }
 
-    /** W7：只读查询宿主 workspace 注册表（惰性解析，缺席降级 unavailable，不抛错）。 */
+    /** 只读查询宿主 workspace 注册表（惰性解析，缺席降级 unavailable，不抛错）。 */
     async listWorkspaces(): Promise<WorkspaceListResult> {
       return listWorkspaces(resolveWorkspaceRegistry(this.ownerCtx))
     }
@@ -598,7 +597,7 @@ if (protocol?.TypertRemoteService) {
       return updateSettings(this.configEditor(), this.state, patch, expectedRevision)
     }
 
-    /** W7：与 typert 分支同一惰性解析 + 降级语义。 */
+    /** 与 typert 分支同一惰性解析 + 降级语义。 */
     async listWorkspaces(): Promise<WorkspaceListResult> {
       return listWorkspaces(resolveWorkspaceRegistry(this.ctx))
     }

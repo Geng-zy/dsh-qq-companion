@@ -60,7 +60,7 @@ function resolveChat(bridge: ChatBridge, exec: ToolRunContext, chatIdArg: unknow
 
 /**
  * Outbound media fence roots for the calling session's current turn
- * (M1-A3b): the plugin media dir always, plus the chat workspace on admin
+ *: the plugin media dir always, plus the chat workspace on admin
  * turns. An unknown caller session degrades to mediaDir-only inside the
  * bridge — fail-closed.
  */
