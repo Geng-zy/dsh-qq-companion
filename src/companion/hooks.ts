@@ -27,6 +27,8 @@ export interface CompanionHooksConfig {
   publicMemoryMaxBytes?: number
   groupMemoryDir?: string
   groupMemoryMaxBytes?: number
+  /** The owner's private details group notes must not contain (besides the admin QQ numbers). */
+  memoryNoteDenyWords?: string[]
 }
 
 export class CompanionHooks {
@@ -35,13 +37,15 @@ export class CompanionHooks {
   private readonly log: Log
   private readonly resetChat: (chatId: string) => Promise<void>
   private readonly now: () => number
+  private readonly adminUsers: () => readonly string[]
 
-  constructor(options: { config: CompanionHooksConfig; activity?: ChatActivity; log: Log; resetChat: (chatId: string) => Promise<void>; now?: () => number }) {
+  constructor(options: { config: CompanionHooksConfig; activity?: ChatActivity; log: Log; resetChat: (chatId: string) => Promise<void>; now?: () => number; adminUsers?: () => readonly string[] }) {
     this.config = options.config
     this.activity = options.activity
     this.log = options.log
     this.resetChat = options.resetChat
     this.now = options.now ?? (() => Date.now())
+    this.adminUsers = options.adminUsers ?? (() => [])
   }
 
   private get owner(): string {
@@ -147,6 +151,8 @@ export class CompanionHooks {
     return async (chatId, text, byAdmin) => {
       // An admin's own request (QQ number verified for this turn) is a confirmed note.
       const confirmedBy = byAdmin ? this.owner : undefined
+      // A member's note must not leak the owner's QQ numbers or listed private details.
+      const privateWords = [...this.adminUsers(), ...(this.config.memoryNoteDenyWords ?? [])]
       if (!chatId.startsWith('group:')) {
         return { ok: false as const, reason: '私聊里请直接改记忆文件，这个工具只给群聊用' }
       }
@@ -154,9 +160,9 @@ export class CompanionHooks {
       if (groupRoot !== '') {
         const groupId = chatId.slice('group:'.length)
         await ensureGroupMemory(groupRoot, groupId, this.config.groupMemoryMaxBytes)
-        return appendMemoryNote(groupMemoryPaths(groupRoot, groupId).file, chatId, text, undefined, this.config.groupMemoryMaxBytes, undefined, confirmedBy)
+        return appendMemoryNote(groupMemoryPaths(groupRoot, groupId).file, chatId, text, undefined, this.config.groupMemoryMaxBytes, undefined, confirmedBy, privateWords)
       }
-      return appendMemoryNote(memoryFile, chatId, text, undefined, this.config.publicMemoryMaxBytes, undefined, confirmedBy)
+      return appendMemoryNote(memoryFile, chatId, text, undefined, this.config.publicMemoryMaxBytes, undefined, confirmedBy, privateWords)
     }
   }
 }

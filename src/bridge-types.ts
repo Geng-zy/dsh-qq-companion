@@ -80,6 +80,7 @@ export interface BridgeConfig {
   groupMemoryDir?: string
   /** per-group memory size cap (bytes). */
   groupMemoryMaxBytes?: number
+  memoryNoteDenyWords?: string[]
   /** start a fresh session once the current one has crossed
    * this many 04:00 day boundaries (0 = off). */
   privateResetDays?: number

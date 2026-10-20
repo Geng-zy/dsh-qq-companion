@@ -69,6 +69,7 @@
 | `publicMemoryMaxBytes` | number | `6144` | 公开记忆文件达到这个大小（字节）后 qq_memory_note 不再追加 |
 | `groupMemoryDir` | string | `""` | 每个群一份记忆的根目录；留空=所有群共用 publicMemoryFile |
 | `groupMemoryMaxBytes` | number | `8192` | 每个群的记忆文件达到这个大小（字节）后 qq_memory_note 不再追加 |
+| `memoryNoteDenyWords` | string[] | `[]` | 群友让记的群记忆里不能出现的词（管理员的隐私：微信号、真名、住址等）；管理员 QQ 号自动算在内 |
 | `stickerDir` | string | `""` | 表情包库目录（图片和 index.json 放在这里）；留空 = 不开表情包功能（没有存/搜/发表情包的工具） |
 | `stickerMaxCount` | number | `300` | 表情包库最多存多少张；满了要先删再存 |
 | `stickerMaxBytes` | number | `1048576` | 一张表情包的最大字节数 |

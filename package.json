@@ -1,6 +1,6 @@
 {
   "name": "dsh-qq-companion",
-  "version": "1.6.1",
+  "version": "1.7.0",
   "description": "给 dsh（DeepSeek Harness）接个人 QQ 号的陪伴型通道插件：OneBot 11 / NapCat，一句一条、私聊与群聊权限隔离、记忆与日记、主动聊天、定期换新会话、运行期群白名单，状态文件原子写、QQ 在线监视。基于 mario841859784/dsh-onebot（BSD-3）。",
   "keywords": [
     "dsh",

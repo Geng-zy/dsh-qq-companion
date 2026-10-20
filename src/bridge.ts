@@ -120,6 +120,7 @@ export class ChatBridge {
       ...(deps.activity !== undefined ? { activity: deps.activity } : {}),
       log: (level, message) => deps.log(level, message),
       resetChat: chatId => this.registry.resetChat(chatId as ChatId),
+      adminUsers: () => this.deps.policy.adminUsers,
     })
     this.outbound = new OutboundPipeline({
       getChat: chatId => this.chats.get(chatId),

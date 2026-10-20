@@ -84,6 +84,11 @@ describe('confirmed (admin) notes', () => {
     expect((await write('group:888', NOTE, true)).ok).toBe(true)
     expect((await write('group:888', NOTE, false)).ok).toBe(false)
     expect((await write('private:10001', '私聊的事', true)).ok).toBe(false)
+    // A member's note naming the admin's QQ number is refused; the admin may.
+    const guarded = new CompanionHooks({ config: { groupMemoryDir: root, memoryNoteDenyWords: ['真名张三'] }, log: () => undefined, resetChat: async () => undefined, adminUsers: () => ['10001'] }).memoryNoteWriter()!
+    expect((await guarded('group:888', '主号 10001 加一下', false)).ok).toBe(false)
+    expect((await guarded('group:888', '他叫真名张三', false)).ok).toBe(false)
+    expect((await guarded('group:888', '我的号是 10001', true)).ok).toBe(true)
     expect(readFileSync(join(root, '888', 'AGENTS.md'), 'utf8')).toContain(confirmedNotesHeading('主人'))
   })
 })
