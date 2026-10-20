@@ -19,7 +19,9 @@
 - 断线时排队的回复存到磁盘，dsh 重启也不丢；定时任务、主动聊天计划、群记忆条数也是重启后接着算（停机错过的定时任务 3 小时内补执行）。
 - `/preset` 的选择持久化（原版只在内存里）。
 - 启动时配置自检，用中文逐条指出会导致“不工作”的配置。
-- 修复：`/preset` 后新会话挂错预设；Linux 上文字图卡片永远找不到中文字体（简中字面名大小写 + 墨水自检阈值）；inject 启动竞争；日志里不再写消息正文。
+- 长回复转图片卡片重写：标题、列表、引用、代码块、表格都能排好，中文、英文、彩色表情混排不会乱码或被切坏。
+- 语音转写重写（默认关闭）：本机离线识别（sherpa-onnx + SenseVoice / whisper.cpp / 自定义命令），语音不出服务器。
+- 修复：`/preset` 后新会话挂错预设；日志里不再写消息正文。
 
 **陪伴功能**（全部默认关闭，按需在配置里打开）
 
@@ -171,9 +173,22 @@ npm ci --include=dev --legacy-peer-deps
 ./node_modules/.bin/vitest run     # 全部测试
 npm run coverage                   # 测试 + 覆盖率（低于门槛会失败）
 npm run e2e                        # 端到端：真实 dsh + 假 DeepSeek 接口 + 假 NapCat，不需要网络和 API Key
+npm run docs:config                # 改了配置项后重新生成 docs/CONFIG.md（测试会检查）
 ```
 
-陪伴功能在 `src/companion/`（接进桥接层的部分在 `hooks.ts`），状态文件写入在 `src/persist.ts`，QQ 在线监视在 `src/liveness.ts`，配置自检在 `src/selfcheck.ts`。
+代码地图：
+
+| 位置 | 内容 |
+|---|---|
+| `src/index.ts` / `src/config.ts` | 插件入口；配置定义（默认值、说明） |
+| `src/bridge.ts` / `src/registry.ts` / `src/session-ledger.ts` | QQ 会话 ↔ dsh 会话；会话映射、恢复、切换；退休会话和可切回列表 |
+| `src/inbound.ts` / `src/outbound.ts` / `src/interim.ts` | 收消息（权限、媒体、引用）；发消息（拆句、打字节奏、离线补发）；中间消息 |
+| `src/commands.ts` / `src/commands/` | 斜杠命令表和各命令 |
+| `src/companion/` | 陪伴功能：换新会话、记忆、定时任务、主动聊天、打字节奏、/doctor 陪伴状态 |
+| `src/t2i/` | 长回复转图片卡片（解析、排版、绘制、字体） |
+| `src/stt.ts` | 语音转写 |
+| `src/connection.ts` / `src/liveness.ts` | OneBot 连接；QQ 在线监视 |
+| `src/persist.ts` / `src/selfcheck.ts` | 状态文件原子写；启动配置自检 |
 
 ## 许可
 

@@ -1,5 +1,26 @@
 # 更新记录
 
+## 1.2.0（2026-10-20）
+
+不再跟进原作者 dsh-onebot 的版本，整个插件按自己的代码整理。功能除下面列出的删除项外保持不变。
+
+### 重写
+- **长回复转图片卡片**：新的 Markdown 解析、按字素断行（中文逐字、英文按词、标点不在行首、组合表情不会被切坏）、表格列宽按内容分配并铺满；字体靠画图库的字体列表逐字回退，去掉原来的逐字挑字体和墨水量检测，以及 `fontkit` 依赖。接口不变。
+- **语音转写**（默认关闭）：本机离线识别，支持 sherpa-onnx（SenseVoice，推荐）、whisper.cpp 和自定义命令；只转前 `sttMaxSeconds` 秒，有超时、排队上限，结果会清理引擎标签和静音时编出来的字幕致谢。新配置 `sttLanguage`、`sttMaxSeconds`；`sttEnabled` 默认改为 `false`；旧引擎名 `custom` / `openai` 照样认。
+- 语音下载优先请 NapCat 转成 mp3（语音自带的链接多半是 SILK 原始格式），NapCat 返回的 base64 / 链接 / 本机路径统一处理。
+
+### 删除
+- 调试注入（`qq-inject.jsonl`）和入站录制 / 离线回放，相关配置 `injectEnabled`、`injectDryRun`、`injectIntervalMs`、`recordInbound`、`inboxRedact` 去掉（配置里还写着会被忽略）。
+- 1.1.4 加的发送总量 / 间隔上限和群冷却（见 1.1.6）。
+
+### 整理
+- 大文件拆分：配置定义 → `config.ts`；斜杠命令 → `commands/` 目录；退休会话和可切回列表 → `session-ledger.ts`；`registry` 和 `bridge` 的类型各自单独成文件。
+- 内部名字统一为 `qq-companion`（会话来源标记 `plugin:qq-companion`，旧会话里的 `plugin:dsh-onebot` 照样识别；配置行 id `dsh-onebot` 不变）。
+- 注释和测试名里原作者的开发编号、内部文档引用清理掉；删除原作者的开发资料（`docs/` 旧内容）。
+- 新增 `docs/CONFIG.md`：从配置定义自动生成的全部配置项说明（`npm run docs:config`），测试保证它和代码一致。
+- 新增 `THIRD-PARTY-NOTICES.md`：借鉴 dsh-qq-onebot-bridge（MIT）的内容和 MIT 许可全文。
+- 修复：`/ver` 在文件挪层级后读不到版本号；连接故障参考号丢掉了具体环节。
+
 ## 1.1.6（2026-10-20）
 
 - 删除 1.1.4 加的发送总量 / 发送间隔上限（`sendMinIntervalMs`、`sendPerMinute`、`sendPerHour`、`sendPerDay`）和群冷却（`groupReplyMaxPerWindow`、`groupReplyWindowMinutes`），设置页里也去掉。发送节奏统一交给 `humanTypingPace`（按真人打字速度）。配置里还写着这些键的话会被忽略。
