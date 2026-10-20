@@ -53,12 +53,15 @@ export declare function insertUnderHeading(current: string, heading: string, lin
 export declare function appendMemoryNote(file: string, chatId: string, text: string, now?: () => number, maxBytes?: number, counter?: NoteCounter, confirmedBy?: string): Promise<NoteResult>;
 /** Test hook: forget the per-day counters. */
 export declare function resetNoteCounts(): void;
-/** A new group's memory file (her notes about that group only). */
-export declare function groupMemoryTemplate(groupId: string): string;
+/** Default group memory cap shown in a new file (the config's default). */
+export declare const GROUP_MEMORY_DEFAULT_MAX_BYTES: number;
+/** A new group's memory file (her notes about that group only); the header
+ * states the configured size cap (Chinese is ~3 bytes per character). */
+export declare function groupMemoryTemplate(groupId: string, maxBytes?: number): string;
 /** The memory directory and file of one group. */
 export declare function groupMemoryPaths(root: string, groupId: string): {
     dir: string;
     file: string;
 };
 /** Create a group's memory directory and seed its AGENTS.md (idempotent). */
-export declare function ensureGroupMemory(root: string, groupId: string): Promise<string>;
+export declare function ensureGroupMemory(root: string, groupId: string, maxBytes?: number): Promise<string>;
