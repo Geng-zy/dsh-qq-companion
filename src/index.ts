@@ -11,7 +11,7 @@
 
 import { selfCheck } from './selfcheck.js'
 import { QqLiveness } from './liveness.js'
-import { ChatActivity, DailyScheduler, GroupCooldown, NoteCounter, ProactiveScheduler, SendBudget, companionStatusLines, setDefaultNoteCounter } from './companion/index.js'
+import { ChatActivity, DailyScheduler, GroupCooldown, NoteCounter, ProactiveScheduler, SendBudget, TypingPacer, companionStatusLines, setDefaultNoteCounter } from './companion/index.js'
 import type { ScheduledPrompt } from './companion/index.js'
 import { GroupAccess, handleGroupEvent } from './groups.js'
 import type { Context as CordisContext } from '@deepseek-ai/cordis'
@@ -159,6 +159,7 @@ export interface Config {
   splitLines: boolean
   splitMaxMessages: number
   groupSplitLines: boolean
+  humanTypingPace: boolean
   sendMinIntervalMs: number
   sendPerMinute: number
   sendPerHour: number
@@ -342,6 +343,8 @@ export const Config: Z<Config> = z.object({
     .description('一条回复最多拆成几条；行数超过它（列表、代码等）就整段发送'),
   groupSplitLines: z.boolean().default(true)
     .description('群聊里也一句一条；false = 群里每次回复只发一条（发送量少很多，降低 QQ 风控概率）'),
+  humanTypingPace: z.boolean().default(false)
+    .description('防风控：所有发出的消息都按真人打字的速度排队（按字数等 typingDelayPerCharMs，夹在 typingDelayMinMs～typingDelayMaxMs 之间）；整个小号同一时间只“打”一条，几个会话同时回复时自然排队'),
   sendMinIntervalMs: z.number().default(0)
     .description('防风控：整个小号两条消息之间至少隔多少毫秒（所有会话合计）；0 = 不限'),
   sendPerMinute: z.number().default(0)
@@ -541,6 +544,7 @@ export function apply(ctx: Context, config: Config): void {
     isExempt: isAdminPrivateChat,
     log,
   })
+  const typingPacer = new TypingPacer({ config: { perCharMs: config.typingDelayPerCharMs, minMs: config.typingDelayMinMs, maxMs: config.typingDelayMaxMs } })
   const groupCooldown = new GroupCooldown({ maxTurns: config.groupReplyMaxPerWindow, windowMinutes: config.groupReplyWindowMinutes, log })
   // Per-day memory-note counts survive restarts.
   const noteCounter = new NoteCounter(join(mediaDir, 'note-counts.json'), log)
@@ -723,6 +727,7 @@ export function apply(ctx: Context, config: Config): void {
     activity,
     ...(config.proactiveEnabled ? { proactive: proactiveHandle } : {}),
     ...(sendBudget.enabled ? { sendBudget } : {}),
+    ...(config.humanTypingPace ? { typingPacer } : {}),
     ...(config.groupReplyMaxPerWindow > 0 ? { groupCooldown } : {}),
     companionStatus: () => companionStatusLines({
       ...(sendBudget.enabled ? { sendBudget: () => sendBudget.snapshot() } : {}),

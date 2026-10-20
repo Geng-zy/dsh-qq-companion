@@ -258,6 +258,8 @@ export interface BridgeDeps {
   companionStatus?: () => Promise<string[]>
   /** Account-wide send budget (every outgoing message takes a unit). */
   sendBudget?: { acquire(chatId: string): Promise<boolean> }
+  /** Account-wide human typing pace (every outgoing message waits its typing time). */
+  typingPacer?: { wait(text: string): Promise<void> }
   /** Per-group cap on member-started turns. */
   groupCooldown?: { allow(chatId: string, byAdmin: boolean): boolean }
   /** per-chat activity (idle reset, handoff recap, diary input). */
@@ -398,6 +400,7 @@ export class ChatBridge {
       log: (level, message) => this.deps.log(level, message),
       config: deps.config,
       ...(deps.sendBudget !== undefined ? { sendBudget: deps.sendBudget } : {}),
+      ...(deps.typingPacer !== undefined ? { typingPacer: deps.typingPacer } : {}),
       // W1: outbound decision events ride the chat's initiating traceId; a
       // write with no mapped trace (proactive tool sends) starts a fresh one.
       trace: (chatId, event) => {

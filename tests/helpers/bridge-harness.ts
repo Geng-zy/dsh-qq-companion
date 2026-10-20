@@ -213,6 +213,7 @@ export async function makeCmdHarness(opts?: {
   /** Risk control wiring. */
   groupCooldown?: { allow(chatId: string, byAdmin: boolean): boolean }
   sendBudget?: { acquire(chatId: string): Promise<boolean> }
+  typingPacer?: { wait(text: string): Promise<void> }
   splitLines?: boolean
   groupSplitLines?: boolean
 }) {
@@ -281,6 +282,7 @@ export async function makeCmdHarness(opts?: {
     },
     ...(opts?.groupCooldown !== undefined ? { groupCooldown: opts.groupCooldown } : {}),
     ...(opts?.sendBudget !== undefined ? { sendBudget: opts.sendBudget } : {}),
+    ...(opts?.typingPacer !== undefined ? { typingPacer: opts.typingPacer } : {}),
     policy: {
       dmPolicy: 'open', groupPolicy: opts?.groupPolicy ?? 'open', allowFrom: [], groupAllowFrom: opts?.groupAllowFrom ?? [],
       adminUsers: ['10001'], allowAllUsers: opts?.allowAllUsers ?? false, requireMention: true,

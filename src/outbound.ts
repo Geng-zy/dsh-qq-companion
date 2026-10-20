@@ -76,6 +76,8 @@ export interface OutboundContext {
   isStopping(): boolean
   /** Account-wide send budget (risk control); false = drop this send. */
   sendBudget?: { acquire(chatId: string): Promise<boolean> }
+  /** Account-wide human typing pace: every send waits its typing time. */
+  typingPacer?: { wait(text: string): Promise<void> }
   /** Bridge log line callback. */
   log(level: 'info' | 'warn' | 'error' | 'debug', message: string): void
   /** W1: emit one outbound/queue decision event for a chat. The bridge owns
@@ -226,7 +228,7 @@ export class OutboundPipeline {
           // one line, one message, with a typing pause before
           // each follow-up line; only the first line carries the reply quote.
           for (let i = 0; i < parts.length; i++) {
-            if (i > 0) {
+            if (i > 0 && this.ctx.typingPacer === undefined) {
               await this.sleep(typingDelayMs(
                 parts[i],
                 this.ctx.config.typingDelayPerCharMs ?? DEFAULT_TYPING_DELAY_PER_CHAR_MS,
@@ -475,6 +477,9 @@ export class OutboundPipeline {
     if (options.replyTo !== undefined) {
       params.message = [{ type: 'reply', data: { id: options.replyTo } }, ...segments]
     }
+    if (this.ctx.typingPacer !== undefined) {
+      await this.ctx.typingPacer.wait(segments.map(s => (s.type === 'text' ? String((s.data as { text?: unknown }).text ?? '') : '')).join(''))
+    }
     if (this.ctx.sendBudget !== undefined && !(await this.ctx.sendBudget.acquire(chatId))) {
       this.ctx.trace?.(chatId, { stage: 'outbound', ok: false, reason: '发送额度用完，未发送（防风控）' })
       return undefined
@@ -506,6 +511,7 @@ export class OutboundPipeline {
     const ref = splitChatId(chatId)
     const target = Number(ref.target)
     if (!Number.isFinite(target)) throw new OneBotActionError('invalid chat target: ' + chatId)
+    if (this.ctx.typingPacer !== undefined) await this.ctx.typingPacer.wait(nodes.map(n => n.content).join(''))
     if (this.ctx.sendBudget !== undefined && !(await this.ctx.sendBudget.acquire(chatId))) return
     const messages = nodes.map(node => ({
       type: 'node',
