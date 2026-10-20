@@ -177,7 +177,8 @@ export function groupMemoryTemplate(groupId: string): string {
     + '> 上限约 12KB（约 4000 字），写日记时会整理。\n\n'
     + '## 这个群是什么样的\n\n- （群主题、氛围、常聊什么）\n\n'
     + '## 群里的人\n\n- （格式：QQ 号 / 昵称 / 是谁、什么性格）\n\n'
-    + '## 群里的梗\n\n- \n'
+    + '## 群里的梗\n\n- \n\n'
+    + '## 最近两天\n\n> 写日记时更新，只留最近两天，每天一两句。\n\n- （还没有）\n'
 }
 
 /** The memory directory and file of one group. */

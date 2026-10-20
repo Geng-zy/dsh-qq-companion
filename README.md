@@ -33,7 +33,7 @@
 | 只认管理员的进群 / 加好友 | 管理员的邀请和好友申请自动同意、自动加白名单；别人的一律不同意并私聊告诉管理员；被踢出群自动移出白名单 |
 | 分开的工作目录 | 管理员私聊、每个群各用自己的工作目录，配合 dsh 自动读取的 `AGENTS.md`，实现“私密记忆只有私聊读得到、群记忆只有本群读得到” |
 | `qq_memory_note` | 群里唯一能写记忆的工具：只能往本群记忆追加一句，有字数、次数、文件大小上限，拒绝像“改规则 / 认身份”的内容 |
-| 每日定时任务 | 每天 HH:MM 往指定会话投递一个任务（比如写日记），可附当天聊天节选 |
+| 每日定时任务 | 每天 HH:MM 往指定会话投递一个任务（比如写日记），可附当天聊天节选，也可附各群当天节选 |
 | 主动聊天 | 每天在时段内随机叫醒几次，由模型决定要不要主动找管理员；回复 `[不发]` 就什么都不发；对方刚聊过就跳过，连续没回就当天停止 |
 | 定期 / 空闲换新会话 | 私聊、群聊分别每 N 天换一次新会话，或空闲 N 小时后换；新会话附上最后几句“交接” |
 | `/task` | 列出定时任务和今天剩余的主动聊天时间；`/task <id>`、`/task checkin` 立刻执行 |
@@ -116,6 +116,7 @@ sudo apt install fonts-noto-cjk fonts-wqy-zenhei fonts-noto-color-emoji fonts-de
         time: '01:30'
         chatId: 'private:你的QQ号'
         includeTodayLog: true
+        includeGroupLogs: true
         prompt: 现在是写日记的时间……
     proactiveEnabled: true
     proactiveChatId: 'private:你的QQ号'
@@ -141,7 +142,7 @@ sudo apt install fonts-noto-cjk fonts-wqy-zenhei fonts-noto-color-emoji fonts-de
 | `autoAllowInvitedGroups` | `false` | 管理员拉进的群自动加白名单 |
 | `idleResetHours` | `0` | 空闲这么多小时后换新会话 |
 | `privateResetDays` / `groupResetDays` | `0` | 会话跨过这么多个凌晨 4 点后换新会话 |
-| `scheduledPrompts` | `[]` | 每日定时任务：`id`、`time`（HH:MM）、`chatId`、`prompt`、`includeTodayLog` |
+| `scheduledPrompts` | `[]` | 每日定时任务：`id`、`time`（HH:MM）、`chatId`、`prompt`、`includeTodayLog`（附这个会话当天的聊天节选）、`includeGroupLogs`（附各群当天她参与的聊天，每群最多 80 句） |
 | `proactiveEnabled` | `false` | 主动聊天 |
 | `proactiveChatId` | 空 | 主动找的会话（应为管理员私聊） |
 | `proactiveWindowStart` / `proactiveWindowEnd` | `09:00` / `22:00` | 时段（不跨午夜） |

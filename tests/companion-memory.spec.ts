@@ -44,6 +44,18 @@ describe('ChatActivity', () => {
     expect(Array.from(line.text)).toHaveLength(201) // 200 + …
     expect(formatTranscript([line])).toMatch(/^\[\d{2}:\d{2}\] 主人：长/)
   })
+
+  it('takes every group excerpt (trimmed to the last N lines) and leaves private chats alone', () => {
+    const a = new ChatActivity({ mediaDir: tmp(), log: () => undefined })
+    for (let i = 0; i < 5; i++) a.record('group:111', 'user', '群一第' + i + '句', '小王')
+    a.record('group:222', 'bot', '群二我说的')
+    a.record('private:1', 'user', '私聊', '主人')
+    const groups = a.takeTodayGroups(3, true)
+    expect(groups.map(g => g.chatId).sort()).toEqual(['group:111', 'group:222'])
+    expect(groups.find(g => g.chatId === 'group:111')?.lines.map(l => l.text)).toEqual(['群一第2句', '群一第3句', '群一第4句'])
+    expect(a.takeTodayGroups(3, false)).toEqual([])
+    expect(a.takeToday('private:1', false)).toHaveLength(1)
+  })
 })
 
 describe('appendMemoryNote', () => {
@@ -294,6 +306,29 @@ describe('per-group memory', () => {
     h.client.close()
     await h.bridge.stop()
     await h.connection.stop()
+  })
+
+  it('the diary prompt carries each group excerpt when includeGroupLogs is on, then clears it', async () => {
+    const activity = new ChatActivity({ mediaDir: tmp(), log: () => undefined })
+    const h = await makeCmdHarness({ activity })
+    h.sendGroupTextAs('我下周考试', 10003)
+    await vi.waitFor(() => expect(h.captured.followups).toHaveLength(1))
+    const diary = { id: 'diary', time: '01:30', chatId: 'private:10001', prompt: '写今天的日记', includeTodayLog: true, includeGroupLogs: true }
+    await h.bridge.fireScheduled(diary)
+    await vi.waitFor(() => expect(h.captured.followups).toHaveLength(2))
+    expect(h.captured.followups[1].text).toContain('群 888 里今天你参与的聊天')
+    expect(h.captured.followups[1].text).toContain('我下周考试')
+    await h.bridge.fireScheduled(diary)
+    await vi.waitFor(() => expect(h.captured.followups).toHaveLength(3))
+    expect(h.captured.followups[2].text).toContain('（今天群里没有你参与的聊天）')
+    h.client.close()
+    await h.bridge.stop()
+    await h.connection.stop()
+  })
+
+  it('a new group file has a "最近两天" section', async () => {
+    const { groupMemoryTemplate } = await import('../src/companion/index.js')
+    expect(groupMemoryTemplate('1')).toContain('## 最近两天')
   })
 
   it('seeding never overwrites an existing group file', async () => {
