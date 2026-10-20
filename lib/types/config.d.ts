@@ -100,6 +100,7 @@ export interface Config {
     maxInboundFileBytes?: number;
     /** chats idle longer than this many days are evicted (0 disables). */
     chatIdleEvictDays: number;
+    groupReasoningEffort: '' | 'off' | 'low' | 'high' | 'max';
     /** Escape hatch: skip the download private-address check (local reverse proxy). */
     allowPrivateHosts: boolean;
     /** inbound (chatId, message_id) dedup window in seconds; 0 disables. */

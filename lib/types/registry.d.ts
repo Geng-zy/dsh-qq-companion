@@ -35,7 +35,8 @@ export declare class ChatRegistry {
     getSettings(chatId: ChatId): ChatSettings;
     /** default-model wiring shared by the create and resume assembly paths
      * — agent options for the registry call plus the mutable per-agent
-     * selection ref (undefined when the deployment has no default model). */
+     * selection ref (undefined when the deployment has no default model).
+     * Group chats take groupReasoningEffort when it is set. */
     private modelWiring;
     /** the AgentSetup closure shared by the create and resume assembly
      * paths. The only difference between the callers is the preset: a resumed
