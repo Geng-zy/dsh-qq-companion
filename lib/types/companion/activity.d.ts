@@ -7,6 +7,8 @@ export declare const HANDOFF_LINES = 8;
 export declare const LINE_MAX_CHARS = 200;
 /** Lines kept in today's excerpt per chat (the diary input). */
 export declare const TODAY_MAX_LINES = 200;
+/** Lines per group in the nightly group excerpt (keeps the diary turn cheap). */
+export declare const GROUP_TODAY_MAX_LINES = 80;
 export interface ActivityLine {
     /** Epoch ms. */
     t: number;
@@ -47,6 +49,12 @@ export declare class ChatActivity {
     handoff(chatId: string): string;
     /** Today's excerpt for a chat (diary input), then optionally cleared. */
     takeToday(chatId: string, clear: boolean): ActivityLine[];
+    /** Today's excerpt of every group chat that has one (diary input), each
+     * trimmed to its last `maxLines`, then optionally cleared. */
+    takeTodayGroups(maxLines: number, clear: boolean): Array<{
+        chatId: string;
+        lines: ActivityLine[];
+    }>;
     /** Flush pending writes (stop / tests). */
     flush(): Promise<void>;
     private scheduleSave;

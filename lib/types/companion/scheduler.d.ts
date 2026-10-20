@@ -13,6 +13,8 @@ export interface ScheduledPrompt {
     prompt: string;
     /** Append today's transcript excerpt of this chat (then clear it). */
     includeTodayLog?: boolean;
+    /** Also append today's excerpt of every group she talked in (then clear them). */
+    includeGroupLogs?: boolean;
 }
 /**
  * Fires each prompt once per local day, at or after its HH:MM. With a state
