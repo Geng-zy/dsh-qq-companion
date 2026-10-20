@@ -106,7 +106,7 @@ sudo apt install fonts-noto-cjk fonts-wqy-zenhei fonts-noto-color-emoji fonts-de
     workspacePath: /home/bot/memory
     adminWorkspacePath: /home/bot/memory/private
     groupMemoryDir: /home/bot/memory/groups
-    groupMemoryMaxBytes: 12288
+    groupMemoryMaxBytes: 10240
     publicMemoryFile: /home/bot/memory/AGENTS.md
     publicMemoryMaxBytes: 24576
     privateResetDays: 5

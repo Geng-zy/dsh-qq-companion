@@ -1,5 +1,9 @@
 # 更新记录
 
+## 1.6.1（2026-10-21）
+
+- 新建的群记忆文件开头写的上限改为按 `groupMemoryMaxBytes` 配置显示（原来固定写“12KB”）。
+
 ## 1.6.0（2026-10-21）
 
 - 新功能：自动删除旧会话。新配置 `privateSessionKeepDays` / `groupSessionKeepDays`（默认 0 = 不删）：QQ 私聊 / 群聊换下来的旧会话，超过这么多天没有写入，就把它在磁盘上的记录（`<dsh-home>/sessions/…/onebot-…` 和对应的投影缓存）删掉，并从 `/session` 的可切回列表里去掉。

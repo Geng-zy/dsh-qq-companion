@@ -229,7 +229,7 @@ export class ChatRegistry {
     const groupRoot = this.deps.config.groupMemoryDir
     if (groupRoot !== undefined && groupRoot !== '' && chatId.startsWith('group:') && this.getSettings(chatId).workspacePath === undefined) {
       try {
-        await ensureGroupMemory(groupRoot, chatId.slice('group:'.length))
+        await ensureGroupMemory(groupRoot, chatId.slice('group:'.length), this.deps.config.groupMemoryMaxBytes)
       } catch (error) {
         this.deps.log('warn', '群记忆目录创建失败: ' + describeError(error))
       }

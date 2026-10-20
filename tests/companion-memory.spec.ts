@@ -329,6 +329,8 @@ describe('per-group memory', () => {
   it('a new group file has a "最近两天" section', async () => {
     const { groupMemoryTemplate } = await import('../src/companion/index.js')
     expect(groupMemoryTemplate('1')).toContain('## 最近两天')
+    expect(groupMemoryTemplate('1', 10240)).toContain('上限约 10KB（约 3400 字）')
+    expect(groupMemoryTemplate('1')).toContain('上限约 8KB（约 2700 字）')
   })
 
   it('seeding never overwrites an existing group file', async () => {

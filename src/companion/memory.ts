@@ -170,11 +170,17 @@ export function resetNoteCounts(): void {
   defaultCounter.clear()
 }
 
-/** A new group's memory file (her notes about that group only). */
-export function groupMemoryTemplate(groupId: string): string {
+/** Default group memory cap shown in a new file (the config's default). */
+export const GROUP_MEMORY_DEFAULT_MAX_BYTES = 8 * 1024
+
+/** A new group's memory file (her notes about that group only); the header
+ * states the configured size cap (Chinese is ~3 bytes per character). */
+export function groupMemoryTemplate(groupId: string, maxBytes: number = GROUP_MEMORY_DEFAULT_MAX_BYTES): string {
+  const kb = Math.round(maxBytes / 1024)
+  const chars = Math.round(maxBytes / 3 / 100) * 100
   return '# 群 ' + groupId + ' 的记忆\n\n'
     + '> 只有在这个群里聊天时会读到，别的群和私聊里读不到。\n'
-    + '> 上限约 12KB（约 4000 字），写日记时会整理。\n\n'
+    + '> 上限约 ' + kb + 'KB（约 ' + chars + ' 字），写日记时会整理。\n\n'
     + '## 这个群是什么样的\n\n- （群主题、氛围、常聊什么）\n\n'
     + '## 群里的人\n\n- （格式：QQ 号 / 昵称 / 是谁、什么性格）\n\n'
     + '## 群里的梗\n\n- \n\n'
@@ -188,11 +194,11 @@ export function groupMemoryPaths(root: string, groupId: string): { dir: string; 
 }
 
 /** Create a group's memory directory and seed its AGENTS.md (idempotent). */
-export async function ensureGroupMemory(root: string, groupId: string): Promise<string> {
+export async function ensureGroupMemory(root: string, groupId: string, maxBytes?: number): Promise<string> {
   const { dir, file } = groupMemoryPaths(root, groupId)
   await mkdir(dir, { recursive: true })
   try {
-    await writeFile(file, groupMemoryTemplate(groupId), { encoding: 'utf8', flag: 'wx' })
+    await writeFile(file, groupMemoryTemplate(groupId, maxBytes), { encoding: 'utf8', flag: 'wx' })
   } catch (error) {
     if ((error as { code?: string }).code !== 'EEXIST') throw error
   }
