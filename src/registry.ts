@@ -281,10 +281,10 @@ export class ChatRegistry {
    * paths. The only difference between the callers is the preset: a resumed
    * session rejoins the preset it recorded itself; a fresh create reuses the
    * config/default resolution already recorded in its header meta. */
-  private buildSetup(selectionRef: ModelSelectionRef | undefined, recordedPreset?: string): AgentSetup {
+  private buildSetup(selectionRef: ModelSelectionRef | undefined, recordedPreset?: string, expected?: { chatId: ChatId; presetId: string | undefined }): AgentSetup {
     return async agentCtx => {
       this.deps.installChannelScope(agentCtx)
-      await this.joinPreset(agentCtx, recordedPreset)
+      await this.joinPreset(agentCtx, recordedPreset, expected)
       if (selectionRef !== undefined) {
         installModelSelection(agentCtx, selectionRef)
       }
@@ -536,10 +536,13 @@ export class ChatRegistry {
   private async resumeChat(chatId: ChatId, sessionId: string): Promise<ChatAgent> {
     const { agentOptions, selectionRef } = this.modelWiring()
     const recordedPreset = await this.recordedPresetFor(makeSessionId(sessionId))
+    // What this chat would get today (/preset override, admin default, config
+    // default) — only a real difference from the recorded preset is reported.
+    const expectedPreset = recordedPreset !== undefined ? await this.resolvePresetId(chatId) : undefined
     const handle = await this.deps.agents.resume({
       resumeSessionId: makeSessionId(sessionId),
       agentOptions,
-      setup: this.buildSetup(selectionRef, recordedPreset),
+      setup: this.buildSetup(selectionRef, recordedPreset, { chatId, presetId: expectedPreset }),
     })
     await this.attachToWorkspace(handle.agent.session.id, handle.agent.session.header?.cwd)
     // /workspace persistence across restarts: the per-chat override map is
@@ -1136,11 +1139,13 @@ export class ChatRegistry {
    * broken preset falls back to the previous behavior rather than failing the
    * chat.
    */
-  private async joinPreset(agentCtx: unknown, preferred?: string): Promise<void> {
+  private async joinPreset(agentCtx: unknown, preferred?: string, expected?: { chatId: ChatId; presetId: string | undefined }): Promise<void> {
     if (this.deps.agentPresets === undefined) return
     const configured = this.deps.config.agentPreset
-    if (preferred !== undefined && configured !== undefined && configured !== '' && configured !== preferred) {
-      this.deps.log('warn', 'session records preset ' + preferred + ' but plugin config names ' + configured + '; resuming under the recorded preset')
+    // Compare against what THIS chat should use now (an admin's private chat
+    // uses adminPreset, a /preset override wins), not the global default.
+    if (preferred !== undefined && expected?.presetId !== undefined && expected.presetId !== preferred) {
+      this.deps.log('warn', '会话 ' + expected.chatId + ' 记录的预设是 ' + preferred + '，按现在的配置应该用 ' + expected.presetId + '；先按记录的预设恢复，在这个会话里发 /new 就会换成 ' + expected.presetId)
     }
     const selected = preferred ?? (configured !== undefined && configured !== '' ? configured : undefined)
     try {

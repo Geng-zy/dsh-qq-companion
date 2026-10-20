@@ -410,7 +410,7 @@ describe('ChatRegistry', () => {
     // The session's own record wins over the conflicting plugin config.
     expect(sessionPersistence.open).toHaveBeenCalled()
     expect(mountedPresets).toEqual(['router-flash'])
-    expect(logLines.some(line => line.includes('records preset router-flash') && line.includes('standard'))).toBe(true)
+    expect(logLines.some(line => line.includes('记录的预设是 router-flash') && line.includes('应该用 standard'))).toBe(true)
     await bridge.stop()
   })
 
