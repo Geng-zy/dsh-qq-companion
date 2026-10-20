@@ -16,7 +16,7 @@
 
 - 所有状态文件（会话映射、退休会话、可切回会话、超时补发、群白名单、聊天活动……）统一排队写 + fsync + 原子替换：不会出现写坏的半个文件，也不会出现旧数据覆盖新数据。
 - QQ 在线监视：读取 OneBot 心跳里的 `status.online` 和 NapCat 的 `bot_offline` 通知，小号被挤下线时醒目报错；连接还在但心跳停了（“假在线”）会主动断开让 NapCat 重连。
-- 断线时排队的回复存到磁盘，dsh 重启也不丢。
+- 断线时排队的回复存到磁盘，dsh 重启也不丢；定时任务、主动聊天计划、群记忆条数也是重启后接着算（停机错过的定时任务 3 小时内补执行）。
 - `/preset` 的选择持久化（原版只在内存里）。
 - 启动时配置自检，用中文逐条指出会导致“不工作”的配置。
 - 修复：`/preset` 后新会话挂错预设；Linux 上文字图卡片永远找不到中文字体（简中字面名大小写 + 墨水自检阈值）；inject 启动竞争；日志里不再写消息正文。
@@ -35,6 +35,8 @@
 | 主动聊天 | 每天在时段内随机叫醒几次，由模型决定要不要主动找管理员；回复 `[不发]` 就什么都不发；对方刚聊过就跳过，连续没回就当天停止 |
 | 定期 / 空闲换新会话 | 私聊、群聊分别每 N 天换一次新会话，或空闲 N 小时后换；新会话附上最后几句“交接” |
 | `/task` | 列出定时任务和今天剩余的主动聊天时间；`/task <id>`、`/task checkin` 立刻执行 |
+| `/doctor` 陪伴状态 | QQ 账号是否真在线、定时任务今天执行没有、主动聊天计划、每个记忆文件占上限多少 |
+| 设置页 | 陪伴、记忆与会话、主动聊天三组配置都能在 dsh 网页的设置里改 |
 
 ## 安装
 
@@ -166,9 +168,11 @@ sudo apt install fonts-noto-cjk fonts-wqy-zenhei fonts-noto-color-emoji fonts-de
 npm ci --include=dev --legacy-peer-deps
 ./scripts/build.sh                 # 链接宿主 @deepseek-ai 包（需要 dsh 在 PATH 上）+ 编译
 ./node_modules/.bin/vitest run     # 全部测试
+npm run coverage                   # 测试 + 覆盖率（低于门槛会失败）
+npm run e2e                        # 端到端：真实 dsh + 假 DeepSeek 接口 + 假 NapCat，不需要网络和 API Key
 ```
 
-陪伴功能在 `src/companion/`，状态文件写入在 `src/persist.ts`，QQ 在线监视在 `src/liveness.ts`，配置自检在 `src/selfcheck.ts`。
+陪伴功能在 `src/companion/`（接进桥接层的部分在 `hooks.ts`），状态文件写入在 `src/persist.ts`，QQ 在线监视在 `src/liveness.ts`，配置自检在 `src/selfcheck.ts`。
 
 ## 许可
 

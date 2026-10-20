@@ -10,6 +10,8 @@
 //
 // Needs `dsh` on PATH and a built lib/ (./scripts/build.sh). No network, no
 // real API key. Usage: node scripts/e2e.mjs   (exit 0 = pass)
+// E2E_HOLD=1 keeps the host running after the checks (web UI on
+// E2E_WEB_PORT, default random) to look at the settings page; Ctrl-C ends it.
 import { spawn } from 'node:child_process'
 import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { createServer } from 'node:http'
@@ -29,7 +31,7 @@ const REPLY = 'E2E模型回复：收到啦'
 const deadline = Date.now() + Number(process.env.E2E_TIMEOUT_MS ?? 180_000)
 
 const log = (...a) => console.log('[e2e]', ...a)
-const fail = message => { console.error('[e2e] FAIL: ' + message); cleanup(); process.exit(1) }
+const fail = async message => { console.error('[e2e] FAIL: ' + message); await cleanup(); process.exit(1) }
 
 // ---- fake DeepSeek (Anthropic Messages, streaming)
 const modelRequests = []
@@ -87,18 +89,25 @@ writeFileSync(join(profile, 'cordis.patch.yml'), `- id: dsh-onebot
     textImageThreshold: 0
 `)
 
-const dsh = spawn('dsh', ['web', '--host', '127.0.0.1', '--port', '0', '--no-open'], {
+const dsh = spawn('dsh', ['web', '--host', '127.0.0.1', '--port', process.env.E2E_WEB_PORT ?? '0', '--no-open'], {
   env: { ...process.env, DSH_HOME: home, DEEPSEEK_API_KEY: 'sk-e2e-fake', DEEPSEEK_BASE_URL: llmUrl, DSH_TELEMETRY_DISABLED: '1' },
   stdio: ['ignore', 'pipe', 'pipe'],
 })
 let dshLog = ''
 for (const s of [dsh.stdout, dsh.stderr]) s.on('data', d => { dshLog += d; if (process.env.E2E_VERBOSE) process.stdout.write(d) })
-dsh.on('exit', code => { if (!finished) fail('dsh exited early (' + code + ')\n' + dshLog.slice(-4000)) })
+dsh.on('exit', code => { if (!finished) void fail('dsh exited early (' + code + ')\n' + dshLog.slice(-4000)) })
 
 let finished = false
-function cleanup() {
+// dsh still writes into its home while shutting down: wait for it to exit
+// before removing the temp home.
+async function cleanup() {
   finished = true
-  try { dsh.kill('SIGTERM') } catch {}
+  if (dsh.exitCode === null && dsh.signalCode === null) {
+    const exited = new Promise(resolve => dsh.once('exit', resolve))
+    try { dsh.kill('SIGTERM') } catch {}
+    await Promise.race([exited, new Promise(resolve => setTimeout(resolve, 15_000))])
+    if (dsh.exitCode === null && dsh.signalCode === null) try { dsh.kill('SIGKILL') } catch {}
+  }
   llm.close()
   if (!process.env.E2E_KEEP) rmSync(home, { recursive: true, force: true })
 }
@@ -107,7 +116,7 @@ function cleanup() {
 const url = 'ws://127.0.0.1:' + WS_PORT + '/ws'
 async function dial(token) {
   for (;;) {
-    if (Date.now() > deadline) fail('plugin WS never came up\n' + dshLog.slice(-4000))
+    if (Date.now() > deadline) await fail('plugin WS never came up\n' + dshLog.slice(-4000))
     const result = await new Promise(resolve => {
       const ws = new WebSocket(url, token === undefined ? {} : { headers: { Authorization: 'Bearer ' + token } })
       ws.once('open', () => resolve({ ws }))
@@ -124,15 +133,15 @@ async function dial(token) {
 const bad = await dial('wrong-token')
 if (bad.ws) {
   const code = await new Promise(r => bad.ws.once('close', c => r(c)))
-  if (code !== 4401) fail('wrong token: expected close 4401, got ' + code)
+  if (code !== 4401) await fail('wrong token: expected close 4401, got ' + code)
 } else if (bad.status !== 401 && bad.closed !== 4401) {
-  fail('wrong token: unexpected result ' + JSON.stringify({ status: bad.status, closed: bad.closed, error: String(bad.error ?? '') }))
+  await fail('wrong token: unexpected result ' + JSON.stringify({ status: bad.status, closed: bad.closed, error: String(bad.error ?? '') }))
 }
 log('wrong token refused ✓')
 
 // 2. good token: talk
 const good = await dial(TOKEN)
-if (!good.ws) fail('good token refused: ' + JSON.stringify({ status: good.status, closed: good.closed }))
+if (!good.ws) await fail('good token refused: ' + JSON.stringify({ status: good.status, closed: good.closed }))
 const ws = good.ws
 const sends = []
 let msgId = 7000
@@ -166,7 +175,7 @@ const groupMsg = (text, from, mention = false) => ws.send(JSON.stringify({
 async function until(what, cond, ms = 90_000) {
   const end = Math.min(deadline, Date.now() + ms)
   while (!cond()) {
-    if (Date.now() > end) fail('timed out waiting for ' + what + '\nsends=' + JSON.stringify(sends) + '\n' + dshLog.slice(-4000))
+    if (Date.now() > end) await fail('timed out waiting for ' + what + '\nsends=' + JSON.stringify(sends) + '\n' + dshLog.slice(-4000))
     await new Promise(r => setTimeout(r, 200))
   }
 }
@@ -186,15 +195,15 @@ log('/doctor companion block ✓')
 privateMsg('你好呀，这是端到端测试')
 await until('model reply over QQ', () => sends.some(s => s.text.includes(REPLY)))
 const turn = modelRequests.slice(callsAfterStatus).find(r => JSON.stringify(r.messages ?? []).includes('这是端到端测试'))
-if (turn === undefined) fail('the model never saw the QQ text')
-if (!JSON.stringify(turn.system ?? '').includes('QQ')) fail('the system prompt lacks the QQ platform notes')
+if (turn === undefined) await fail('the model never saw the QQ text')
+if (!JSON.stringify(turn.system ?? '').includes('QQ')) await fail('the system prompt lacks the QQ platform notes')
 log('private turn round-trip ✓')
 
 // Group message without @: ignored (requireMention).
 const before = sends.length
 groupMsg('大家好，没有 at 机器人', 123450002)
 await new Promise(r => setTimeout(r, 3000))
-if (sends.slice(before).some(s => s.to === GROUP)) fail('replied to a group message without @')
+if (sends.slice(before).some(s => s.to === GROUP)) await fail('replied to a group message without @')
 log('group without @ ignored ✓')
 
 // Group message with @: a member turn in its own session, reply to the group.
@@ -202,9 +211,14 @@ const callsBeforeGroup = modelRequests.length
 groupMsg('你好呀群里的端到端', 123450002, true)
 await until('group reply', () => sends.some(s => s.to === GROUP && s.text.includes(REPLY)))
 const groupTurn = modelRequests.slice(callsBeforeGroup).find(r => JSON.stringify(r.messages ?? []).includes('群里的端到端'))
-if (groupTurn === undefined) fail('the model never saw the group text')
+if (groupTurn === undefined) await fail('the model never saw the group text')
 log('group @ turn round-trip ✓')
 
-cleanup()
 log('PASS')
-process.exit(0)
+if (process.env.E2E_HOLD) {
+  log('holding; dsh output:\n' + dshLog.split('\n').filter(l => /http:\/\//.test(l)).join('\n'))
+  for (const signal of ['SIGINT', 'SIGTERM']) process.on(signal, () => { void cleanup().then(() => process.exit(0)) })
+} else {
+  await cleanup()
+  process.exit(0)
+}
