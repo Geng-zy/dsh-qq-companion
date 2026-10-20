@@ -1,0 +1,23 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: 中文字体（文字图卡片测试用）
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq fonts-noto-cjk fonts-wqy-zenhei fonts-dejavu-core fonts-noto-color-emoji
+      - name: 安装 dsh 宿主（插件编译时链接它的 @deepseek-ai 包）
+        run: npm install -g @deepseek-ai/dsh@0.2.1-rc.2
+      - run: npm ci --include=dev --legacy-peer-deps --no-audit --no-fund
+      - run: ./scripts/build.sh
+      - run: ./node_modules/.bin/vitest run
