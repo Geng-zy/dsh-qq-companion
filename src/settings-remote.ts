@@ -71,6 +71,9 @@ export const SETTINGS_GROUPS: Readonly<Record<string, readonly string[]>> = {
   permissions: ['requireMention', 'adminUsers', 'dmPolicy', 'groupPolicy', 'allowAllUsers', 'allowFrom', 'groupAllowFrom'],
   behavior: ['interimMessages', 'interimRecall', 'interimRecallMs', 'sendErrorNotice', 'unknownCommand', 'rateLimitPerMinute', 'newMessagePolicy', 'autoSteerPolicy', 'deferredTimeoutMs'],
   diagnostics: ['actionAuditEnabled', 'traceEnabled', 'recordInbound', 'inboxRedact', 'injectEnabled', 'injectDryRun'],
+  companion: ['ownerTitle', 'agentPreset', 'adminPreset', 'adminPermission', 'adminWorkspacePath', 'splitLines', 'splitMaxMessages', 'textImageThreshold', 'inboundImageMaxPx', 'autoAcceptAdminRequests', 'autoAllowInvitedGroups'],
+  memory: ['idleResetHours', 'privateResetDays', 'groupResetDays', 'publicMemoryFile', 'publicMemoryMaxBytes', 'groupMemoryDir', 'groupMemoryMaxBytes'],
+  proactive: ['proactiveEnabled', 'proactiveChatId', 'proactiveWindowStart', 'proactiveWindowEnd', 'proactiveMinPerDay', 'proactiveMaxPerDay', 'proactiveMinGapMinutes', 'proactiveSkipIfActiveMinutes', 'proactiveMaxUnanswered'],
 }
 
 /** schema 默认值（T1 §4 表；摘自 src/index.ts:171-245），快照生效值的底层。 */
@@ -109,6 +112,34 @@ export const SCHEMA_DEFAULTS: Readonly<Record<string, unknown>> = {
   inboxRedact: false,
   injectEnabled: false,
   injectDryRun: true,
+  // dsh-qq-companion 陪伴配置（默认值 = src/index.ts schema）。
+  ownerTitle: '管理员',
+  agentPreset: '',
+  adminPreset: '',
+  adminPermission: '',
+  adminWorkspacePath: '',
+  splitLines: false,
+  splitMaxMessages: 6,
+  textImageThreshold: 150,
+  inboundImageMaxPx: 2048,
+  autoAcceptAdminRequests: false,
+  autoAllowInvitedGroups: false,
+  idleResetHours: 0,
+  privateResetDays: 0,
+  groupResetDays: 0,
+  publicMemoryFile: '',
+  publicMemoryMaxBytes: 6144,
+  groupMemoryDir: '',
+  groupMemoryMaxBytes: 8192,
+  proactiveEnabled: false,
+  proactiveChatId: '',
+  proactiveWindowStart: '09:00',
+  proactiveWindowEnd: '22:00',
+  proactiveMinPerDay: 4,
+  proactiveMaxPerDay: 6,
+  proactiveMinGapMinutes: 90,
+  proactiveSkipIfActiveMinutes: 30,
+  proactiveMaxUnanswered: 2,
 }
 
 /** 快照返回侧脱敏的键（T1 §3 敏感字段行；写入侧明文落盘属宿主既有行为）。 */
@@ -124,13 +155,27 @@ const ENUM_KEYS: Readonly<Record<string, readonly string[]>> = {
   // T9-B (用户裁决 2026-10-12)：admin=仅管理员（默认）；all=不限。
   autoSteerPolicy: ['admin', 'all'],
 }
-const NUMBER_KEYS: readonly string[] = ['port', 'interimRecallMs', 'rateLimitPerMinute', 'deferredTimeoutMs']
+const NUMBER_KEYS: readonly string[] = ['port', 'interimRecallMs', 'rateLimitPerMinute', 'deferredTimeoutMs',
+  'splitMaxMessages', 'textImageThreshold', 'inboundImageMaxPx', 'idleResetHours', 'privateResetDays', 'groupResetDays', 'publicMemoryMaxBytes', 'groupMemoryMaxBytes', 'proactiveMinPerDay', 'proactiveMaxPerDay', 'proactiveMinGapMinutes', 'proactiveSkipIfActiveMinutes', 'proactiveMaxUnanswered']
 /** 数字键取值范围（评审 B4：port 1–65535、时长/频控 ≥0；越界在 Remote 层拒绝，不再只依赖宿主回滚兜底）。 */
 const NUMBER_RANGE: Readonly<Record<string, readonly [number, number | undefined]>> = {
   port: [1, 65535],
   interimRecallMs: [0, undefined],
   rateLimitPerMinute: [0, undefined],
   deferredTimeoutMs: [0, undefined],
+  splitMaxMessages: [0, undefined],
+  textImageThreshold: [0, undefined],
+  inboundImageMaxPx: [0, undefined],
+  idleResetHours: [0, undefined],
+  privateResetDays: [0, undefined],
+  groupResetDays: [0, undefined],
+  publicMemoryMaxBytes: [0, undefined],
+  groupMemoryMaxBytes: [0, undefined],
+  proactiveMinPerDay: [0, undefined],
+  proactiveMaxPerDay: [0, undefined],
+  proactiveMinGapMinutes: [0, undefined],
+  proactiveSkipIfActiveMinutes: [0, undefined],
+  proactiveMaxUnanswered: [0, undefined],
 }
 /** 布尔键白名单（T1 §4 + W6 扩展：W1/W2 观测/调试 6 键入列；顺序与
  *  SETTINGS_GROUPS.diagnostics 一致。数值键 dedupWindowSeconds/actionRatePerMinute/
@@ -139,8 +184,10 @@ const NUMBER_RANGE: Readonly<Record<string, readonly [number, number | undefined
 const BOOLEAN_KEYS: readonly string[] = [
   'requireMention', 'allowAllUsers', 'interimMessages', 'interimRecall', 'sendErrorNotice',
   'actionAuditEnabled', 'traceEnabled', 'recordInbound', 'inboxRedact', 'injectEnabled', 'injectDryRun',
+  'splitLines', 'autoAcceptAdminRequests', 'autoAllowInvitedGroups', 'proactiveEnabled',
 ]
-const STRING_KEYS: readonly string[] = ['host', 'url', 'accessToken', 'botQQ', 'workspacePath']
+const STRING_KEYS: readonly string[] = ['host', 'url', 'accessToken', 'botQQ', 'workspacePath',
+  'ownerTitle', 'agentPreset', 'adminPreset', 'adminPermission', 'adminWorkspacePath', 'publicMemoryFile', 'groupMemoryDir', 'proactiveChatId', 'proactiveWindowStart', 'proactiveWindowEnd']
 const STRING_ARRAY_KEYS: readonly string[] = ['adminUsers', 'allowFrom', 'groupAllowFrom']
 /** 全部 29 键（校验与快照的唯一键集；6 枚举 + 4 数字 + 11 布尔 + 5 字符串 + 3 字符串数组）。 */
 export const ALL_KEYS: readonly string[] = [

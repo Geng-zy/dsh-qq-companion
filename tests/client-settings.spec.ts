@@ -172,9 +172,9 @@ describe('T4 客户端 bundle — descriptor 契约核对（与 T3 src/settings-
 describe('T4 客户端 bundle — 四组 29 键（分组/键集/默认值 = T1 §4 表 + W6 诊断组 + W7 workspacePath + T2 newMessagePolicy + T9 autoSteerPolicy + T3 deferredTimeoutMs = T3 常量）', () => {
   it('分组与键序逐字对齐 host SETTINGS_GROUPS', () => {
     expect(client.GROUP_KEYS).toEqual(SETTINGS_GROUPS)
-    expect(groups.map((group) => group.id)).toEqual(['connection', 'permissions', 'behavior', 'diagnostics'])
+    expect(groups.map((group) => group.id)).toEqual(['connection', 'permissions', 'behavior', 'diagnostics', 'companion', 'memory', 'proactive'])
     expect(allFields.map((field) => field.key).sort()).toEqual([...ALL_KEYS].sort())
-    expect(allFields).toHaveLength(29) // T2 26→27（newMessagePolicy）、T9 27→28（autoSteerPolicy）、T3 28→29（deferredTimeoutMs）
+    expect(allFields).toHaveLength(56) // T2 26→27（newMessagePolicy）、T9 27→28（autoSteerPolicy）、T3 28→29（deferredTimeoutMs）
   })
 
   it('默认值逐字对齐 host SCHEMA_DEFAULTS（重置按钮唯一来源）', () => {
@@ -202,7 +202,7 @@ describe('T4 客户端 bundle — 四组 29 键（分组/键集/默认值 = T1 �
   })
 
   it('分组标题与字段 label 为中文（T4 要求）', () => {
-    expect(groups.map((group) => group.title)).toEqual(['连接', '权限', '行为', '诊断'])
+    expect(groups.map((group) => group.title)).toEqual(['连接', '权限', '行为', '诊断', '陪伴', '记忆与会话', '主动聊天'])
     for (const field of allFields) expect(field.label).toMatch(/\p{Script=Han}/u)
   })
 
@@ -228,11 +228,11 @@ describe('T4 客户端 bundle — 渲染函数模块级可测（renderGroup 纯�
 
   it('四组各产出标题与逐字段控件行（28 行 obx-field）', () => {
     const sections = renderAll(draft({ config: SCHEMA_DEFAULTS }))
-    expect(sections.map((section) => (section.props as Record<string, unknown>)['data-group'])).toEqual(['connection', 'permissions', 'behavior', 'diagnostics'])
+    expect(sections.map((section) => (section.props as Record<string, unknown>)['data-group'])).toEqual(['connection', 'permissions', 'behavior', 'diagnostics', 'companion', 'memory', 'proactive'])
     const titles = sections.map((section) => ((section.children[0] as StubElement).children[0] as string))
-    expect(titles).toEqual(['连接', '权限', '行为', '诊断'])
+    expect(titles).toEqual(['连接', '权限', '行为', '诊断', '陪伴', '记忆与会话', '主动聊天'])
     const fieldRows = sections.flatMap((section) => walk(section).filter((element) => element.type === 'div' && element.props.className === 'obx-field'))
-    expect(fieldRows).toHaveLength(29)
+    expect(fieldRows).toHaveLength(56)
   })
 
   it('控件类型齐备：4 枚举下拉 + 3 多行文本 + 11 布尔勾选 + 5 文本框 + 1 密码框（secret 另含清除勾选）', () => {
@@ -242,8 +242,8 @@ describe('T4 客户端 bundle — 渲染函数模块级可测（renderGroup 纯�
     const textareas = elements.filter((element) => element.type === 'textarea')
     expect(selects).toHaveLength(6) // 5 原有枚举（mode/dmPolicy/groupPolicy/unknownCommand/newMessagePolicy）+ T9 autoSteerPolicy
     expect(textareas).toHaveLength(3)
-    expect(inputs.filter((input) => input.props.type === 'checkbox')).toHaveLength(11 + 1) // 11 布尔（5 原有 + 6 W6）+ secret 清除勾选
-    expect(inputs.filter((input) => input.props.type === 'text')).toHaveLength(8) // host/port/url/botQQ/workspacePath（W7）+ interimRecallMs/rateLimitPerMinute + T3 deferredTimeoutMs（number 以文本框渲染）
+    expect(inputs.filter((input) => input.props.type === 'checkbox')).toHaveLength(11 + 4 + 1) // 11 布尔（5 原有 + 6 W6）+ secret 清除勾选
+    expect(inputs.filter((input) => input.props.type === 'text')).toHaveLength(8 + 23) // host/port/url/botQQ/workspacePath（W7）+ interimRecallMs/rateLimitPerMinute + T3 deferredTimeoutMs（number 以文本框渲染）
     expect(inputs.filter((input) => input.props.type === 'password')).toHaveLength(1)
   })
 
