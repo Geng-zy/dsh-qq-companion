@@ -77,7 +77,7 @@ export declare function dmAllowed(userId: string, policy: AccessPolicyConfig): b
  */
 export declare function groupAllowed(groupId: string, policy: AccessPolicyConfig): boolean;
 /**
- * M3-D5 nickname whitelist: sanitize an attacker-controlled display name for
+ * nickname whitelist: sanitize an attacker-controlled display name for
  * every identity surface it reaches — the single-line message prefix and the
  * <user_message> boundary attribute (see wrapUserMessage). The whitelist
  * guarantees neither surface can be forged:
@@ -104,7 +104,7 @@ export declare function buildGroupMessagePrefix(nickname: string, userId: string
 /** Soft-cap prefix for restricted (member-role) group users. */
 export declare const RESTRICTED_PREFIX = "[\u53D7\u9650\u7528\u6237:\u4EC5\u95EE\u7B54] ";
 /**
- * M3-D5: wrap untrusted user content (message body + quote/merged-forward
+ * wrap untrusted user content (message body + quote/merged-forward
  * expansions) in the explicit prompt-injection boundary. Everything between
  * the tags is data by platform declaration (src/prompt.ts): forged prefix
  * lines, restricted-member tags or system-prompt-like text inside it can

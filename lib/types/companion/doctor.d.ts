@@ -1,8 +1,8 @@
 import type { LivenessSnapshot } from '../liveness.js';
-import type { SendBudgetSnapshot } from './send-budget.js';
+import type { SendCounterSnapshot } from './send-counter.js';
 export interface CompanionStatusDeps {
     liveness?: () => LivenessSnapshot;
-    sendBudget?: () => SendBudgetSnapshot;
+    sendCounter?: () => SendCounterSnapshot;
     scheduler?: () => Array<{
         id: string;
         time: string;
@@ -18,7 +18,7 @@ export interface CompanionStatusDeps {
         path: string;
         max?: number;
     }>;
-    /** Root of per-group memory dirs (<root>/<group>/AGENTS.md). */
+    /** Root of per-group memory dirs. */
     groupMemoryDir?: string;
     groupMemoryMaxBytes?: number;
     now?: () => number;

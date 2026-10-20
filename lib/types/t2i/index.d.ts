@@ -1,32 +1,16 @@
-/**
- * The t2i card renderer entry (port of MarkdownRenderer + render_text_image).
- * Two passes: element heights are computed first, then elements render onto
- * the card; the top bar ("To 昵称") and the footer ("Powered by <brand>")
- * frame the content.
- * @module dsh-qq-companion/t2i/index
- */
-import { CardCanvas } from './canvas.js';
-import { FontManager } from './fonts.js';
-/** Card geometry (fixed by the original renderer). */
-export declare const CARD_WIDTH = 800;
-export declare const BODY_FONT_SIZE = 26;
-/** Render options. */
+export { BODY_FONT_SIZE, CARD_WIDTH, MAX_CARD_HEIGHT } from './render.js';
 export interface RenderOptions {
-    /** Top bar title (e.g. "To 昵称"); absent → no top bar. */
+    /** Title bar text (e.g. "To 昵称"); absent = no title bar. */
     title?: string;
-    /** Footer brand (default "dsh"). */
+    /** Footer brand after "Powered by" (default "dsh"). */
     footerBrand?: string;
-    /** Font files to register (Linux deployments). */
+    /** Font files to register before drawing. */
     fontFiles?: readonly string[];
-    /** Preferred font family names. */
+    /** Preferred font families (tried before the built-in CJK list). */
     fontFamilies?: readonly string[];
 }
 /**
- * Render markdown text as a styled PNG card (synchronous; the original was
- * also synchronous PIL work). Throws when no usable CJK font family exists.
- * @param text - markdown text (literal \\n sequences are converted).
- * @param options - title/footer/fonts.
- * @returns PNG bytes.
+ * Render Markdown text as a PNG card.
+ * @throws when no CJK font is available or the card would be too tall.
  */
 export declare function renderTextImage(text: string, options?: RenderOptions): Buffer;
-export { FontManager, CardCanvas };

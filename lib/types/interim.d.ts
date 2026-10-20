@@ -1,10 +1,10 @@
 /**
- * Interim domain (M2-D1-PR5 extraction; M3-D2a explicit machine): the
+ * Interim domain: the
  * loop-merge outbound mode — live interim sends with per-message auto-recall
  * timers, the turn/end settlement (one t2i summary card → immediate recall
  * of the still-on-screen originals → the deferred final), and the
  * assistant/message interim routing (id dedupe, deferred-text flush,
- * tool-call short-circuit). M3-D2a: the per-chat cycle runs an explicit
+ * tool-call short-circuit). the per-chat cycle runs an explicit
  * idle/accumulating/settling state machine and every interim is booked at
  * SEND ENQUEUE time (placeholder entry, message ids backfilled on send
  * completion) — settlement drains enqueue-count == completion-count and no
@@ -27,10 +27,10 @@ import type { OutboundSegment, SendOptions } from './outbound.js';
 export interface InterimChat {
     /** Text deferred one step in either outbound mode — proven interim by the
      * next assistant/message (flushed live), else the final at turn/end.
-     * M3-D2a: the former instant-mode-only pendingFinal folded in. */
+     * the former instant-mode-only pendingFinal folded in. */
     loopPending: string | null;
     /** Sent interim messages awaiting turn/end summary (text kept for the recap
-     * t2i card). M3-D2a: booked at send-enqueue time as a placeholder entry;
+     * t2i card). booked at send-enqueue time as a placeholder entry;
      * `id` is backfilled per QQ message id when the send completes and `sentAt`
      * is stamped then. */
     loopBuffer: Array<{
@@ -48,7 +48,7 @@ export interface InterimChat {
      * (streaming/usage re-emits of the same message) must not re-send it. */
     lastHandledMessageId: string | undefined;
 }
-/** The explicit per-chat cycle state (M3-D2a). 'idle': nothing deferred or
+/** The explicit per-chat cycle state. 'idle': nothing deferred or
  * in flight. 'accumulating': a turn is producing text (interims booking,
  * deferred text awaiting proof). 'settling': turn/end started the settlement
  * drain. Transitions live only in the entry methods (onAssistantMessage /
@@ -94,7 +94,7 @@ export declare class InterimTracker {
     /** The (lazy-created) machine record for one chat. */
     private cycle;
     /**
-     * turn/start (B8): prune the previous turn's recalled-id residue. Message
+     * turn/start: prune the previous turn's recalled-id residue. Message
      * ids are per-send unique, so a pruned id can never be consulted by a later
      * turn/end recall — those reads only see the current turn's own buf. The
      * one benign race: a follow-up turn starting while the previous turn's
@@ -137,7 +137,7 @@ export declare class InterimTracker {
     private revokeInterim;
     /** Render this turn's interims into one t2i image (summary card, before final). */
     private sendInterimSummary;
-    /** Send one interim live and book it SYNCHRONOUSLY (M3-D2a): a placeholder
+    /** Send one interim live and book it SYNCHRONOUSLY: a placeholder
      * entry enters the loop buffer at enqueue time; when the send completes it
      * is backfilled in place with one entry per QQ message id and the
      * per-message auto-recall timer (config interimRecallMs) is armed, so long

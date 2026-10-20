@@ -31,7 +31,7 @@ export interface DeferredEntry {
     state: DeferredEntryState;
     /** Terminal-state reason (Chinese; also set on success as 已送达). */
     reason?: string;
-    /** T4 (P3): the fault reference of the turn's error ending（bridge 在错误
+    /** the fault reference of the turn's error ending（bridge 在错误
      * 回合 mint 的 MF- 参考号；终态补发文本与 trace 事件携带同号）。 */
     ref?: string;
     /** The final text captured after the timeout (last text-only assistant
@@ -67,7 +67,7 @@ export interface DeferredContext {
     /** The chat's dispatch traceId (chat-level association table; undefined when tracing off). */
     traceIdFor?(chatId: string): string | undefined;
     log(level: 'info' | 'warn' | 'error' | 'debug', message: string): void;
-    /** W1-style outbound/queue decision events（reason 一律中文）。 */
+    /** outbound/queue decision events（reason 一律中文）。 */
     trace?(chatId: string, event: {
         stage: TraceStage;
         ok?: boolean;
@@ -91,7 +91,7 @@ export interface DeferredOptions {
  * action timed out or failed outside the gateway — the message may still
  * have arrived, so the record is kept and auto-retry stops（防重复消息）. */
 export declare function classifySendError(error: unknown): 'retryable' | 'uncertain';
-/** Build the deferred delivery text for a finished turn. T4 (P3): an error
+/** Build the deferred delivery text for a finished turn. an error
  * ending carries the turn's MF- reference so the补发 terminal notice and the
  * trace/log/healthcheck surfaces share one number. */
 export declare function buildDeferredText(entry: DeferredEntry, reason: DeferredTurnReason | undefined): string;
@@ -125,7 +125,7 @@ export declare class DeferredDelivery {
     onAssistantMessage(chatId: string, sessionId: string, message: DeferredAssistantMessage): boolean;
     /** turn/end: cancel the silent-wait timer; complete a pending entry by
      * delivering the final text (async, bounded retries). `ref` is the turn's
-     * fault reference（T4：bridge 在错误回合 mint 的 MF- 号——终态补发文本与
+     * fault reference（bridge 在错误回合 mint 的 MF- 号——终态补发文本与
      * trace 携带同号；正常回合为 undefined）. Returns true when
      * the turn was under deferred tracking AND its ending is success-class
      * （bridge 据此抑制常规错误通知——终态通知由补发通道送达，避免同一故障
@@ -133,7 +133,7 @@ export declare class DeferredDelivery {
      * 掉）：terminal entries（delivered/failed/uncertain/cancelled，只是可
      * 观测快照）；以及 in-flight 让位路径上的错误/取消类收尾——在途补发循环
      * 只持有回合 A 的 text 副本，回合 B 的错误 reason 不会被它送达。 */
-    onTurnEnd(chatId: string, sessionId: string, reason: DeferredTurnReason | undefined, ref?: string): boolean;
+    onTurnEnd(_chatId: string, sessionId: string, reason: DeferredTurnReason | undefined, ref?: string): boolean;
     /** /stop：显式终止该聊天的补发跟踪（pending 条目转 cancelled、计时器解除）；
      * 其他聊天不受影响。无运行中生成时也安全（清理陈旧条目）。 */
     cancelChat(chatId: string): void;

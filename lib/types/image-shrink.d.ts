@@ -2,7 +2,7 @@
  * Inbound image downscaling: shrink images whose long edge exceeds a cap so
  * the vision model reads a reasonably sized file (port of the Hermes
  * adapter's `_shrink_image`, Python/PIL → TS/@napi-rs/canvas, zero new
- * dependencies). Decision record: DEVLOG §3.12.
+ * dependencies).
  *
  * Decode-bomb guard: PNG/JPEG headers are pre-parsed before decoding; a
  * declared dimension beyond `MAX_DECODE_EDGE` aborts before any decode.

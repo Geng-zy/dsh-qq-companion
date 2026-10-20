@@ -12,12 +12,12 @@ export declare const TRACE_MAX_QUEUE = 1000;
 export declare const TRACE_SAME_CAUSE_WINDOW_MS: number;
 /** Max tracked same-cause keys (LRU-evicted beyond this). */
 export declare const TRACE_MAX_CAUSE_KEYS = 512;
-/** Max reason length carried by one event (competitor-aligned). */
+/** Max reason length carried by one event. */
 export declare const REASON_MAX_LENGTH = 300;
 /** Write-failure warn dedup window (same 5-minute discipline). */
 export declare const TRACE_WRITE_WARN_WINDOW_MS: number;
-/** Stage vocabulary (pipeline-hooks.md §4: competitor table trimmed + this
- * plugin's own branches; `dedup` covers the W2-② window). */
+/** Stage vocabulary (trimmed from dsh-qq-onebot-bridge's table + this
+ * plugin's own branches; `dedup` covers the window). */
 export declare const TRACE_STAGES: {
     readonly inbound: "收到消息";
     readonly normalize: "消息归一化";
@@ -37,12 +37,10 @@ export declare const TRACE_STAGES: {
     readonly queue: "离线队列";
     readonly interim: "中间消息";
     readonly notice: "通知";
-    readonly inject: "事件注入";
-    readonly replay: "离线回放";
-    readonly connection: "连接故障（W3/T4 参考号）";
+    readonly connection: "连接故障";
 };
 export type TraceStage = keyof typeof TRACE_STAGES;
-/** Central Chinese reason table (pipeline-hooks.md §6: maintained in one
+/** Central Chinese reason table (maintained in one
  * place so tests can enumerate every reason exhaustively). Reasons with
  * dynamic detail (error text, ids) are composed at the call sites and reuse
  * these as prefixes. */
@@ -82,7 +80,7 @@ export declare const TRACE_REASONS: {
     readonly deferredNoticeFailed: "超时提醒发送失败";
 };
 /** Short, sortable trace id (`t-<base36 seconds>-<n>`); form aligned with the
- * MIT competitor (trace.js:44-47). */
+ * dsh-qq-onebot-bridge (MIT). */
 export declare function newTraceId(now?: number): string;
 /** One event as appended to the jsonl file. */
 export interface TraceEvent {

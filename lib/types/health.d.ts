@@ -9,18 +9,15 @@ export interface HealthDeps {
         connected: boolean;
         selfId: string;
     };
-    /** Transport config summary (mode/host/port) for the connection line. */
+    /** Listen address for the connection line. */
     transport: {
-        mode: string;
         host: string;
         port: number;
     };
-    /** Runtime transport retry/self-heal counters (defensive read of the
+    /** Bind-retry counter (defensive read of the
      * connection's internal state; undefined fields render as 未知). */
     retryState: {
         reverseRetryAttempts?: number;
-        reconnectAttempts?: number;
-        selfHealing?: boolean;
     };
     /** Dedup window snapshot. */
     dedup: {
@@ -34,30 +31,16 @@ export interface HealthDeps {
         dayUsed: number;
         dayLimit: number;
     };
-    /** Recorder state (absent = recording off). */
-    recorder?: {
-        enabled: boolean;
-        redact: boolean;
-        written: number;
-    } | undefined;
-    /** Inject channel state (absent = channel off). */
-    inject?: {
-        enabled: boolean;
-        dryRun: boolean;
-        consumed: number;
-        intercepted: number;
-        skippedHistory: number;
-    } | undefined;
     /** The already-redacted config snapshot (see redactSnapshot). */
     configSnapshot: Record<string, unknown>;
     /** Secret VALUES to scrub from every packed artifact (e.g. accessToken). */
     secrets?: readonly string[];
     /** How many recent ok:false events to include (default HEALTH_RECENT_FAILURES). */
     recentFailures?: number;
-    /** W3/T4 (P3): the recent fault references (resolved live by the bridge);
+    /** the recent fault references (resolved live by the bridge);
      * absent = the report omits the reference section. */
     failureRefs?: () => FailureRefRecord[];
-    /** W3/T4 (P3): the reference stamped into the exported archive file name
+    /** the reference stamped into the exported archive file name
      * (explicit /healthcheck export argument, or the latest recorded fault). */
     triggerRef?: string;
     /** Extra report lines from the companion features (QQ liveness, plans,

@@ -1,5 +1,5 @@
 /**
- * Host-plane card relay (M2-D1-PR2): tool calls whose host-plane UI has no
+ * Host-plane card relay: tool calls whose host-plane UI has no
  * QQ equivalent (exit_plan_mode plan books, ask_user_question option cards)
  * are rendered to plain-text cards and relayed through the outbound pipeline.
  * Extracted verbatim from bridge.ts; the bridge keeps a thin relayHostCards

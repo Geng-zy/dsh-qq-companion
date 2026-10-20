@@ -1,53 +1,59 @@
-/**
- * Voice transcription: ffmpeg → 16 kHz mono WAV, then a whisper engine
- * (openai-whisper CLI, whisper.cpp whisper-cli, or a custom command) produces
- * the transcript. All subprocess work is queued, bounded by a timeout, and
- * contained: a transcription failure must never break the message pipeline
- * (the caller falls back to the [语音] placeholder).
- * @module dsh-qq-companion/stt
- */
-/** STT configuration (subset of the plugin Config). */
+export type SttEngine = 'auto' | 'sherpa-onnx' | 'whisper-cpp' | 'command';
 export interface SttConfig {
     enabled: boolean;
-    engine: 'auto' | 'openai' | 'whisper-cpp' | 'custom';
-    /** Program path/name for the custom engine. */
+    /** Engine; the old names 'custom' (= command) and 'openai' (= auto) are accepted. */
+    engine: SttEngine | 'custom' | 'openai';
+    /** Program for the command engine. */
     command: string;
-    /** argv template for the custom engine; {file} and {out} are substituted. */
+    /** argv template for the command engine. */
     args: string[];
-    /** whisper model id (openai: small/base/medium...; whisper.cpp: ggml name). */
+    /** sherpa-onnx: model directory; whisper-cpp: ggml model name or .bin path. */
     model: string;
-    /** Per-transcription timeout in ms. */
+    /** Spoken language: 'auto' or a code such as 'zh' / 'en'. */
+    language?: string;
+    /** Per-transcription timeout (ms). */
     timeoutMs: number;
+    /** Only the first this-many seconds are transcribed. */
+    maxSeconds?: number;
 }
-/**
- * Detect a command on PATH by scanning each dir for an executable match
- * (A8: no shell involved, so the configured name is never shell-interpreted;
- * builtins/aliases stop being visible — callers only need real binaries).
- */
+/** Most transcriptions waiting behind the running one. */
+export declare const MAX_QUEUE = 5;
+/** Transcripts longer than this are cut (characters). */
+export declare const MAX_TRANSCRIPT_CHARS = 500;
+/** Run a program; resolves stdout+stderr, rejects on a non-zero exit or timeout. */
+export declare function runProcess(program: string, args: readonly string[], timeoutMs: number): Promise<{
+    stdout: string;
+    stderr: string;
+}>;
+/** Find an executable on PATH (no shell involved). */
 export declare function findCommand(name: string): Promise<string | undefined>;
-/**
- * Voice transcription service. One instance per plugin; calls are serialized
- * through a queue so concurrent voice messages cannot stack CPU-bound
- * whisper processes.
- */
+/** A SenseVoice model directory: the onnx file and tokens.txt. */
+export declare function findSenseVoiceModel(dir: string): Promise<{
+    model: string;
+    tokens: string;
+} | undefined>;
+/** A whisper.cpp ggml model by path or by name (ggml-<name>.bin in the usual places). */
+export declare function findWhisperModel(model: string): Promise<string | undefined>;
+/** Clean an engine's raw transcript: engine tags, noise markers, invented credits, length. */
+export declare function cleanTranscript(raw: string): string;
+/** sherpa-onnx prints a JSON object with "text" (on stdout or stderr, depending on version). */
+export declare function parseSherpaOutput(output: string): string;
 export declare class Transcriber {
     private readonly config;
-    private queue;
-    private ffmpegChecked;
+    private chain;
+    private waiting;
+    private resolved;
     constructor(config: SttConfig);
-    /** Whether transcription is enabled by config. */
     get enabled(): boolean;
-    /**
-     * Transcribe a voice file. The input is converted to 16 kHz mono WAV with
-     * ffmpeg, then handed to the selected engine.
-     * @param filePath - absolute path of the downloaded voice file.
-     * @returns the transcript text (trimmed), or '' when the file is silent.
-     * @throws when transcription is impossible (missing tools, timeout...).
-     */
+    /** Transcribe one voice file (queued). @returns the cleaned transcript ('' = nothing said). */
     transcribe(filePath: string): Promise<string>;
+    /** Which engine would run (for diagnostics); throws when none is usable. */
+    engineDescription(): Promise<string>;
+    private engineName;
+    private resolve;
+    private resolveNow;
     private transcribeNow;
-    private resolveEngine;
     private runEngine;
 }
-/** Convenience: transcription result for the bridge. */
+/** The transcript as shown to the model ('' when nothing was said). */
 export declare function transcriptLabel(text: string): string;

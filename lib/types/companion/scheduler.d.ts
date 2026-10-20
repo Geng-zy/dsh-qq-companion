@@ -50,6 +50,4 @@ export declare class DailyScheduler {
     stop(): void;
     /** One check (exported for tests). */
     tick(): Promise<void>;
-    private minutesNow;
-    private minutesOf;
 }

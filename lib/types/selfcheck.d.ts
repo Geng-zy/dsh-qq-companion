@@ -1,5 +1,4 @@
 export interface SelfCheckInput {
-    mode: 'reverse' | 'forward';
     host: string;
     accessToken: string;
     botQQ: string;
@@ -27,6 +26,9 @@ export interface SelfCheckInput {
     proactiveMaxPerDay: number;
     splitLines: boolean;
     splitMaxMessages: number;
+    humanTypingPace?: boolean;
+    typingDelayMinMs?: number;
+    typingDelayMaxMs?: number;
 }
 /** All problems found (empty = all good). */
 export declare function selfCheck(c: SelfCheckInput): string[];
