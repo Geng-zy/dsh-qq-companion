@@ -1,10 +1,10 @@
 /**
- * W1 core-observability tests (T4): traceId propagation across the inbound →
+ * core-observability tests: traceId propagation across the inbound →
  * agent → outbound chain, jsonl field completeness + rename rotation, the
  * Chinese reason matrix, the default-off zero-difference guarantee, the
  * async write guardrails (burst without loss / without blocking), the
  * same-cause 5-minute rate limit and the traceLevel=warn filter.
- * @module dsh-onebot/tests/trace
+ * @module dsh-qq-companion/tests/trace
  */
 import { existsSync, readFileSync } from 'node:fs'
 import { mkdtempSync } from 'node:fs'

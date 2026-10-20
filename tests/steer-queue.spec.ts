@@ -1,5 +1,5 @@
 /**
- * 排队/插话语义回归测试（P1/T2）：任务运行中收到新消息的 newMessagePolicy
+ * 排队/插话语义回归测试：任务运行中收到新消息的 newMessagePolicy
  * 处理 + /steer 命令。
  *
  * 语义定案（计划 §P1 + dsh-agent 契约）：
@@ -13,12 +13,12 @@
  *   在最近 step 边界被读取，不新开回合；每条提交回复一次提交提示。
  * - 例外：媒体/引用/合并转发消息与 [受限用户:仅问答] 群成员两种模式下都按
  *   排队处理（软限制不放宽，媒体管线不被绕过）。
- * - T9-B (用户裁决 2026-10-12)：steer 模式下自动插话资格由 autoSteerPolicy
+ * - (用户裁决 2026-10-12)：steer 模式下自动插话资格由 autoSteerPolicy
  *   控制（admin=仅管理员，缺省；all=不限）；不具备资格的消息走 queue 行为；
  *   受限用户任何档都不自动插话；/steer 命令始终仅管理员。
- * - T9-A：/steer 命令文本同样经 <user_message> 边界包裹（与自动插话路径同形）。
+ * - /steer 命令文本同样经 <user_message> 边界包裹（与自动插话路径同形）。
  * - 无运行中任务时全部路径与 0.8.1 逐字节等价（零提示、零 steer）。
- * @module dsh-onebot/tests/steer-queue
+ * @module dsh-qq-companion/tests/steer-queue
  */
 import { describe, expect, it, vi } from 'vitest'
 
@@ -199,7 +199,7 @@ describe('插话例外规则（两种模式都不进 steer）', () => {
   }, 60_000)
 })
 
-describe('autoSteerPolicy（T9-B，用户裁决 2026-10-12）—— steer 模式下自动插话资格', () => {
+describe('autoSteerPolicy—— steer 模式下自动插话资格', () => {
   it('缺省 admin 档：普通群成员的纯文字不自动插话，按排队处理（入队+排队提示）', async () => {
     const h = await makeCmdHarness({ newMessagePolicy: 'steer' }) // autoSteerPolicy 缺省 = admin
     h.sendGroupTextAs('启动群任务', 10001) // 管理员开任务
@@ -295,7 +295,7 @@ describe('/steer 命令（仅管理员，两种模式下均可用）', () => {
     await h.connection.stop()
   }, 60_000)
 
-  it('T9-A：/steer 文本经 <user_message> 边界包裹进 steer（与自动插话路径同形，含 qq/nickname 属性）', async () => {
+  it('/steer 文本经 <user_message> 边界包裹进 steer（与自动插话路径同形，含 qq/nickname 属性）', async () => {
     const h = await makeCmdHarness() // 缺省 queue
     h.sendText('启动任务')
     await vi.waitFor(() => expect(h.captured.followups).toHaveLength(1))

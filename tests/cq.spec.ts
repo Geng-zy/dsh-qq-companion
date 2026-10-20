@@ -82,7 +82,7 @@ describe('detectMention', () => {
   it('detects reply as mention', () => {
     expect(detectMention([{ type: 'reply', data: { id: '1' } }], '', '10001', '')).toBe(true)
   })
-  it('A8: reply mentions only when it determinably replies to the bot itself', () => {
+  it('reply mentions only when it determinably replies to the bot itself', () => {
     // Replied-to user qq == learned selfId → mention.
     expect(detectMention([{ type: 'reply', data: { id: '1', qq: '10001' } }], '', '10001', '')).toBe(true)
     // selfId unknown but qq == configured botQQ → mention (same bot-id resolution).

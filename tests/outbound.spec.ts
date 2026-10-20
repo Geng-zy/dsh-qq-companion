@@ -1,11 +1,8 @@
 /**
- * Outbound-domain tests (M2-D1-PR2): cases migrated from bridge.spec.ts per
- * the tests/README.md migration map (§3.3 outbound + §3.6 card-relay, the
- * latter co-located here per the PR's file ownership). Assertions are
- * unchanged; the two t2i inline harnesses converged onto the shared
- * makeHarness (maxImageBytes opt added). The three golden end-to-end cases
+ * Outbound tests (send chain, offline queue, write gate, image cards,
+ * host card relay) on the shared makeHarness. The three golden end-to-end cases
  * stay in bridge.spec.ts — they are the cross-module full-pipeline gate.
- * @module dsh-onebot/tests/outbound
+ * @module dsh-qq-companion/tests/outbound
  */
 import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -67,7 +64,7 @@ describe('outbound pipeline', () => {
     await h.connection.stop()
   }, 60_000)
 
-  it('queues interim-mode final flushes while disconnected and resends them in order on reconnect (M1-B6)', async () => {
+  it('queues interim-mode final flushes while disconnected and resends them in order on reconnect', async () => {
     const h = await makeHarness()
     const session = await inboundAndDisconnect(h)
     h.ctx.emit('session/event', session as never, makeEvent('assistant/message', {
@@ -94,7 +91,7 @@ describe('outbound pipeline', () => {
     await h.connection.stop()
   })
 
-  it('queues instant finals and error notices while disconnected and resends them in order (M1-B6)', async () => {
+  it('queues instant finals and error notices while disconnected and resends them in order', async () => {
     const h = await makeHarness({ interimMessages: false })
     const session = await inboundAndDisconnect(h)
     h.ctx.emit('session/event', session as never, makeEvent('assistant/message', {
@@ -117,7 +114,7 @@ describe('outbound pipeline', () => {
     await h.connection.stop()
   })
 
-  it('does not queue interim sends while disconnected (M1-B6)', async () => {
+  it('does not queue interim sends while disconnected', async () => {
     const h = await makeHarness()
     const session = await inboundAndDisconnect(h)
     h.ctx.emit('session/event', session as never, makeEvent('assistant/message', {
@@ -133,7 +130,7 @@ describe('outbound pipeline', () => {
     await h.connection.stop()
   })
 
-  it('caps the per-chat queue at 20 and drops the oldest while disconnected (M1-B6)', async () => {
+  it('caps the per-chat queue at 20 and drops the oldest while disconnected', async () => {
     const h = await makeHarness({ interimMessages: false })
     const session = await inboundAndDisconnect(h)
     for (let i = 1; i <= 21; i++) {
@@ -154,7 +151,7 @@ describe('outbound pipeline', () => {
     await h.connection.stop()
   })
 
-  it('drops queued finals older than the TTL instead of resending them (M1-B6)', async () => {
+  it('drops queued finals older than the TTL instead of resending them', async () => {
     const h = await makeHarness()
     const session = await inboundAndDisconnect(h)
     h.ctx.emit('session/event', session as never, makeEvent('assistant/message', {
@@ -185,7 +182,7 @@ describe('outbound pipeline', () => {
     await h.connection.stop()
   })
 
-  it('sendToChat while disconnected: queuable final parks and drains on reconnect, non-queuable throws (M2-T0 outbound gate)', async () => {
+  it('sendToChat while disconnected: queuable final parks and drains on reconnect, non-queuable throws', async () => {
     const h = await makeHarness()
     await inboundAndDisconnect(h)
     await expect(h.bridge.sendToChat('private:10001', '排队最终回复', { queuable: true })).resolves.toEqual([])
@@ -248,7 +245,7 @@ describe('outbound pipeline', () => {
   })
 })
 
-describe('outbound proactive-write gate (W2-③)', () => {
+describe('outbound proactive-write gate', () => {
   /** Minimal OutboundPipeline harness: a connected fake transport capturing
    * every send action, config limits injected per test, optional audit dir.
    * Isolation (0.6.0 flake hygiene): the pipeline gets a monotonic injected

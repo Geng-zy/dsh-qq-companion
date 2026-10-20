@@ -1,5 +1,5 @@
 /**
- * A8: findCommand must probe PATH by direct access() checks — no `sh -c`
+ * findCommand must probe PATH by direct access() checks — no `sh -c`
  * involved, so the configured name is never shell-interpreted. Every case
  * points PATH at temp dirs, keeping the probe hermetic regardless of what
  * the host has installed (the x-bit cases need POSIX semantics).
@@ -16,7 +16,7 @@ afterEach(() => {
   vi.unstubAllEnvs()
 })
 
-describe('findCommand (A8 PATH scan, no shell)', () => {
+describe('findCommand', () => {
   it('returns the absolute path of an executable match on PATH', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'stt-find-hit-'))
     const program = join(dir, 'fake-whisper')

@@ -1,10 +1,10 @@
 /**
- * Shared bridge test harnesses (M2-T0 migration map §1): the fake agent
+ * Shared bridge test harnesses: the fake agent
  * registry, the full reverse-WS harness, the compact command harness, and
- * the M1-B6 disconnect/reconnect helpers. Extracted from bridge.spec.ts so
+ * the disconnect/reconnect helpers. Extracted from bridge.spec.ts so
  * the five-split target specs (commands/inbound/outbound/interim/registry)
  * can reuse the same stubs.
- * @module dsh-onebot/tests/helpers/bridge-harness
+ * @module dsh-qq-companion/tests/helpers/bridge-harness
  */
 import { expect, vi } from 'vitest'
 import { mkdtempSync } from 'node:fs'
@@ -44,7 +44,7 @@ export function makeFakeAgents(
           const text = message.content.map(b => b.text ?? '').join('')
           captured.followups.push({ text, sessionId })
         },
-        // M3-D4c: the transcript steer path (raw text capture).
+        // the transcript steer path (raw text capture).
         steer: (message: { content: Array<{ type: string; text?: string }> }) => {
           captured.steers?.push({ text: message.content.map(b => b.text ?? '').join(''), sessionId })
         },
@@ -118,11 +118,11 @@ export async function makeHarness(opts?: { failCreateFor?: string; mediaDir?: st
       maxVoiceBytes: 15 * 1024 * 1024, maxFileBytes: 20 * 1024 * 1024,
       textImageThreshold: opts?.textImageThreshold ?? 0, cardFooter: 'dsh', fontFiles: [], fontFamilies: [],
       agentPreset: 'standard', workspacePath: mediaDir,
-      // T2 (P1): busy-turn policy override (absent = the 'queue' default).
+      // busy-turn policy override (absent = the 'queue' default).
       ...(opts?.newMessagePolicy !== undefined ? { newMessagePolicy: opts.newMessagePolicy } : {}),
-      // T3 (P2): deferred-delivery timeout override (absent = the 10min default).
+      // deferred-delivery timeout override (absent = the 10min default).
       ...(opts?.deferredTimeoutMs !== undefined ? { deferredTimeoutMs: opts.deferredTimeoutMs } : {}),
-      // W1: optional decision-trace sink (absent = tracing off).
+      // optional decision-trace sink (absent = tracing off).
       trace: opts?.trace,
     },
     policy: {
@@ -174,11 +174,11 @@ export async function makeCmdHarness(opts?: {
   rateLimitPerMinute?: number
   restrictedMemberPrefix?: boolean
   newMessagePolicy?: 'queue' | 'steer'
-  /** T9-B: auto-steer eligibility knob; absent = the bridge default 'admin'. */
+  /** auto-steer eligibility knob; absent = the bridge default 'admin'. */
   autoSteerPolicy?: 'admin' | 'all'
-  /** T3 (P2): deferred-delivery timeout override (absent = the 10min default). */
+  /** deferred-delivery timeout override (absent = the 10min default). */
   deferredTimeoutMs?: number
-  /** T3 (P2): media dir override（重启恢复测试复用同一目录的注册表/映射文件）。 */
+  /** media dir override（重启恢复测试复用同一目录的注册表/映射文件）。 */
   mediaDir?: string
   commands?: unknown
   /** Admin private-chat defaults. */
@@ -197,9 +197,9 @@ export async function makeCmdHarness(opts?: {
    * open read handles). Absent = the bridge sees no persistence service and
    * the list renders preview-less items. */
   sessionPersistence?: unknown
-  /** T4 (P3): optional trace sink (absent = tracing off). */
+  /** optional trace sink (absent = tracing off). */
   trace?: TraceSink
-  /** T4 (P3): optional log capture for reference-number assertions. */
+  /** optional log capture for reference-number assertions. */
   log?: (level: string, message: string) => void
   /** Group access (absent = open). The array is used as-is, so a test can
    * mutate it like GroupAccess does. */
@@ -214,7 +214,7 @@ export async function makeCmdHarness(opts?: {
   const ctx = new Context()
   const sessionIds: string[] = []
   const capturedMeta: Array<{ cwd?: string; agentPreset?: string }> = []
-  // T2 (P1): steers are captured alongside followups so the /steer and
+  // steers are captured alongside followups so the /steer and
   // 'steer'-policy tests can assert the exact steered text.
   const captured = { followups: [] as Array<{ text: string; sessionId: string }>, steers: [] as Array<{ text: string; sessionId: string }>, createdMeta: capturedMeta }
   const agents = makeFakeAgents(sessionIds, captured)
@@ -257,7 +257,7 @@ export async function makeCmdHarness(opts?: {
       ...(opts?.restrictedMemberPrefix !== undefined ? { restrictedMemberPrefix: opts.restrictedMemberPrefix } : {}),
       ...(opts?.newMessagePolicy !== undefined ? { newMessagePolicy: opts.newMessagePolicy } : {}),
       ...(opts?.autoSteerPolicy !== undefined ? { autoSteerPolicy: opts.autoSteerPolicy } : {}),
-      // T3 (P2): deferred-delivery timeout override (absent = the 10min default).
+      // deferred-delivery timeout override (absent = the 10min default).
       ...(opts?.deferredTimeoutMs !== undefined ? { deferredTimeoutMs: opts.deferredTimeoutMs } : {}),
       sensitivePatterns: [], mediaDir, maxImageBytes: 8 * 1024 * 1024,
       maxVoiceBytes: 15 * 1024 * 1024, maxFileBytes: 20 * 1024 * 1024,
@@ -311,7 +311,7 @@ export async function makeCmdHarness(opts?: {
       sender: { user_id: 10001, nickname: '小明' },
     }))
   }
-  // Variant senders for the M1-A2 turn-role tests (non-default users / group).
+  // Variant senders for the turn-role tests (non-default users / group).
   const sendTextAs = (text: string, userId: number): void => {
     client.send(JSON.stringify({
       post_type: 'message', message_type: 'private', user_id: userId, self_id: 10002,
@@ -367,3 +367,8 @@ export const inboundAndDisconnect = async (h: Awaited<ReturnType<typeof makeHarn
 
 export const sentTexts = (outbound: Array<Record<string, unknown>>): string[] =>
   outbound.filter(f => f.action === 'send_msg').map(f => JSON.stringify(f.params))
+
+/** The bridge's internal ChatRegistry (tests reach into it directly). */
+export function registryOf(h: { bridge: unknown }): ChatRegistry {
+  return (h.bridge as unknown as { registry: ChatRegistry }).registry
+}

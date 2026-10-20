@@ -1,9 +1,9 @@
 /**
- * Session v4 producer-owned source kind 持久化回归测试（P0/T1）。
+ * Session v4 producer-owned source kind 持久化回归测试。
  *
- * 审计结论（docs/v4-source-audit.md）：全仓经宿主 API 写会话 source 的形态
+ * 审计结论：全仓经宿主 API 写会话 source 的形态
  * 收敛于 src/bridge.ts:576（dispatchFollowup）与 :754（steerMessage 内核，
- * T2 起共用；steerTranscript//steer/steer 策略都经它）两点，
+ * 起共用；steerTranscript//steer/steer 策略都经它）两点，
  * 均为 `source: { kind: 'plugin:dsh-onebot' }`。本测试用真管线 harness（真实
  * ChatBridge + 反向 WS 入站）在四条路径上固化该结论，并在「持久化-重读-再写入」
  * 循环与真实宿主 v4 准入函数上断言 kind 不漂移：
@@ -16,7 +16,7 @@
  *    （retired `kind: 'plugin'` 必须被拒；`plugin:dsh-onebot` 必须通过）；
  * 6. src 全树扫描不变量 —— 任何新的 `source: { … kind … }` 写入形态必须携带
  *    `plugin:dsh-onebot`（防第三写点漂移的机器护栏）。
- * @module dsh-onebot/tests/session-v4-persistence
+ * @module dsh-qq-companion/tests/session-v4-persistence
  */
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { mkdtempSync } from 'node:fs'
@@ -200,7 +200,7 @@ describe('session v4 producer-owned source kind（持久化回归）', () => {
     try {
       h.sendText('先建立会话')
       await vi.waitFor(() => expect(h.captured).toHaveLength(1))
-      // steerTranscript 是私有方法（bridge.ts:738，T2 起委托 :749 的 steerMessage 内核），类型上经桥接访问 —— 运行时为原型方法
+      // steerTranscript 是私有方法（bridge.ts:738，起委托 :749 的 steerMessage 内核），类型上经桥接访问 —— 运行时为原型方法
       const chatId = [...(h.bridge as unknown as { chats: Map<string, unknown> }).chats.keys()][0]
       expect(chatId).toBeDefined()
       ;(h.bridge as unknown as { steerTranscript: (chatId: string, text: string) => void })
@@ -281,7 +281,7 @@ describe('session v4 producer-owned source kind（持久化回归）', () => {
 
   it('⑥ src 全树扫描不变量：所有会话 source 写入形态都携带 plugin:qq-companion', async () => {
     // 机器护栏：任何新增 `source: { … kind … }` 写入形态必须使用 producer-owned
-    // kind（审计 docs/v4-source-audit.md §4 的防漂移条款）。
+    // kind。
     const srcDir = join(import.meta.dirname ?? 'src', '..', 'src')
     const entries = await readdir(srcDir, { withFileTypes: true })
     const files: string[] = []
@@ -302,7 +302,7 @@ describe('session v4 producer-owned source kind（持久化回归）', () => {
         }
       })
     }
-    // 恰为审计收口的两处写入点（bridge.ts:576/754，T9-C 行号同步），且全部携带 producer-owned kind
+    // 恰为审计收口的两处写入点（bridge.ts:576/754，行号同步），且全部携带 producer-owned kind
     expect(matches.length).toBeGreaterThanOrEqual(2)
     for (const m of matches) {
       expect(m.file === 'bridge.ts' || m.file === 'session.ts' || m.file === 'trace.ts' || m.file === 'measure.ts',

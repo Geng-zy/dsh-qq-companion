@@ -1,15 +1,15 @@
 /**
- * 客户端设置页 UI bundle 测试（T4）。
+ * 客户端设置页 UI bundle 测试。
  *
  * 验证 lib/client.js（浏览器 client bundle，无法直接 import——CJS 包裹挂
  * window.__ModuleLoader__）的模块级契约：
  *   ① 语法可解析（new Function）+ CJS banner/footer 形态 + externals 仅 react；
  *   ② 入口导出 inject + apply；
- *   ③ 四组 29 键：分组/键集/默认值与宿主侧 src/settings-remote.js（T3 + W6 扩展
- *      + W7 workspacePath + T2 newMessagePolicy + T9 autoSteerPolicy）导出常量逐字一致（descriptor 契约核对，防两侧漂移）；
- *      诊断组 6 键文案为中文标签 + 一句话「关掉会怎样」+ 配置键名（W6）；
- *   ④ Typert descriptor 与 T3 服务方法面逐字对齐：getSettings() /
- *      updateSettings(patch, expectedRevision) / listWorkspaces()（W7），全
+ *   ③ 四组 29 键：分组/键集/默认值与宿主侧 src/settings-remote.js（扩展
+ *      + workspacePath + newMessagePolicy + autoSteerPolicy）导出常量逐字一致（descriptor 契约核对，防两侧漂移）；
+ *      诊断组 6 键文案为中文标签 + 一句话「关掉会怎样」+ 配置键名；
+ *   ④ Typert descriptor 与 服务方法面逐字对齐：getSettings() /
+ *      updateSettings(patch, expectedRevision) / listWorkspaces()，全
  *      positional，namespace onebotSettings，result codec 可解析 host 形态快照
  *      （含脱敏 accessToken）与 workspace 列表；
  *   ⑤ 渲染函数模块级可测：renderGroup 纯函数产出三组 19 键控件，accessToken
@@ -17,8 +17,7 @@
  *   ⑥ 保存语义：computePatch 产出 19 键子集 patch；secretDraft '' = 不修改、
  *      clearSecret = accessToken ''（清空）；数字非法键不进 patch。
  *
- * 契约唯一来源：docs/settings-page-design.md（T1 定案）§3/§3.1/§4/§5。
- * @module dsh-onebot/tests/client-settings
+ * @module dsh-qq-companion/tests/client-settings
  */
 import { readFileSync } from 'node:fs'
 
@@ -70,10 +69,10 @@ const client = loadClientModule()
 const descriptors = client.ONEBOT_SETTINGS_DESCRIPTORS as Array<Record<string, unknown>>
 const groups = client.GROUPS as Array<{ id: string; title: string; fields: Array<{ key: string; label: string; type: string; options?: string[]; optionLabels?: Record<string, string>; hint?: string }> }>
 const allFields = client.ALL_FIELDS as Array<{ key: string; type: string }>
-/** 模块级共享草稿构造器（W6 新增 describe 复用；既有 describe 内的同名局部声明遮蔽之）。 */
+/** 模块级共享草稿构造器。 */
 const draft = client.draftFromSnapshot as (snapshot: { config: Record<string, unknown> }) => Record<string, unknown>
 
-describe('T4 客户端 bundle — 装载契约（CJS 包裹 / externals / 入口导出）', () => {
+describe('客户端 bundle — 装载契约（CJS 包裹 / externals / 入口导出）', () => {
   it('语法可解析：new Function 直接解析 lib/client.js 全文', () => {
     expect(() => new Function(CLIENT_SOURCE)).not.toThrow()
   })
@@ -104,7 +103,7 @@ describe('T4 客户端 bundle — 装载契约（CJS 包裹 / externals / 入口
   })
 })
 
-describe('T4 客户端 bundle — descriptor 契约核对（与 T3 src/settings-remote.js 逐字对齐）', () => {
+describe('客户端 bundle — descriptor 契约核对（与 src/settings-remote.js 逐字对齐）', () => {
   it('namespace/service = onebotSettings，与宿主 NAMESPACE 常量一致', () => {
     expect(client.ONEBOT_SETTINGS_REMOTE).toEqual({ package: 'dsh-qq-companion', descriptors })
     for (const descriptor of descriptors) {
@@ -115,7 +114,7 @@ describe('T4 客户端 bundle — descriptor 契约核对（与 T3 src/settings-
     }
   })
 
-  it('方法集逐字对齐：getSettings() 0 参；updateSettings(patch, expectedRevision)；listWorkspaces() 0 参（W7），全 positional', () => {
+  it('方法集逐字对齐：getSettings() 0 参；updateSettings(patch, expectedRevision)；listWorkspaces() 0 参，全 positional', () => {
     expect(descriptors.map((descriptor) => descriptor.method)).toEqual(['getSettings', 'updateSettings', 'listWorkspaces'])
     const getSettings = descriptors[0] as { parameters: Array<unknown>; result: { schema: { parse(value: unknown): unknown } } }
     expect(getSettings.parameters).toEqual([])
@@ -124,7 +123,7 @@ describe('T4 客户端 bundle — descriptor 契约核对（与 T3 src/settings-
     const listWorkspaces = descriptors[2] as { parameters: Array<unknown>; result: { typeSymbol: string; schema: { parse(value: unknown): unknown } } }
     expect(listWorkspaces.parameters).toEqual([])
     expect(listWorkspaces.result.typeSymbol).toBe('WorkspaceListResult')
-    // W7：listWorkspaces result codec 可解析 host 形态（available + workspaces 摘要）。
+    // listWorkspaces result codec 可解析 host 形态（available + workspaces 摘要）。
     expect(listWorkspaces.result.schema.parse({ available: true, workspaces: [{ id: 'ws-1', path: '/tmp/ws', sessionCount: 2 }] })).toEqual({
       available: true,
       workspaces: [{ id: 'ws-1', path: '/tmp/ws', sessionCount: 2 }],
@@ -133,7 +132,7 @@ describe('T4 客户端 bundle — descriptor 契约核对（与 T3 src/settings-
     expect(listWorkspaces.result.schema.parse({ available: false, workspaces: [] })).toEqual({ available: false, workspaces: [] })
   })
 
-  it('result codec 可解析宿主形态快照（T1 §3：19 键 config + secrets 脱敏标记 + groups + effect=restart）', () => {
+  it('result codec 可解析宿主形态快照', () => {
     const getSettings = descriptors[0] as { result: { schema: { parse(value: unknown): unknown } } }
     const config: Record<string, unknown> = { ...SCHEMA_DEFAULTS }
     config.accessToken = '' // 宿主 buildSnapshot 脱敏约定：快照 accessToken 恒 ''
@@ -147,7 +146,7 @@ describe('T4 客户端 bundle — descriptor 契约核对（与 T3 src/settings-
     }
     const parsed = getSettings.result.schema.parse(snapshot) as typeof snapshot
     expect(parsed.config.accessToken).toBe('')
-    expect(parsed.config.workspacePath).toBe('') // W7：26 键含 workspacePath，默认 ''
+    expect(parsed.config.workspacePath).toBe('') // 26 键含 workspacePath，默认 ''
     expect(parsed.effect).toBe(REMOTE_EFFECT)
   })
 
@@ -164,17 +163,17 @@ describe('T4 客户端 bundle — descriptor 契约核对（与 T3 src/settings-
     const patchCodec = updateSettings.parameters[0].codec.schema
     expect(patchCodec.parse({ port: 1234 })).toEqual({ port: 1234 })
     expect(patchCodec.parse({ adminUsers: ['10000'], unknownCommand: 'passthrough' })).toEqual({ adminUsers: ['10000'], unknownCommand: 'passthrough' })
-    expect(patchCodec.parse({ workspacePath: '/tmp/ws' })).toEqual({ workspacePath: '/tmp/ws' }) // W7：字符串通道
+    expect(patchCodec.parse({ workspacePath: '/tmp/ws' })).toEqual({ workspacePath: '/tmp/ws' }) // 字符串通道
     expect(() => patchCodec.parse({ mode: 'invalid' })).toThrow()
   })
 })
 
-describe('T4 客户端 bundle — 四组 29 键（分组/键集/默认值 = T1 §4 表 + W6 诊断组 + W7 workspacePath + T2 newMessagePolicy + T9 autoSteerPolicy + T3 deferredTimeoutMs = T3 常量）', () => {
+describe('客户端 bundle — 分组、键集、默认值与 host 一致', () => {
   it('分组与键序逐字对齐 host SETTINGS_GROUPS', () => {
     expect(client.GROUP_KEYS).toEqual(SETTINGS_GROUPS)
     expect(groups.map((group) => group.id)).toEqual(['connection', 'permissions', 'behavior', 'diagnostics', 'companion', 'memory', 'proactive'])
     expect(allFields.map((field) => field.key).sort()).toEqual([...ALL_KEYS].sort())
-    expect(allFields).toHaveLength(57) // T2 26→27（newMessagePolicy）、T9 27→28（autoSteerPolicy）、T3 28→29（deferredTimeoutMs）
+    expect(allFields).toHaveLength(ALL_KEYS.length)
   })
 
   it('默认值逐字对齐 host SCHEMA_DEFAULTS（重置按钮唯一来源）', () => {
@@ -191,17 +190,17 @@ describe('T4 客户端 bundle — 四组 29 键（分组/键集/默认值 = T1 �
       else if (field.type === 'stringArray') expect(Array.isArray(fallback)).toBe(true)
       else expect(field.type === 'string' || field.type === 'secret').toBe(true)
     }
-    // 枚举键集与宿主 validatePatch 接受的枚举值一致（T1 §4 表）
+    // 枚举键集与宿主 validatePatch 接受的枚举值一致
     const enumField = (key: string) => groups.flatMap((group) => group.fields).find((field) => field.key === key)
     expect(enumField('mode')?.options).toEqual(['reverse', 'forward'])
     expect(enumField('dmPolicy')?.options).toEqual(['open', 'allowlist', 'disabled'])
     expect(enumField('groupPolicy')?.options).toEqual(['open', 'allowlist', 'disabled'])
     expect(enumField('unknownCommand')?.options).toEqual(['intercept', 'passthrough'])
     expect(enumField('newMessagePolicy')?.options).toEqual(['queue', 'steer'])
-    expect(enumField('autoSteerPolicy')?.options).toEqual(['admin', 'all']) // T9：枚举与宿主 ENUM_KEYS 同宽
+    expect(enumField('autoSteerPolicy')?.options).toEqual(['admin', 'all']) // 枚举与宿主 ENUM_KEYS 同宽
   })
 
-  it('分组标题与字段 label 为中文（T4 要求）', () => {
+  it('分组标题与字段 label 为中文', () => {
     expect(groups.map((group) => group.title)).toEqual(['连接', '权限', '行为', '诊断', '陪伴', '记忆与会话', '主动聊天'])
     for (const field of allFields) expect(field.label).toMatch(/\p{Script=Han}/u)
   })
@@ -212,7 +211,7 @@ describe('T4 客户端 bundle — 四组 29 键（分组/键集/默认值 = T1 �
   })
 })
 
-describe('T4 客户端 bundle — 渲染函数模块级可测（renderGroup 纯函数）', () => {
+describe('客户端 bundle — 渲染函数模块级可测（renderGroup 纯函数）', () => {
   const draft = client.draftFromSnapshot as (snapshot: { config: Record<string, unknown> }) => Record<string, unknown>
 
   function renderAll(draftValues: Record<string, unknown>, opts: { secretSet?: boolean; clearSecret?: boolean } = {}) {
@@ -232,18 +231,19 @@ describe('T4 客户端 bundle — 渲染函数模块级可测（renderGroup 纯�
     const titles = sections.map((section) => ((section.children[0] as StubElement).children[0] as string))
     expect(titles).toEqual(['连接', '权限', '行为', '诊断', '陪伴', '记忆与会话', '主动聊天'])
     const fieldRows = sections.flatMap((section) => walk(section).filter((element) => element.type === 'div' && element.props.className === 'obx-field'))
-    expect(fieldRows).toHaveLength(57)
+    expect(fieldRows).toHaveLength(ALL_KEYS.length)
   })
 
-  it('控件类型齐备：4 枚举下拉 + 3 多行文本 + 11 布尔勾选 + 5 文本框 + 1 密码框（secret 另含清除勾选）', () => {
+  it('每种字段类型渲染成对应控件（数量按字段定义推算）', () => {
     const elements = renderAll(draft({ config: SCHEMA_DEFAULTS })).flatMap((section) => walk(section))
     const inputs = elements.filter((element) => element.type === 'input') as Array<StubElement & { props: Record<string, unknown> }>
     const selects = elements.filter((element) => element.type === 'select')
     const textareas = elements.filter((element) => element.type === 'textarea')
-    expect(selects).toHaveLength(6) // 5 原有枚举（mode/dmPolicy/groupPolicy/unknownCommand/newMessagePolicy）+ T9 autoSteerPolicy
-    expect(textareas).toHaveLength(3)
-    expect(inputs.filter((input) => input.props.type === 'checkbox')).toHaveLength(7 + 6 + 1) // 7 布尔（5 原有 + 2 诊断）+ 6 陪伴布尔 + secret 清除勾选
-    expect(inputs.filter((input) => input.props.type === 'text')).toHaveLength(8 + 26) // host/port/url/botQQ/workspacePath（W7）+ interimRecallMs/rateLimitPerMinute + T3 deferredTimeoutMs（number 以文本框渲染）
+    const count = (type: string) => allFields.filter((field) => field.type === type).length
+    expect(selects).toHaveLength(count('enum'))
+    expect(textareas).toHaveLength(count('stringArray'))
+    expect(inputs.filter((input) => input.props.type === 'checkbox')).toHaveLength(count('boolean') + count('secret')) // secret 另带一个“清除”勾选
+    expect(inputs.filter((input) => input.props.type === 'text')).toHaveLength(count('string') + count('number')) // number 以文本框渲染
     expect(inputs.filter((input) => input.props.type === 'password')).toHaveLength(1)
   })
 
@@ -268,7 +268,7 @@ describe('T4 客户端 bundle — 渲染函数模块级可测（renderGroup 纯�
   })
 })
 
-describe('T4 客户端 bundle — 保存语义（updateSettings(patch, expectedRevision) 入参构造）', () => {
+describe('客户端 bundle — 保存语义（updateSettings(patch, expectedRevision) 入参构造）', () => {
   const draft = client.draftFromSnapshot as (snapshot: { config: Record<string, unknown> }) => Record<string, unknown>
   const compute = client.computePatch as (
     draftValues: Record<string, unknown>,
@@ -317,7 +317,7 @@ describe('T4 客户端 bundle — 保存语义（updateSettings(patch, expectedR
   })
 })
 
-describe('W6 诊断组 — 6 个观测/调试布尔键的文案契约（中文标签 + 关掉会怎样 + 配置键名）', () => {
+describe('诊断组 — 6 个观测/调试布尔键的文案契约（中文标签 + 关掉会怎样 + 配置键名）', () => {
   const diagnosticsGroup = groups.find((group) => group.id === 'diagnostics')!
   const NEW_KEYS = ['actionAuditEnabled', 'traceEnabled']
 
@@ -362,7 +362,7 @@ describe('W6 诊断组 — 6 个观测/调试布尔键的文案契约（中文�
   })
 })
 
-describe('W6 「非默认」徽标 — 快照生效值 vs schema 默认值（纯客户端计算）', () => {
+describe('「非默认」徽标 — 快照生效值 vs schema 默认值（纯客户端计算）', () => {
   function badges(draftValues: Record<string, unknown>, nonDefaultKeys: string[]) {
     return groups.flatMap((group) => (client.renderGroup as Function)(stubReact, group, {
       draft: draftValues,
@@ -399,7 +399,7 @@ describe('W6 「非默认」徽标 — 快照生效值 vs schema 默认值（纯
   })
 })
 
-describe('W6 失败守卫（客户端侧）— host edit-failed 中文错误可渲染且不误判为冲突', () => {
+describe('失败守卫（客户端侧）— host edit-failed 中文错误可渲染且不误判为冲突', () => {
   const unwrap = client.unwrap as (result: unknown) => unknown
   const isConflictError = client.isConflictError as (cause: unknown) => boolean
 
@@ -433,7 +433,7 @@ describe('W6 失败守卫（客户端侧）— host edit-failed 中文错误可�
   })
 })
 
-describe('W7 workspacePath + 「快速填入 workspace」（connection 组新行 + 只填不存的辅助选择器）', () => {
+describe('workspacePath + 「快速填入 workspace」（connection 组新行 + 只填不存的辅助选择器）', () => {
   const fillWorkspacePath = client.fillWorkspacePath as (draft: Record<string, unknown>, path: string) => Record<string, unknown>
   const renderPicker = client.renderWorkspacePicker as (react: unknown, opts: Record<string, unknown>) => StubElement | null
 

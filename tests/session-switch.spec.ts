@@ -6,7 +6,7 @@
  * via agents.resume (not a fresh create)", the restart round-trip, the
  * broken-id refusal, and the resume-failure fallback. Registry-internal paths
  * are exercised through direct calls (same convention as registry.spec).
- * @module dsh-onebot/tests/session-switch
+ * @module dsh-qq-companion/tests/session-switch
  */
 import { describe, expect, it, vi } from 'vitest'
 import { mkdtempSync } from 'node:fs'
@@ -24,11 +24,8 @@ import { MediaStore } from '../src/media.js'
 import { Transcriber } from '../src/stt.js'
 import { shortSessionId } from '../src/commands.js'
 
-import { makeCmdHarness, makeEvent, makeHarness } from './helpers/bridge-harness.js'
+import { makeCmdHarness, makeEvent, makeHarness, registryOf } from './helpers/bridge-harness.js'
 
-function registryOf(h: { bridge: unknown }): ChatRegistry {
-  return (h.bridge as unknown as { registry: ChatRegistry }).registry
-}
 
 function brokenOf(r: ChatRegistry): Set<string> {
   return (r as unknown as { brokenSessions: Set<string> }).brokenSessions
@@ -442,7 +439,7 @@ describe('/session command (bridge harness)', () => {
     expect(s2).not.toBe(s1)
 
     // List first: the numeric pick resolves against the snapshot the bare
-    // form rendered (same R2 contract as /workspace|/model|/preset).
+    // form rendered (same contract as /workspace|/model|/preset).
     h.sendText('/session')
     await vi.waitFor(() => {
       // New item format: preview placeholder (this harness has no persistence

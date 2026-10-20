@@ -1,8 +1,8 @@
 /**
- * Command-surface tests (M2-D1-PR1). Migrated from bridge.spec.ts per the
- * M2-T0 migration map §3.1, re-railed onto the shared tests/helpers stubs;
+ * Command-surface tests. Migrated from bridge.spec.ts per the
+ * migration map §3.1, re-railed onto the shared tests/helpers stubs;
  * assertions are unchanged from the pre-split suite.
- * @module dsh-onebot/tests/commands
+ * @module dsh-qq-companion/tests/commands
  */
 import { describe, expect, it, vi } from 'vitest'
 import { mkdtempSync, realpathSync } from 'node:fs'
@@ -116,7 +116,7 @@ describe('commands', () => {
       },
     })
     // The command context reads the catalog live, so attaching the port after
-    // construction is observable exactly like the host wiring (M2-C5b port).
+    // construction is observable exactly like the host wiring.
     ;(h.bridge as unknown as { deps: { llmCatalog?: unknown } }).deps.llmCatalog = {
       listProviders: () => [{ id: 'deepseek', name: 'DeepSeek' }],
       listModels: async () => [{ provider: 'deepseek', id: 'deepseek-chat' }, { provider: 'deepseek', id: 'deepseek-reasoner' }],
@@ -132,7 +132,7 @@ describe('commands', () => {
     })
 
     // 2. /model provider model switches the session selection ONLY — the
-    //    deployment default (saveSelection) must stay untouched (M2-C5a).
+    //    deployment default (saveSelection) must stay untouched.
     h.sendText('/model deepseek deepseek-reasoner')
     await vi.waitFor(() => {
       expect(h.outbound.some(f => JSON.stringify(f.params).includes('已切换当前会话模型：deepseek/deepseek-reasoner'))).toBe(true)
@@ -150,7 +150,7 @@ describe('commands', () => {
     await h.connection.stop()
   })
 
-  it('slash /model --default rewrites the deployment default without touching the session selection (M2-C5a)', async () => {
+  it('slash /model --default rewrites the deployment default without touching the session selection', async () => {
     const saveSelection = vi.fn(async () => undefined)
     const h = await makeCmdHarness({
       agentDefaultModel: {
@@ -174,7 +174,7 @@ describe('commands', () => {
     await h.connection.stop()
   })
 
-  it('slash /model rejects unknown argument combinations with the usage line (M2-C5a)', async () => {
+  it('slash /model rejects unknown argument combinations with the usage line', async () => {
     const saveSelection = vi.fn(async () => undefined)
     const h = await makeCmdHarness({
       agentDefaultModel: {
@@ -568,7 +568,7 @@ describe('commands', () => {
     await h.connection.stop()
   })
 
-  it('command messages carrying media skip media downloads (M1-C6a)', async () => {
+  it('command messages carrying media skip media downloads', async () => {
     const h = await makeCmdHarness()
     const media = (h.bridge as unknown as { deps: { media: MediaStore } }).deps.media
     let downloads = 0
@@ -597,7 +597,7 @@ describe('commands', () => {
     await h.connection.stop()
   })
 
-  it('/ocr resolves the image registered from a command message (M1-C6a)', async () => {
+  it('/ocr resolves the image registered from a command message', async () => {
     const h = await makeCmdHarness({ ocrResult: { texts: [{ text: '命令消息里的图片' }] } })
     const media = (h.bridge as unknown as { deps: { media: MediaStore } }).deps.media
     let downloads = 0
@@ -627,7 +627,7 @@ describe('commands', () => {
     await h.connection.stop()
   })
 
-  it('slash /help lists the full routed command table for an admin (M2-T0 command table)', async () => {
+  it('slash /help lists the full routed command table for an admin', async () => {
     const h = await makeCmdHarness()
     h.sendText('/help')
     await vi.waitFor(() => {
@@ -643,7 +643,7 @@ describe('commands', () => {
     await h.connection.stop()
   })
 
-  it('rejects every routed slash command for a non-admin with no side effects (M2-T0 command table)', async () => {
+  it('rejects every routed slash command for a non-admin with no side effects', async () => {
     const commands = { execute: vi.fn(async () => ({ kind: 'success', text: 'unreachable' })) }
     const h = await makeCmdHarness({ commands })
     for (const name of ['new', 'stop', 'model', 'workspace', 'preset', 'session', 'status', 'retry', 'id', 'ver', 'ocr', 'mode', 'plan', 'permission', 'goal', 'help']) {
@@ -662,7 +662,7 @@ describe('commands', () => {
     await h.connection.stop()
   }, 60_000)
 
-  it('command table registers exactly the 20 routed commands, one row each, and /help renders the grouped card from the table (D1-PR1)', () => {
+  it('command table registers exactly the 20 routed commands, one row each, and /help renders the grouped card from the table', () => {
     // Row order = the /help line order inside each group; the router matches
     // by name so ordering is routing-neutral. Adding a command is exactly one
     // row here (group + usage-style help) — /help picks it up for free.
@@ -716,7 +716,7 @@ describe('commands', () => {
     expect(card).not.toContain('/healthcheck')
   })
 
-  it('/healthcheck is an equivalent alias of /doctor: same handler, same output (T1 rename)', async () => {
+  it('/healthcheck is an equivalent alias of /doctor: same handler, same output', async () => {
     const h = await makeCmdHarness()
     h.sendText('/doctor')
     await vi.waitFor(() => {
@@ -784,7 +784,7 @@ describe('commands', () => {
     await h.connection.stop()
   }, 60_000)
 
-  it('unknown command with a close match suggests candidates and is consumed (R1)', async () => {
+  it('unknown command with a close match suggests candidates and is consumed', async () => {
     const h = await makeCmdHarness()
     // Prefix match: /he is a prefix of /help (and of the /healthcheck alias of
     // /doctor — the alias suggests the primary name).
@@ -833,7 +833,7 @@ describe('commands', () => {
     await h.connection.stop()
   })
 
-  it('unknownCommand: passthrough restores the fall-through to the model (R1)', async () => {
+  it('unknownCommand: passthrough restores the fall-through to the model', async () => {
     const h = await makeCmdHarness({ unknownCommand: 'passthrough' })
     h.sendText('/xyzw 参数')
     await vi.waitFor(() => expect(h.captured.followups).toHaveLength(1))
@@ -843,7 +843,7 @@ describe('commands', () => {
     await h.connection.stop()
   })
 
-  it('a path-like first token (/tmp/x) is not a command and still falls through under default intercept (R1)', async () => {
+  it('a path-like first token (/tmp/x) is not a command and still falls through under default intercept', async () => {
     const h = await makeCmdHarness()
     h.sendText('/tmp/x 不是命令')
     await vi.waitFor(() => expect(h.captured.followups).toHaveLength(1))
@@ -853,7 +853,7 @@ describe('commands', () => {
     await h.connection.stop()
   })
 
-  it('non-admin unknown slash commands still hit the admin gate, not the suggestion path (R1 regression)', async () => {
+  it('non-admin unknown slash commands still hit the admin gate, not the suggestion path', async () => {
     const h = await makeCmdHarness()
     // /hellp would suggest /help — but the admin gate runs first.
     h.sendGroupTextAs('/hellp', 20002)
@@ -868,7 +868,7 @@ describe('commands', () => {
   })
 })
 
-describe('commands · serial selection (R2)', () => {
+describe('commands · serial selection', () => {
   const registryOf = (h: Awaited<ReturnType<typeof makeCmdHarness>>) =>
     (h.bridge as unknown as { registry: { getSettings(id: string): { pendingSelection?: { kind: string; phase?: string; provider?: string; items: Array<{ payload: string }>; createdAt: number } } } }).registry
   const pendingOf = (h: Awaited<ReturnType<typeof makeCmdHarness>>) => registryOf(h).getSettings('private:10001').pendingSelection

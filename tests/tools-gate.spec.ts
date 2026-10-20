@@ -1,7 +1,7 @@
 /**
- * Outbound media gate wiring (M1-A3b): the qq_send_* tools read local files
+ * Outbound media gate wiring: the qq_send_* tools read local files
  * only inside the calling session's mediaSendRoots — the plugin media dir
- * always, plus the chat workspace on admin turns (M1-A2 turn-level role).
+ * always, plus the chat workspace on admin turns.
  * A real ChatBridge carries the role state (seeded like bridge.spec seeds
  * its private maps); the connection is a recording stub, so nothing hits
  * the network and every assertion on sends reads recorded send_msg params.
@@ -63,7 +63,7 @@ async function makeHarness() {
     log: () => undefined,
   })
 
-  /** Seed one live chat with a frozen turn role (the M1-A2 state mediaSendRoots reads). */
+  /** Seed one live chat with a frozen turn role (the state mediaSendRoots reads). */
   const seed = (sessionId: string, role: 'admin' | 'member'): string => {
     const chatId = 'group:' + (role === 'admin' ? '20001' : '20002')
     ;(bridge as unknown as { chats: Map<string, Record<string, unknown>> }).chats.set(chatId, {
@@ -103,7 +103,7 @@ async function makeHarness() {
   return { bridge, tool, exec, seed, calls, sentSegment, mediaDir, workspace, otherDir, outside }
 }
 
-describe('qq_send_* local-path outbound gate (M1-A3b)', () => {
+describe('qq_send_* local-path outbound gate', () => {
   it('refuses a workspace file on a member turn without reading or sending it', async () => {
     const h = await makeHarness()
     const sessionId = 'sess-member'
@@ -175,7 +175,7 @@ describe('qq_send_* local-path outbound gate (M1-A3b)', () => {
   })
 })
 
-describe('ChatBridge.mediaSendRoots (M1-A3b roots口径)', () => {
+describe('ChatBridge.mediaSendRoots', () => {
   it('derives roots from the turn-level role: member → mediaDir, admin → mediaDir + workspace', async () => {
     const h = await makeHarness()
     const member = 'acc-member'
@@ -205,7 +205,7 @@ describe('ChatBridge.mediaSendRoots (M1-A3b roots口径)', () => {
 
   it('fails closed to mediaDir-only for a session with no known chat', async () => {
     const h = await makeHarness()
-    // canEditFiles trusts non-QQ sessions (A1), but the media gate does not:
+    // canEditFiles trusts non-QQ sessions, but the media gate does not:
     // no chat → no workspace root, mediaDir only.
     expect(await h.bridge.mediaSendRoots('some-web-session')).toEqual({
       roots: [realpathSync(h.mediaDir)],

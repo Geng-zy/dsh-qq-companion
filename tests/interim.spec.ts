@@ -1,11 +1,9 @@
 /**
- * Interim-domain tests (M2-D1-PR5): cases migrated from bridge.spec.ts per
- * the tests/README.md migration map (§3.4 interim). Assertions are unchanged
- * and the five migrated cases keep their inline harnesses verbatim. The three
- * M2-T0 interim timing cases and the three golden end-to-end cases stay in
- * bridge.spec.ts — they are the cross-module gate. The last case pins the B8
+ * Interim-message tests (loop merge, recall, summary card). The three
+ * interim timing cases and the three golden end-to-end cases stay in
+ * bridge.spec.ts — they are the cross-module gate. The last case pins the
  * recalledInterimIds prune at turn/start.
- * @module dsh-onebot/tests/interim
+ * @module dsh-qq-companion/tests/interim
  */
 import { describe, expect, it, vi } from 'vitest'
 import { mkdtempSync } from 'node:fs'
@@ -487,7 +485,7 @@ describe('interim tracker', () => {
     await connection.stop()
   })
 
-  it('prunes recalledInterimIds at turn/start; the skip logic survives the prune (B8)', async () => {
+  it('prunes recalledInterimIds at turn/start; the skip logic survives the prune', async () => {
     const h = await makeCmdHarness({ interimRecallMs: 40 })
     h.sendText('开始长任务')
     await vi.waitFor(() => expect(h.captured.followups).toHaveLength(1))
@@ -776,7 +774,7 @@ describe('interim tracker', () => {
   })
 })
 
-describe('interimRecall=false degrade switch (M3-D2b): send-only interims', () => {
+describe('interimRecall=false degrade switch: send-only interims', () => {
   it('sends interims live but never recalls: no auto-recall timer, no turn/end card, no delete_msg', async () => {
     const h = await makeCmdHarness({ interimRecallMs: 40, interimRecall: false })
     h.sendText('开始长任务')

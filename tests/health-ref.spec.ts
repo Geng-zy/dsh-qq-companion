@@ -1,5 +1,5 @@
 /**
- * W3/T4 (P3) 诊断参考号体系回归测试：一次故障一个参考号，凭号查日志。
+ * 诊断参考号体系回归测试：一次故障一个参考号，凭号查日志。
  *
  * 断言面（对齐任务书验收）：
  * - 连接/桥类故障 → QQ-CONN-<ts><rand>：真实 EADDRINUSE 路径触发，日志行 /
@@ -8,14 +8,14 @@
  * - 消息回合故障 → MF-<ts><rand>：⚠️ 运行出错文案尾部附号，trace jsonl 同号
  *   事件 stage/reason 齐全，结构化日志行与 /healthcheck 报告同号；同一故障
  *   QQ 文案 / trace 行 / 报告三处同号逐字相等。
- * - T3 deferred 错误终态：补发终态通知带同号（不再重复 ⚠️）。
+ * - deferred 错误终态：补发终态通知带同号（不再重复 ⚠️）。
  * - /retry 失败：⚠️ 重试失败 + MF- 号（trace stage=command 同号）。
  * - 正常回复路径零发号（无 MF-/QQ-CONN- 命中、报告「最近故障参考号：无」、
  *   export 文件名保持无号基线形态）。
  * - export 文件名模式：省略参考号自动用最近故障号；显式传号逐字入名；非法
  *   参考号回 usage 不落盘。
  * 时序纪律：vi.waitFor 文本确定性等待；deferred 单元用构造器注入假调度器。
- * @module dsh-onebot/tests/health-ref
+ * @module dsh-qq-companion/tests/health-ref
  */
 import { describe, expect, it, vi } from 'vitest'
 import { existsSync, mkdtempSync, readFileSync, readdirSync } from 'node:fs'
@@ -161,7 +161,7 @@ describe('消息回合故障 → MF- 号贯穿', () => {
     await stopAll(h)
   }, 30_000)
 
-  it('T3 deferred 错误终态：补发通知带同号、不再重复 ⚠️；trace queue 事件携带 ref', async () => {
+  it('deferred 错误终态：补发通知带同号、不再重复 ⚠️；trace queue 事件携带 ref', async () => {
     const mediaDir = mkdtempSync(join(tmpdir(), 'onebot-ref-deferred-'))
     const sink = new TraceSink({ dir: mediaDir })
     const h = await makeHarness({ mediaDir, trace: sink, deferredTimeoutMs: 30 })

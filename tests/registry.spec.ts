@@ -1,11 +1,10 @@
 /**
- * ChatRegistry tests (M2-D1-PR3): migrated from bridge.spec.ts per the
- * tests/README.md §3.5 map — mapping persistence (round-trip, debounce,
+ * ChatRegistry tests: mapping persistence (round-trip, debounce,
  * stop()), retired-id durability, create/resume assembly (preset/workspace
  * wiring), collision heal, per-chat settings, and the ensureChat concurrency
  * pin. Assertion semantics are unchanged; internal-path direct calls target
  * the registry (this file's convention).
- * @module dsh-onebot/tests/registry
+ * @module dsh-qq-companion/tests/registry
  */
 import { describe, expect, it, vi } from 'vitest'
 import { mkdtempSync } from 'node:fs'
@@ -24,12 +23,7 @@ import type { BridgeConfig } from '../src/bridge.js'
 import { MediaStore } from '../src/media.js'
 import { Transcriber } from '../src/stt.js'
 
-import { makeCmdHarness, makeEvent, makeFakeAgents, makeHarness } from './helpers/bridge-harness.js'
-
-/** Registry-only view of a harness-built bridge (the registry is private). */
-function registryOf(h: { bridge: unknown }): ChatRegistry {
-  return (h.bridge as unknown as { registry: ChatRegistry }).registry
-}
+import { makeCmdHarness, makeEvent, makeFakeAgents, makeHarness, registryOf } from './helpers/bridge-harness.js'
 
 /** Minimal RegistryDeps for direct-registry tests (the registry internal
  * direct-call convention of this file). */
@@ -601,7 +595,7 @@ describe('ChatRegistry', () => {
     await bridge.stop()
   })
 
-  it('onSessionFlush debounces the mapping write; stop() forces the final save (M1-E2)', async () => {
+  it('onSessionFlush debounces the mapping write; stop() forces the final save', async () => {
     vi.useFakeTimers()
     const ctx = new Context()
     const sessionIds: string[] = []
@@ -716,7 +710,7 @@ describe('ChatRegistry', () => {
     await connection.stop()
   })
 
-  it('restores the /workspace override from a resumed session cwd (方案 B)', async () => {
+  it('restores the /workspace override from a resumed session cwd', async () => {
     const ctx = new Context()
     const sessions = { flush: vi.fn(async () => undefined) }
     const mediaDir = mkdtempSync(join(tmpdir(), 'onebot-test-'))
@@ -809,7 +803,7 @@ describe('ChatRegistry', () => {
     await connection.stop()
   })
 
-  it('drops queued turn roles on /new so the fresh session cannot inherit them (M1-A2)', async () => {
+  it('drops queued turn roles on /new so the fresh session cannot inherit them', async () => {
     const h = await makeCmdHarness()
     // Member turn + admin interjection: the admin role is still queued when
     // the member's turn ends.
@@ -834,7 +828,7 @@ describe('ChatRegistry', () => {
     await h.connection.stop()
   })
 
-  it('mapping round-trip: a stopped chat resumes with the recorded preset and the live default model (M2-T0 registry)', async () => {
+  it('mapping round-trip: a stopped chat resumes with the recorded preset and the live default model', async () => {
     const h = await makeHarness()
     h.sendText('你好')
     await vi.waitFor(() => expect(h.captured.followups).toHaveLength(1))
@@ -906,7 +900,7 @@ describe('ChatRegistry', () => {
     await bridge2.stop()
   }, 30_000)
 
-  it('heals a session collision end-to-end: the chat rebuilds on a fresh id for the next message (M2-T0 registry)', async () => {
+  it('heals a session collision end-to-end: the chat rebuilds on a fresh id for the next message', async () => {
     const h = await makeHarness()
     h.sendText('hi')
     await vi.waitFor(() => expect(h.captured.followups).toHaveLength(1))
@@ -940,7 +934,7 @@ describe('ChatRegistry', () => {
     await h.connection.stop()
   }, 30_000)
 
-  it('per-chat settings survive /new: workspace, preset, mode, goal, last image and pending ref (D1-PR3)', async () => {
+  it('per-chat settings survive /new: workspace, preset, mode, goal, last image and pending ref', async () => {
     const h = await makeCmdHarness()
     const registry = registryOf(h)
     const settings = (): ChatSettings => registry.getSettings('private:10001')
@@ -972,10 +966,10 @@ describe('ChatRegistry', () => {
     await h.connection.stop()
   })
 
-  // B8a (M2-T0 todo unblocked): concurrent first messages for one chat join a
+  // concurrent first messages for one chat join a
   // single in-flight create — agents.create runs exactly once and the second
   // dispatch awaits the already-created chat instead of racing it.
-  it('ensureChat concurrent first messages create exactly one agent per chat (M2-T0, B8a)', async () => {
+  it('ensureChat concurrent first messages create exactly one agent per chat', async () => {
     const h = await makeHarness({ createDelayMs: 80 })
     for (let i = 0; i < 10; i++) h.sendText('并发首条 ' + i)
     await vi.waitFor(() => expect(h.captured.followups).toHaveLength(10))
@@ -986,7 +980,7 @@ describe('ChatRegistry', () => {
     await h.connection.stop()
   }, 30_000)
 
-  it('B8b: a whenIdle failure after create disposes the orphan agent and leaves no chat residue', async () => {
+  it('a whenIdle failure after create disposes the orphan agent and leaves no chat residue', async () => {
     const dispose = vi.fn(async () => undefined)
     const agents = {
       create: vi.fn(async (options: { sessionId: string }) => ({
@@ -1009,7 +1003,7 @@ describe('ChatRegistry', () => {
     expect(registry.bySession.size).toBe(0)
   })
 
-  it('B8c: an idle chat is evicted on the next inbound message — flushed, disposed, mapping kept, resume restores it', async () => {
+  it('an idle chat is evicted on the next inbound message — flushed, disposed, mapping kept, resume restores it', async () => {
     const h = await makeHarness({ resumeOk: true })
     h.sendText('第一条')
     await vi.waitFor(() => expect(h.captured.followups).toHaveLength(1))

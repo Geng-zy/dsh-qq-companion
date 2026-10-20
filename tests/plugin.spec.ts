@@ -93,7 +93,7 @@ describe('plugin entry', () => {
     await disposer()
   })
 
-  it('warns once at mount when workspacePath is unset; silent when configured (T3 方案 B)', () => {
+  it('warns once at mount when workspacePath is unset; silent when configured', () => {
     const mediaDir = mkdtempSync(join(tmpdir(), 'onebot-plugin-'))
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
     try {

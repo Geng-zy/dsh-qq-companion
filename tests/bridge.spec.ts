@@ -83,7 +83,7 @@ describe('ChatBridge', () => {
     await h.connection.stop()
   })
 
-  it('gates file edits by QQ admin for onebot chats (A1: non-QQ allowed)', async () => {
+  it('gates file edits by QQ admin for onebot chats (non-QQ allowed)', async () => {
     const h = await makeCmdHarness()
     // Non-QQ session id: not in the chat mapping → allowed.
     expect(h.bridge.canEditFiles('some-web-session')).toBe(true)
@@ -100,7 +100,7 @@ describe('ChatBridge', () => {
     await h.connection.stop()
   })
 
-  it('freezes the edit role per turn in private chats: member turns stay denied and the admin turn is allowed (M1-A2)', async () => {
+  it('freezes the edit role per turn in private chats: member turns stay denied and the admin turn is allowed', async () => {
     const h = await makeCmdHarness({ allowAllUsers: true })
     // Member (10003) private chat: the turn opens with the member role, and a
     // second queued member turn keeps its own role after the first one ends.
@@ -126,7 +126,7 @@ describe('ChatBridge', () => {
     await h.connection.stop()
   })
 
-  it('keeps a running member turn member-gated when an admin interjects in a group (M1-A2)', async () => {
+  it('keeps a running member turn member-gated when an admin interjects in a group', async () => {
     const h = await makeCmdHarness()
     // Group member (20003) starts a long-running turn.
     h.sendGroupTextAs('请帮我修改文件', 20003)
@@ -152,7 +152,7 @@ describe('ChatBridge', () => {
     await h.connection.stop()
   })
 
-  it('fails closed to member on turn/start with an empty dispatch queue (host-initiated turn, M1-A2)', async () => {
+  it('fails closed to member on turn/start with an empty dispatch queue (host-initiated turn)', async () => {
     const h = await makeCmdHarness()
     h.sendText('你好')
     await vi.waitFor(() => expect(h.captured.followups).toHaveLength(1))
@@ -171,7 +171,7 @@ describe('ChatBridge', () => {
     await h.connection.stop()
   })
 
-  it('sets busy at turn/start and clears at turn/end, gating /retry (M1-B7)', async () => {
+  it('sets busy at turn/start and clears at turn/end, gating /retry', async () => {
     const h = await makeCmdHarness()
     h.sendText('你好')
     await vi.waitFor(() => expect(h.captured.followups).toHaveLength(1))
@@ -190,15 +190,15 @@ describe('ChatBridge', () => {
     await h.connection.stop()
   })
 
-  // ---------------------------------------------------------- M2-T0: five-split characterization hardening
+  // ---------------------------------------------------------- five-split characterization hardening
 
-  // ------------------------------------------------------------ M2-C2: shared assembly (create vs resume)
+  // ------------------------------------------------------------ shared assembly (create vs resume)
 
   function chatsOf(h: { bridge: unknown }): Map<string, { lastNickname: string } & Record<string, unknown>> {
     return (h.bridge as unknown as { chats: Map<string, { lastNickname: string } & Record<string, unknown>> }).chats
   }
 
-  it('characterization (M2-C2): lastNickname source per assembly path — create seeds it from the message, resume starts empty and the first message re-seeds it', async () => {
+  it('characterization: lastNickname source per assembly path — create seeds it from the message, resume starts empty and the first message re-seeds it', async () => {
     const h1 = await makeHarness()
     h1.sendText('你好')
     await vi.waitFor(() => expect(h1.captured.followups).toHaveLength(1))
@@ -209,7 +209,7 @@ describe('ChatBridge', () => {
     await h1.connection.stop()
 
     // Resume path (loadMapping): the mapping file records no nickname, the
-    // resumed agent starts with the pre-C2 hardcoded '' and the first
+    // resumed agent starts with '' and the first
     // post-resume message re-seeds it from its own sender.
     const h2 = await makeHarness({ mediaDir: h1.mediaDir, resumeOk: true })
     await vi.waitFor(() => expect(chatsOf(h2).get('private:10001')).toBeDefined())
@@ -222,7 +222,7 @@ describe('ChatBridge', () => {
     await h2.connection.stop()
   })
 
-  it('field snapshot (M2-C2): create and resume assemble identical initial ChatAgent state apart from the intended lastNickname divergence', async () => {
+  it('field snapshot: create and resume assemble identical initial ChatAgent state apart from the intended lastNickname divergence', async () => {
     // Assembly-initial state only (identity/handle fields excluded; runtime
     // message effects excluded by driving ensureChat directly — the registry
     // internal-path direct call is this file's convention).
@@ -254,7 +254,7 @@ describe('ChatBridge', () => {
     await vi.waitFor(() => expect(chatsOf(h2).get('private:10001')).toBeDefined())
     const resumed = chatsOf(h2).get('private:10001')!
     expect(snapshot(resumed)).toEqual(createdSnapshot)
-    // The one deliberate divergence, kept per caller in the C2 factory:
+    // The one deliberate divergence, kept per caller in the factory:
     expect(created.lastNickname).toBe('小明')
     expect(resumed.lastNickname).toBe('')
     // Identity fields differ by construction (two distinct agent instances).
@@ -264,7 +264,7 @@ describe('ChatBridge', () => {
     await h2.connection.stop()
   })
 
-  it('inbound pipeline order: policy gate → mention gate → command router → media → quote → dispatch (M2-T0 pipeline)', async () => {
+  it('inbound pipeline order: policy gate → mention gate → command router → media → quote → dispatch', async () => {
     const h = await makeCmdHarness()
     const order: string[] = []
     const target = h.bridge as unknown as {
@@ -321,7 +321,7 @@ describe('ChatBridge', () => {
     expect(h.outbound.some(f => JSON.stringify(f.params).includes('仅管理员可用'))).toBe(false)
 
     // 3. A normal group turn: the command router runs BEFORE media parsing
-    //    (M1-C6a position, observable even for non-commands), then media,
+    //, then media,
     //    then quote expansion, then dispatch.
     const png = Buffer.from('89504e470d0a1a0a', 'hex').toString('base64')
     h.client.send(JSON.stringify({
@@ -345,7 +345,7 @@ describe('ChatBridge', () => {
     await h.connection.stop()
   }, 30_000)
 
-  it('sendInterim bookkeeping: buffer + id backfill + recall timer, with message-id dedupe (M2-T0 interim timing)', async () => {
+  it('sendInterim bookkeeping: buffer + id backfill + recall timer, with message-id dedupe', async () => {
     const h = await makeCmdHarness({ interimRecallMs: 50 })
     h.sendText('开始长任务')
     await vi.waitFor(() => expect(h.captured.followups).toHaveLength(1))
@@ -399,7 +399,7 @@ describe('ChatBridge', () => {
     await h.connection.stop()
   }, 30_000)
 
-  it('settleLoop drains the send chain before snapshotting: an in-flight interim is still summarized and recalled (M2-T0 interim timing)', async () => {
+  it('settleLoop drains the send chain before snapshotting: an in-flight interim is still summarized and recalled', async () => {
     const h = await makeCmdHarness({ interimRecallMs: 60_000 })
     const realCall = h.connection.call.bind(h.connection)
     h.connection.call = (async (action: string, params: unknown) => {
@@ -442,7 +442,7 @@ describe('ChatBridge', () => {
     await h.connection.stop()
   }, 30_000)
 
-  it('golden: private plain-text round produces exactly one text send_msg (M2-T0 golden)', async () => {
+  it('golden: private plain-text round produces exactly one text send_msg', async () => {
     const h = await makeHarness()
     h.sendText('你好，帮我看看这个')
     await vi.waitFor(() => expect(h.captured.followups).toHaveLength(1))
@@ -464,7 +464,7 @@ describe('ChatBridge', () => {
     await h.connection.stop()
   }, 30_000)
 
-  it('golden: group @mention with a tool call yields interim → summary card → recall → final in order (M2-T0 golden)', async () => {
+  it('golden: group @mention with a tool call yields interim → summary card → recall → final in order', async () => {
     const h = await makeCmdHarness({ interimRecallMs: 60_000 })
     h.sendGroupTextAs('帮我查一下', 10001)
     await vi.waitFor(() => expect(h.captured.followups).toHaveLength(1))
@@ -509,7 +509,7 @@ describe('ChatBridge', () => {
     await h.connection.stop()
   }, 30_000)
 
-  it('golden: a long final renders exactly one t2i image card segment (M2-T0 golden)', async () => {
+  it('golden: a long final renders exactly one t2i image card segment', async () => {
     const h = await makeHarness({ textImageThreshold: 10 })
     h.sendText('长文测试')
     await vi.waitFor(() => expect(h.captured.followups).toHaveLength(1))
@@ -529,7 +529,7 @@ describe('ChatBridge', () => {
     await h.connection.stop()
   }, 30_000)
 
-  it('sendToChat serializes per chat even for an unregistered chat (B8d/C6b send-chain decoupling)', async () => {
+  it('sendToChat serializes per chat even for an unregistered chat', async () => {
     const h = await makeHarness()
     // No chat is registered for private:99999 — the send chain must still
     // serialize: the delayed first send blocks the second one.

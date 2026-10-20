@@ -1,11 +1,11 @@
 /**
- * Mapping-file settings persistence tests (M3-D4b): /mode (/mode → interimOverride)
+ * Mapping-file settings persistence tests: /mode (/mode → interimOverride)
  * and /goal survive a restart through the chat-sessions.json mapping. The
  * format is additive — a legacy entry is a bare chat→session-id string; an
  * entry with persisted settings becomes { session, interimOverride?, goal? }.
  * Covers: command-setter wiring → debounced write → restart round-trip, the
  * legacy-file fallback, and the idle-eviction snapshot cycle.
- * @module dsh-onebot/tests/mapping-settings
+ * @module dsh-qq-companion/tests/mapping-settings
  */
 import { describe, expect, it, vi } from 'vitest'
 import { readFile, writeFile } from 'node:fs/promises'
@@ -20,12 +20,7 @@ import type { BridgeConfig } from '../src/bridge.js'
 import { MediaStore } from '../src/media.js'
 import { Transcriber } from '../src/stt.js'
 
-import { makeFakeAgents, makeHarness } from './helpers/bridge-harness.js'
-
-/** Registry-only view of a harness-built bridge (same convention as registry.spec). */
-function registryOf(h: { bridge: unknown }): ChatRegistry {
-  return (h.bridge as unknown as { registry: ChatRegistry }).registry
-}
+import { makeFakeAgents, makeHarness, registryOf } from './helpers/bridge-harness.js'
 
 /** Minimal RegistryDeps for direct-registry tests (same convention as registry.spec). */
 function makeRegistryDeps(overrides?: {
@@ -67,7 +62,7 @@ function mkdtemp(): string {
   return mkdtempSync(join(tmpdir(), 'onebot-test-'))
 }
 
-describe('mapping-file settings persistence (M3-D4b)', () => {
+describe('mapping-file settings persistence', () => {
   it('persists /mode and /goal through the command setters and restores them on restart', async () => {
     const h = await makeHarness()
     h.sendText('你好')
@@ -166,7 +161,7 @@ describe('mapping-file settings persistence (M3-D4b)', () => {
   })
 })
 
-describe('T3: workspacePath persistence + default directory (方案 B)', () => {
+describe('workspacePath persistence + default directory', () => {
   it('round-trips the /workspace override through the mapping (write → restart → restore)', async () => {
     const sessionIds: string[] = []
     const deps1 = makeRegistryDeps({ agents: makeFakeAgents(sessionIds, { followups: [] }, { resumeOk: true }) })
@@ -317,7 +312,7 @@ describe('T3: workspacePath persistence + default directory (方案 B)', () => {
   })
 })
 
-describe('T3-R1 review closure: retired-entry and collision-heal settings carriers', () => {
+describe('review closure: retired-entry and collision-heal settings carriers', () => {
   it('loadMapping keeps a retired object entry through a mid-flight saveMapping (settings survive the next restart)', async () => {
     const sessionIds: string[] = []
     const deps1 = makeRegistryDeps({ agents: makeFakeAgents(sessionIds, { followups: [] }, { resumeOk: true }) })
@@ -335,7 +330,7 @@ describe('T3-R1 review closure: retired-entry and collision-heal settings carrie
       expect(retired).toContain(sessionIds[0])
     })
 
-    // Restart: loadMapping restores the settings and (T3-R1) re-registers the
+    // Restart: loadMapping restores the settings and re-registers the
     // entry so ANY later saveMapping keeps writing it.
     const deps2 = makeRegistryDeps({ agents: makeFakeAgents([], { followups: [] }, { resumeOk: true }), config: { mediaDir: deps1.config.mediaDir } })
     const registry2 = new ChatRegistry(deps2)
@@ -388,7 +383,7 @@ describe('T3-R1 review closure: retired-entry and collision-heal settings carrie
     await registry2.stop()
   }, 20_000)
 
-  it('healSessionCollision without persisted settings keeps the pre-T3 drop behavior (helper parity with resetChat)', async () => {
+  it('healSessionCollision without persisted settings keeps the old drop behavior (helper parity with resetChat)', async () => {
     const deps = makeRegistryDeps({ agents: makeFakeAgents([], { followups: [] }, { resumeOk: true }) })
     const registry = new ChatRegistry(deps)
     await registry.ensureChat('private:10001', '小明')
@@ -400,7 +395,7 @@ describe('T3-R1 review closure: retired-entry and collision-heal settings carrie
   })
 })
 
-describe('T3-R2: resume-failed settings carrier + settings-only saveMapping invariant', () => {
+describe('resume-failed settings carrier + settings-only saveMapping invariant', () => {
   it('loadMapping keeps the entry when the resume fails: a later saveMapping still writes workspacePath/goal', async () => {
     const deps = makeRegistryDeps({ agents: makeFakeAgents([], { followups: [] }, { resumeOk: false }) })
     // A suffixed session id (the real-world shape) — the carrier must keep the

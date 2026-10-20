@@ -1,10 +1,10 @@
 /**
- * Media directory safety: cleanup whitelist (B3), STT work dir cleanup (B2),
- * and inbound file naming (A4). Self-contained on purpose — imports nothing
+ * Media directory safety: cleanup whitelist, STT work dir cleanup,
+ * and inbound file naming. Self-contained on purpose — imports nothing
  * from @deepseek-ai/*, so it only exercises src/media.ts and src/stt.ts
  * (neither depends on host packages). The bridge's writeMediaFile is a thin
  * wiring over `MediaStore.freshPath(extForInboundName(name))`, which is what
- * the A4 cases assert directly.
+ * the cases assert directly.
  */
 import { describe, expect, it } from 'vitest'
 import { spawn } from 'node:child_process'
@@ -36,7 +36,7 @@ async function hasFfmpeg(): Promise<boolean> {
 
 const ffmpegAvailable = await hasFfmpeg()
 
-describe('MediaStore.cleanupExpired (B3 whitelist)', () => {
+describe('MediaStore.cleanupExpired', () => {
   it('deletes only expired media_* files and stt_* dirs, never state files', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'media-cleanup-'))
     const store = new MediaStore(dir, 6)
@@ -76,7 +76,7 @@ describe('MediaStore.cleanupExpired (B3 whitelist)', () => {
   })
 })
 
-describe('Transcriber work dir cleanup (B2)', () => {
+describe('Transcriber work dir cleanup', () => {
   it('removes the stt_* work dir when transcription fails', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'stt-fail-'))
     const transcriber = new Transcriber({ enabled: true, engine: 'auto', command: '', args: [], model: 'small', timeoutMs: 10_000 })
@@ -105,7 +105,7 @@ describe('Transcriber work dir cleanup (B2)', () => {
   })
 })
 
-describe('Inbound file naming (A4)', () => {
+describe('Inbound file naming', () => {
   it('derives a whitelisted extension from the raw name', () => {
     expect(extForInboundName('chat-sessions.json')).toBe('.json')
     expect(extForInboundName('retired-sessions.json')).toBe('.json')

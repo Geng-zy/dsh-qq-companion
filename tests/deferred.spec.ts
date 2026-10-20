@@ -1,5 +1,5 @@
 /**
- * 超时后结果补发回归测试（T3/P2 deferred delivery）。
+ * 超时后结果补发回归测试。
  *
  * 语义定案（计划 §P2 + dsh-im readme L91-95 + registry.ts 持久化纪律）：
  * - 等待模型回复超时（deferredTimeoutMs 内无任何模型输出）→ 提示超时、登记
@@ -15,7 +15,7 @@
  * - 正常完成（未超时）零注册表写入、零补发。
  * 时序纪律：单元用构造器注入假时钟/调度器；集成用小阈值真实定时器 +
  * vi.waitFor 文本确定性等待。
- * @module dsh-onebot/tests/deferred
+ * @module dsh-qq-companion/tests/deferred
  */
 import { describe, expect, it, vi } from 'vitest'
 import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
@@ -230,7 +230,7 @@ describe('deferred 单元 — 发送失败分类与重试上限', () => {
   })
 })
 
-describe('deferred 单元 — terminal 条目与 in-flight 守卫（T11/T12）', () => {
+describe('deferred 单元 — terminal 条目与 in-flight 守卫', () => {
   it('terminal 条目只是可观测快照：onTurnEnd 返回 false、零补发（后续回合错误不静默）', async () => {
     const scheduler = new FakeScheduler()
     const { ctx, sends } = makeUnitCtx()
@@ -284,7 +284,7 @@ describe('deferred 单元 — terminal 条目与 in-flight 守卫（T11/T12）',
     expect(entries[0].attempts).toBe(2) // attempts 未被并发循环互相覆写
   })
 
-  it('退避窗口内新回合错误收尾：让位路径返回 false（bridge 照常 ⚠️）、不产生回合 B 补发、在途回合 A 补发仍恰一次（T12 🔴-3）', async () => {
+  it('退避窗口内新回合错误收尾：让位路径返回 false（bridge 照常 ⚠️）、不产生回合 B 补发、在途回合 A 补发仍恰一次', async () => {
     const scheduler = new FakeScheduler()
     let deferredAttempts = 0
     const { ctx, sends, mediaDir } = makeUnitCtx({
@@ -326,7 +326,7 @@ describe('deferred 单元 — terminal 条目与 in-flight 守卫（T11/T12）',
   })
 })
 
-describe('deferred 单元 — 注册表上限 prune（T11）', () => {
+describe('deferred 单元 — 注册表上限 prune', () => {
   it('超过 200 条上限时淘汰最旧 terminal 条目，pending 永不裁剪', async () => {
     const { ctx, mediaDir } = makeUnitCtx()
     const lines: string[] = [
@@ -556,7 +556,7 @@ describe('deferred 集成 — 超时→登记→完成→补发恰一次', () =>
   }, 60_000)
 })
 
-describe('deferred 集成 — terminal 条目不吞错误通知 / 防双发抑制路径（T11/T12）', () => {
+describe('deferred 集成 — terminal 条目不吞错误通知 / 防双发抑制路径', () => {
   it('重启恢复 terminal 条目后同会话错误回合：⚠️ 运行出错照常发送（不被抑制）、零补发', async () => {
     // 第一段：超时登记 → 正常完成，条目落盘为 delivered
     const mediaDir = mkdtempSync(join(tmpdir(), 'deferred-restart-terminal-'))
@@ -624,7 +624,7 @@ describe('deferred 集成 — terminal 条目不吞错误通知 / 防双发抑�
     await h.connection.stop()
   }, 60_000)
 
-  it('退避窗口内新回合错误收尾：⚠️ 照常发送（不被让位路径吞掉）、回合 B 不产生补发、在途回合 A 补发仍恰一次（T12 🔴-3）', async () => {
+  it('退避窗口内新回合错误收尾：⚠️ 照常发送（不被让位路径吞掉）、回合 B 不产生补发、在途回合 A 补发仍恰一次', async () => {
     const h = await makeCmdHarness({ deferredTimeoutMs: 30 })
     h.sendText('启动任务')
     await vi.waitFor(() => expect(h.captured.followups).toHaveLength(1))

@@ -1,12 +1,12 @@
 /**
- * InterimTracker state-machine unit tests (M3-D2a): the transition table is
+ * InterimTracker state-machine unit tests: the transition table is
  * driven directly against a hand-built InterimChat plus a stub InterimContext
  * — no WebSocket harness. Every entry method × prior state is covered,
  * including the permissive transitions that keep the pre-rewrite semantics
  * (a late assistant/message during settlement, a double turn/end) and the
  * synchronous booking/drain behavior (placeholder at enqueue, id backfill on
  * completion, placeholder drop on send failure).
- * @module dsh-onebot/tests/interim-machine
+ * @module dsh-qq-companion/tests/interim-machine
  */
 import { describe, expect, it, vi } from 'vitest'
 
@@ -68,7 +68,7 @@ function makeHarness(opts?: { interim?: boolean; interimRecallMs?: number; inter
   return { tracker, chat, sentTexts, recalledIds, summaryCards, assistant, settle, setMode: (value: boolean) => { interimMode = value } }
 }
 
-describe('InterimTracker state machine (M3-D2a)', () => {
+describe('InterimTracker state machine', () => {
   it('idle × assistant(interim, tool-free) → accumulating: text deferred, nothing sent', () => {
     const h = makeHarness()
     h.tracker.onAssistantMessage('private:10001', h.chat, h.assistant('第一步') as never)
@@ -194,7 +194,7 @@ describe('InterimTracker state machine (M3-D2a)', () => {
     await h.settle()
   })
 
-  it('turn/start → idle plus the B8 prune of recalledInterimIds', () => {
+  it('turn/start → idle plus the prune of recalledInterimIds', () => {
     const h = makeHarness()
     h.chat.recalledInterimIds.add('7')
     h.tracker.onTurnStart(h.chat)

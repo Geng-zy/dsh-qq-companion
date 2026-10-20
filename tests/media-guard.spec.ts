@@ -1,8 +1,8 @@
 /**
- * Media download guards (M1-A5): SSRF fence around MediaStore.downloadUrl —
+ * Media download guards: SSRF fence around MediaStore.downloadUrl —
  * protocol whitelist, private/loopback address refusal (literal + resolved),
  * per-hop redirect re-checks, and the mid-stream size cap — plus the outbound
- * path fence (M1-A3a): resolveContainedPath / fileToBase64 allowedRoots.
+ * path fence: resolveContainedPath / fileToBase64 allowedRoots.
  *
  * Rejection paths stub global.fetch to prove it is never reached; DNS is
  * delegated through a wrapper so single tests can fake resolutions. The
@@ -39,7 +39,7 @@ async function listen(handler: http.RequestListener): Promise<{ base: string; cl
   return { base: 'http://127.0.0.1:' + port, close: () => new Promise(resolve => server.close(() => resolve())) }
 }
 
-describe('MediaStore.downloadUrl SSRF guards (M1-A5)', () => {
+describe('MediaStore.downloadUrl SSRF guards', () => {
   const guardDir = mkdtempSync(join(tmpdir(), 'media-guard-'))
   const store = new MediaStore(guardDir)
 
@@ -152,7 +152,7 @@ describe('MediaStore.downloadUrl SSRF guards (M1-A5)', () => {
   })
 })
 
-describe('resolveContainedPath fence (M1-A3a)', () => {
+describe('resolveContainedPath fence', () => {
   const fence = mkdtempSync(join(tmpdir(), 'media-fence-'))
   const outside = mkdtempSync(join(tmpdir(), 'media-fence-out-'))
 
@@ -193,7 +193,7 @@ describe('resolveContainedPath fence (M1-A3a)', () => {
   })
 })
 
-describe('fileToBase64 allowedRoots (M1-A3a)', () => {
+describe('fileToBase64 allowedRoots', () => {
   it('refuses outside paths and accepts contained ones', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'media-b64-'))
     const outside = mkdtempSync(join(tmpdir(), 'media-b64-out-'))

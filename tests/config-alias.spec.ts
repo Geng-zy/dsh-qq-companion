@@ -1,16 +1,16 @@
 /**
- * Deprecated config alias tests (M3-D4a): the renamed fields
+ * Deprecated config alias tests: the renamed fields
  * inboundImageMaxPx / outboundImageMaxBytes / inboundFileMaxBytes keep their
  * old names as deprecated schemastery aliases for one release. Three paths:
  * legacy only (fallback + warn), new only (no warn), both (new wins + warn),
  * plus the neither-set default path and legacy-key type validation.
- * @module dsh-onebot/tests/config-alias
+ * @module dsh-qq-companion/tests/config-alias
  */
 import { describe, expect, it, vi } from 'vitest'
 
 import { Config, resolveDeprecatedConfig } from '../src/index.js'
 
-describe('deprecated config aliases (M3-D4a)', () => {
+describe('deprecated config aliases', () => {
   it('falls back to legacy names when only they are configured, warning once per name', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
     const config = resolveDeprecatedConfig(Config({

@@ -1,10 +1,10 @@
 /**
- * STT non-blocking tests (M3-D4c): a voice message dispatches the [语音]
+ * STT non-blocking tests: a voice message dispatches the [语音]
  * placeholder immediately while the transcription runs in the background; the
  * completed transcript is steered into the chat's agent (running turn's next
  * step boundary, or a new turn when idle). Failure/timeout and an empty
  * transcript keep the placeholder as the final state — nothing is appended.
- * @module dsh-onebot/tests/stt-nonblocking
+ * @module dsh-qq-companion/tests/stt-nonblocking
  */
 import { describe, expect, it, vi } from 'vitest'
 
@@ -45,7 +45,7 @@ function makePipelineCtx(transcribe: (path: string) => Promise<string>, steers: 
   } as never
 }
 
-describe('STT non-blocking (M3-D4c)', () => {
+describe('STT non-blocking', () => {
   it('returns the [语音] placeholder immediately and steers the transcript when ready', async () => {
     const slow = deferred<string>()
     const steers: Array<{ chatId: ChatId; text: string }> = []

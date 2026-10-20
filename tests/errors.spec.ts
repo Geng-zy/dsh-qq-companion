@@ -1,7 +1,7 @@
 /**
- * M3-E3a: the shared error-exit formatter (errors.ts) — message extraction,
+ * the shared error-exit formatter (errors.ts) — message extraction,
  * cause-chain joining and the error-level stack suffix.
- * @module dsh-onebot/tests/errors
+ * @module dsh-qq-companion/tests/errors
  */
 import { describe, expect, it } from 'vitest'
 

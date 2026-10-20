@@ -1,10 +1,10 @@
 /**
- * W1/T5 healthcheck + diagnostics tests: the report sections (connection /
+ * healthcheck + diagnostics tests: the report sections (connection /
  * retry+self-heal / dedup+write-gate counters / file sizes / recent ok:false
  * events), the config snapshot redaction, secret scrubbing, the ZIP archive
  * structure, the fail-closed no-plaintext-token guarantee of the exported
  * diagnostics package, and the /healthcheck command routing.
- * @module dsh-onebot/tests/health
+ * @module dsh-qq-companion/tests/health
  */
 import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'

@@ -325,7 +325,7 @@ describe('meta event logging', () => {
   })
 })
 
-describe('reconnect policy and port conflict (M1-B5)', () => {
+describe('reconnect policy and port conflict', () => {
   interface ReconnectInternals {
     socket?: unknown
     server?: unknown
@@ -380,10 +380,10 @@ describe('reconnect policy and port conflict (M1-B5)', () => {
     expect(giveUp).toBeDefined()
     expect(giveUp).toContain('reconnectMaxAttempts=2')
     expect(giveUp).toContain('restart the plugin or reload the qq-companion channel')
-    expect(giveUp).toContain('slow self-heal') // W2-④: the give-up line announces the self-heal
+    expect(giveUp).toContain('slow self-heal') // the give-up line announces the self-heal
     // Exactly 3 dials happened (initial + 2 retries): one 'forward WS error' warn each.
     expect(warnSpy.mock.calls.filter(call => String(call[0]).includes('forward WS error'))).toHaveLength(3)
-    // W2-④: give-up is no longer a permanent halt — exactly one slow self-heal
+    // give-up is no longer a permanent halt — exactly one slow self-heal
     // timer stays scheduled, and the ladder state stays frozen at the give-up value.
     expect(internal.selfHealTimer).toBeDefined()
     expect(vi.getTimerCount()).toBe(1)
@@ -480,7 +480,7 @@ describe('reconnect policy and port conflict (M1-B5)', () => {
   })
 })
 
-describe('frame cap and reverse churn guard (M1-A8)', () => {
+describe('frame cap and reverse churn guard', () => {
   interface A8Internals {
     socket?: unknown
     reverseReplaces: number[]
@@ -592,7 +592,7 @@ describe('frame cap and reverse churn guard (M1-A8)', () => {
   })
 })
 
-describe('injected log port (M3-E3b)', () => {
+describe('injected log port', () => {
   it('routes transport diagnostics through the injected log sink', async () => {
     const logs: Array<{ level: string; message: string }> = []
     const connection = new OneBotConnection({
@@ -636,7 +636,7 @@ describe('injected log port (M3-E3b)', () => {
   })
 })
 
-describe('EADDRINUSE takeover and forward self-heal (W2-①④)', () => {
+describe('EADDRINUSE takeover and forward self-heal', () => {
   interface W2Internals {
     server?: unknown
     reconnectTimer?: unknown

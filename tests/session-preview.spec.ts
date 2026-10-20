@@ -3,7 +3,7 @@
  * (sessionPreviewFromEvents + truncation + source priority) and the command's
  * per-item degradation (broken/unreadable logs never break the list or the
  * switch-back snapshot, whose payloads stay FULL session ids).
- * @module dsh-onebot/tests/session-preview
+ * @module dsh-qq-companion/tests/session-preview
  */
 import { describe, expect, it, vi } from 'vitest'
 import type { SessionEvent } from '@deepseek-ai/dsh-session'
