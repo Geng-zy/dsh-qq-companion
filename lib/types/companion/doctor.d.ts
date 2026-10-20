@@ -1,6 +1,8 @@
 import type { LivenessSnapshot } from '../liveness.js';
+import type { SendBudgetSnapshot } from './send-budget.js';
 export interface CompanionStatusDeps {
     liveness?: () => LivenessSnapshot;
+    sendBudget?: () => SendBudgetSnapshot;
     scheduler?: () => Array<{
         id: string;
         time: string;

@@ -156,6 +156,13 @@ export interface Config {
     cardFooter: string;
     splitLines: boolean;
     splitMaxMessages: number;
+    groupSplitLines: boolean;
+    sendMinIntervalMs: number;
+    sendPerMinute: number;
+    sendPerHour: number;
+    sendPerDay: number;
+    groupReplyMaxPerWindow: number;
+    groupReplyWindowMinutes: number;
     typingDelayPerCharMs: number;
     typingDelayMinMs: number;
     typingDelayMaxMs: number;

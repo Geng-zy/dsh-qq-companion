@@ -60,6 +60,8 @@ export interface BridgeConfig {
     /** split model final replies "one line, one message". */
     splitLines?: boolean;
     splitMaxMessages?: number;
+    /** false = one message per reply in groups (fewer sends, less risk control). */
+    groupSplitLines?: boolean;
     typingDelayPerCharMs?: number;
     typingDelayMinMs?: number;
     typingDelayMaxMs?: number;
@@ -226,6 +228,14 @@ export interface BridgeDeps {
     groupAccess?: GroupAccessLike;
     /** Companion lines for /doctor (liveness, plans, memory sizes). */
     companionStatus?: () => Promise<string[]>;
+    /** Account-wide send budget (every outgoing message takes a unit). */
+    sendBudget?: {
+        acquire(chatId: string): Promise<boolean>;
+    };
+    /** Per-group cap on member-started turns. */
+    groupCooldown?: {
+        allow(chatId: string, byAdmin: boolean): boolean;
+    };
     /** per-chat activity (idle reset, handoff recap, diary input). */
     activity?: ChatActivity;
     /** proactive wake-ups (for /task listing and run-now). */

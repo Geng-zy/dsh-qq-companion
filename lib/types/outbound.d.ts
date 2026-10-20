@@ -48,6 +48,10 @@ export interface OutboundContext {
     call(action: string, params: Record<string, unknown>, chatId?: ChatId): Promise<unknown>;
     /** Bridge stop flag: the B6 drain must never run while stopping. */
     isStopping(): boolean;
+    /** Account-wide send budget (risk control); false = drop this send. */
+    sendBudget?: {
+        acquire(chatId: string): Promise<boolean>;
+    };
     /** Bridge log line callback. */
     log(level: 'info' | 'warn' | 'error' | 'debug', message: string): void;
     /** W1: emit one outbound/queue decision event for a chat. The bridge owns
@@ -73,6 +77,8 @@ export interface OutboundContext {
         actionAuditEnabled: boolean;
         /** split final replies "one line, one message". */
         splitLines: boolean;
+        /** false = never split in group chats (one message per reply). */
+        groupSplitLines: boolean;
         /** most messages one split reply may become. */
         splitMaxMessages: number;
         /** typing pause per character / floor / ceiling (ms). */
