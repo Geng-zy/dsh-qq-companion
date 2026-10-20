@@ -91,6 +91,8 @@ export interface BridgeConfig {
   /** split model final replies "one line, one message". */
   splitLines?: boolean
   splitMaxMessages?: number
+  /** false = one message per reply in groups (fewer sends, less risk control). */
+  groupSplitLines?: boolean
   typingDelayPerCharMs?: number
   typingDelayMinMs?: number
   typingDelayMaxMs?: number
@@ -254,6 +256,10 @@ export interface BridgeDeps {
   groupAccess?: GroupAccessLike
   /** Companion lines for /doctor (liveness, plans, memory sizes). */
   companionStatus?: () => Promise<string[]>
+  /** Account-wide send budget (every outgoing message takes a unit). */
+  sendBudget?: { acquire(chatId: string): Promise<boolean> }
+  /** Per-group cap on member-started turns. */
+  groupCooldown?: { allow(chatId: string, byAdmin: boolean): boolean }
   /** per-chat activity (idle reset, handoff recap, diary input). */
   activity?: ChatActivity
   /** proactive wake-ups (for /task listing and run-now). */
@@ -391,6 +397,7 @@ export class ChatBridge {
       isStopping: () => this.stopping,
       log: (level, message) => this.deps.log(level, message),
       config: deps.config,
+      ...(deps.sendBudget !== undefined ? { sendBudget: deps.sendBudget } : {}),
       // W1: outbound decision events ride the chat's initiating traceId; a
       // write with no mapped trace (proactive tool sends) starts a fresh one.
       trace: (chatId, event) => {
@@ -698,6 +705,8 @@ export class ChatBridge {
    * the base text for /retry, queues the initiator's turn role, and applies
    * per-chat /goal + /plan prefixes. */
   private async dispatchFollowup(chatId: ChatId, text: string, role: UserRole, nickname?: string, internal?: { scheduled?: boolean }): Promise<void> {
+    // companion: a busy group cools down (members only; the admin always gets through).
+    if (internal?.scheduled !== true && this.deps.groupCooldown !== undefined && !this.deps.groupCooldown.allow(chatId, role === 'admin')) return
     // companion: idle / periodic session renewal + handoff, activity record.
     text = await this.companion.beforeUserTurn(chatId, text, plainUserText(text), nickname ?? '', internal?.scheduled === true)
     const final = this.prefixTurn(chatId, text)

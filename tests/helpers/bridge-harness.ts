@@ -210,6 +210,11 @@ export async function makeCmdHarness(opts?: {
    * mutate it like GroupAccess does. */
   groupPolicy?: 'open' | 'allowlist' | 'disabled'
   groupAllowFrom?: string[]
+  /** Risk control wiring. */
+  groupCooldown?: { allow(chatId: string, byAdmin: boolean): boolean }
+  sendBudget?: { acquire(chatId: string): Promise<boolean> }
+  splitLines?: boolean
+  groupSplitLines?: boolean
 }) {
   const ctx = new Context()
   const sessionIds: string[] = []
@@ -271,7 +276,11 @@ export async function makeCmdHarness(opts?: {
       ...(opts?.privateResetDays !== undefined ? { privateResetDays: opts.privateResetDays } : {}),
       ...(opts?.groupResetDays !== undefined ? { groupResetDays: opts.groupResetDays } : {}),
       ...(opts?.trace !== undefined ? { trace: opts.trace } : {}),
+      ...(opts?.splitLines !== undefined ? { splitLines: opts.splitLines, typingDelayMinMs: 0, typingDelayMaxMs: 0, typingDelayPerCharMs: 0 } : {}),
+      ...(opts?.groupSplitLines !== undefined ? { groupSplitLines: opts.groupSplitLines } : {}),
     },
+    ...(opts?.groupCooldown !== undefined ? { groupCooldown: opts.groupCooldown } : {}),
+    ...(opts?.sendBudget !== undefined ? { sendBudget: opts.sendBudget } : {}),
     policy: {
       dmPolicy: 'open', groupPolicy: opts?.groupPolicy ?? 'open', allowFrom: [], groupAllowFrom: opts?.groupAllowFrom ?? [],
       adminUsers: ['10001'], allowAllUsers: opts?.allowAllUsers ?? false, requireMention: true,

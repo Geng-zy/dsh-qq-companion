@@ -74,6 +74,8 @@ export interface OutboundContext {
   call(action: string, params: Record<string, unknown>, chatId?: ChatId): Promise<unknown>
   /** Bridge stop flag: the B6 drain must never run while stopping. */
   isStopping(): boolean
+  /** Account-wide send budget (risk control); false = drop this send. */
+  sendBudget?: { acquire(chatId: string): Promise<boolean> }
   /** Bridge log line callback. */
   log(level: 'info' | 'warn' | 'error' | 'debug', message: string): void
   /** W1: emit one outbound/queue decision event for a chat. The bridge owns
@@ -94,6 +96,8 @@ export interface OutboundContext {
     actionAuditEnabled: boolean
     /** split final replies "one line, one message". */
     splitLines: boolean
+    /** false = never split in group chats (one message per reply). */
+    groupSplitLines: boolean
     /** most messages one split reply may become. */
     splitMaxMessages: number
     /** typing pause per character / floor / ceiling (ms). */
@@ -214,7 +218,8 @@ export class OutboundPipeline {
       }
       if (!sentCard) {
         const plain = stripMarkdown(body)
-        const parts = options.humanize === true && this.ctx.config.splitLines === true
+        const splitHere = this.ctx.config.splitLines === true && !(chatId.startsWith('group:') && this.ctx.config.groupSplitLines === false)
+        const parts = options.humanize === true && splitHere
           ? splitHumanMessages(plain, this.ctx.config.splitMaxMessages ?? DEFAULT_SPLIT_MAX_MESSAGES)
           : null
         if (parts !== null) {
@@ -470,6 +475,10 @@ export class OutboundPipeline {
     if (options.replyTo !== undefined) {
       params.message = [{ type: 'reply', data: { id: options.replyTo } }, ...segments]
     }
+    if (this.ctx.sendBudget !== undefined && !(await this.ctx.sendBudget.acquire(chatId))) {
+      this.ctx.trace?.(chatId, { stage: 'outbound', ok: false, reason: '发送额度用完，未发送（防风控）' })
+      return undefined
+    }
     const data = await this.ctx.call('send_msg', params, chatId) as { message_id?: number | string }
     return data.message_id !== undefined ? String(data.message_id) : undefined
   }
@@ -497,6 +506,7 @@ export class OutboundPipeline {
     const ref = splitChatId(chatId)
     const target = Number(ref.target)
     if (!Number.isFinite(target)) throw new OneBotActionError('invalid chat target: ' + chatId)
+    if (this.ctx.sendBudget !== undefined && !(await this.ctx.sendBudget.acquire(chatId))) return
     const messages = nodes.map(node => ({
       type: 'node',
       data: {
