@@ -64,6 +64,9 @@ export interface HealthDeps {
   /** W3/T4 (P3): the reference stamped into the exported archive file name
    * (explicit /healthcheck export argument, or the latest recorded fault). */
   triggerRef?: string
+  /** Extra report lines from the companion features (QQ liveness, plans,
+   * memory sizes); absent = no companion section. */
+  companion?: () => Promise<string[]>
   log(level: 'info' | 'warn', message: string): void
 }
 
@@ -115,7 +118,7 @@ export function formatBytes(size: number): string {
 /** Render the healthcheck summary (plain text, one ▍ block). */
 export async function healthReport(deps: HealthDeps): Promise<string> {
   const lines: string[] = []
-  lines.push('▍dsh-onebot 体检')
+  lines.push('▍dsh-qq-companion 体检')
   const conn = deps.connection.connected ? '已连接' : '未连接'
   lines.push('连接：' + conn + '（mode=' + deps.transport.mode + ' ' + deps.transport.host + ':' + deps.transport.port + '，selfId=' + (deps.connection.selfId !== '' ? deps.connection.selfId : '未学习') + '）')
   const retry = deps.retryState
@@ -154,6 +157,13 @@ export async function healthReport(deps: HealthDeps): Promise<string> {
   }
   if (deps.triggerRef !== undefined && deps.triggerRef !== '') {
     lines.push('本次导出参考号：' + deps.triggerRef)
+  }
+  if (deps.companion !== undefined) {
+    try {
+      lines.push(...await deps.companion())
+    } catch (error) {
+      lines.push('▍陪伴状态：读取失败（' + (error instanceof Error ? error.message : String(error)) + '）')
+    }
   }
   return lines.join('\n')
 }

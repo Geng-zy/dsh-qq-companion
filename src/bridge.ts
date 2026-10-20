@@ -252,6 +252,8 @@ export interface BridgeDeps {
   ctx: SessionEventPort
   /** runtime group allowlist for /group (absent = disabled). */
   groupAccess?: GroupAccessLike
+  /** Companion lines for /doctor (liveness, plans, memory sizes). */
+  companionStatus?: () => Promise<string[]>
   /** per-chat activity (idle reset, handoff recap, diary input). */
   activity?: ChatActivity
   /** proactive wake-ups (for /task listing and run-now). */
@@ -1067,6 +1069,7 @@ export class ChatBridge {
       configSnapshot: this.deps.configSnapshot?.() ?? {},
       // T4 (P3): the recent fault references for the report section.
       failureRefs: () => this.failureRefs.recent(),
+      ...(this.deps.companionStatus !== undefined ? { companion: this.deps.companionStatus } : {}),
       log: (level, message) => this.deps.log(level, message),
     }
   }

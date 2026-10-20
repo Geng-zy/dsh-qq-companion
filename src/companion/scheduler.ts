@@ -74,6 +74,12 @@ export class DailyScheduler {
     }
   }
 
+  /** Today's state of every prompt (for /doctor). */
+  snapshot(): Array<{ id: string; time: string; firedToday: boolean }> {
+    const today = dayKey(this.now())
+    return this.prompts.map(p => ({ id: p.id, time: p.time, firedToday: this.fired.get(p.id) === today }))
+  }
+
   start(intervalMs = 30_000): void {
     if (this.timer !== undefined || this.prompts.length === 0) return
     this.timer = setInterval(() => { void this.tick() }, intervalMs)

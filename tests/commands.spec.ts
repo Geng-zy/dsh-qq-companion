@@ -720,11 +720,11 @@ describe('commands', () => {
     const h = await makeCmdHarness()
     h.sendText('/doctor')
     await vi.waitFor(() => {
-      expect(h.outbound.some(f => JSON.stringify(f.params).includes('▍dsh-onebot 体检'))).toBe(true)
+      expect(h.outbound.some(f => JSON.stringify(f.params).includes('▍dsh-qq-companion 体检'))).toBe(true)
     }, { timeout: 15_000 })
     h.sendText('/healthcheck')
     await vi.waitFor(() => {
-      expect(h.outbound.filter(f => JSON.stringify(f.params).includes('▍dsh-onebot 体检'))).toHaveLength(2)
+      expect(h.outbound.filter(f => JSON.stringify(f.params).includes('▍dsh-qq-companion 体检'))).toHaveLength(2)
     }, { timeout: 15_000 })
     // The alias was routed (two identical health summaries), not intercepted.
     expect(JSON.stringify(h.outbound)).not.toContain('未知命令')

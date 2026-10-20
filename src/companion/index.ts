@@ -5,6 +5,7 @@
  */
 export * from './time.js'
 export * from './state.js'
+export * from './doctor.js'
 export * from './activity.js'
 export * from './memory.js'
 export * from './scheduler.js'

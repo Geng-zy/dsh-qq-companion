@@ -3,10 +3,10 @@
 // bundle, a fake DeepSeek endpoint (Anthropic Messages SSE) answers the model
 // calls, and a fake NapCat dials the plugin's reverse WebSocket.
 //
-// Checks: wrong token is refused (4401); a private message from the admin
-// reaches the model with the QQ text and the model's reply comes back as
-// send_msg; a slash command is answered without the model; a group message
-// without @ is ignored.
+// Checks: wrong token is refused (4401); /status and /doctor are answered
+// without the model; a private message from the admin reaches the model with
+// the QQ text and the reply comes back as send_msg; a group message without
+// @ is ignored, one with @ gets a reply.
 //
 // Needs `dsh` on PATH and a built lib/ (./scripts/build.sh). No network, no
 // real API key. Usage: node scripts/e2e.mjs   (exit 0 = pass)
@@ -174,8 +174,13 @@ async function until(what, cond, ms = 90_000) {
 // Slash command: answered by the plugin, no model call.
 privateMsg('/status')
 await until('/status reply', () => sends.some(s => s.to === ADMIN && s.text.length > 0))
-const callsAfterStatus = modelRequests.length
 log('/status answered ✓')
+
+// /doctor includes the companion block (real wiring in index.ts).
+privateMsg('/doctor')
+await until('/doctor reply', () => sends.some(s => s.text.includes('▍陪伴状态') && s.text.includes('QQ 账号')))
+const callsAfterStatus = modelRequests.length
+log('/doctor companion block ✓')
 
 // A real turn: QQ text reaches the model; the reply comes back.
 privateMsg('你好呀，这是端到端测试')

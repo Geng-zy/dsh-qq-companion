@@ -41,7 +41,7 @@ describe('health report (src/health.ts)', () => {
       recorder: { enabled: true, redact: true, written: 7 },
       inject: { enabled: true, dryRun: true, consumed: 4, intercepted: 9, skippedHistory: 2 },
     }))
-    expect(report).toContain('▍dsh-onebot 体检')
+    expect(report).toContain('▍dsh-qq-companion 体检')
     expect(report).toContain('连接：已连接（mode=reverse 127.0.0.1:8643')
     expect(report).toContain('重试/自愈：reverse 接管重试 0 次 · forward 重连 0 次 · 自愈中 否')
     expect(report).toContain('去重窗口：3 条在窗（dedupWindowSeconds=300）')
@@ -148,7 +148,7 @@ describe('/healthcheck command', () => {
     const h = await makeCmdHarness()
     h.sendText('/healthcheck')
     await vi.waitFor(() => {
-      expect(h.outbound.some(f => JSON.stringify(f.params).includes('▍dsh-onebot 体检'))).toBe(true)
+      expect(h.outbound.some(f => JSON.stringify(f.params).includes('▍dsh-qq-companion 体检'))).toBe(true)
     }, { timeout: 15_000 })
     h.sendText('/healthcheck export')
     await vi.waitFor(() => {

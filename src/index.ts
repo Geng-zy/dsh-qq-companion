@@ -11,7 +11,7 @@
 
 import { selfCheck } from './selfcheck.js'
 import { QqLiveness } from './liveness.js'
-import { ChatActivity, DailyScheduler, NoteCounter, ProactiveScheduler, setDefaultNoteCounter } from './companion/index.js'
+import { ChatActivity, DailyScheduler, NoteCounter, ProactiveScheduler, companionStatusLines, setDefaultNoteCounter } from './companion/index.js'
 import type { ScheduledPrompt } from './companion/index.js'
 import { GroupAccess, handleGroupEvent } from './groups.js'
 import type { Context as CordisContext } from '@deepseek-ai/cordis'
@@ -690,6 +690,17 @@ export function apply(ctx: Context, config: Config): void {
     groupAccess,
     activity,
     ...(config.proactiveEnabled ? { proactive: proactiveHandle } : {}),
+    companionStatus: () => companionStatusLines({
+      liveness: () => liveness.snapshot(),
+      scheduler: () => scheduler.snapshot(),
+      ...(proactiveRef !== undefined ? { proactive: () => proactiveRef!.snapshot() } : {}),
+      memoryFiles: [
+        { label: '公开', path: config.publicMemoryFile, max: config.publicMemoryMaxBytes },
+        ...(config.adminWorkspacePath !== '' ? [{ label: '私密', path: join(config.adminWorkspacePath, 'AGENTS.md') }] : []),
+      ],
+      groupMemoryDir: config.groupMemoryDir,
+      groupMemoryMaxBytes: config.groupMemoryMaxBytes,
+    }),
     // W1/T5 health: the config snapshot is redacted at the source — secrets
     // (token/password/apikey…) never leave this closure in the clear.
     configSnapshot: () => redactSnapshot(config as unknown as Record<string, unknown>),
