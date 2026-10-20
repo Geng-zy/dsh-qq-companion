@@ -157,6 +157,7 @@ export interface Config {
     splitLines: boolean;
     splitMaxMessages: number;
     groupSplitLines: boolean;
+    humanTypingPace: boolean;
     sendMinIntervalMs: number;
     sendPerMinute: number;
     sendPerHour: number;

@@ -52,6 +52,10 @@ export interface OutboundContext {
     sendBudget?: {
         acquire(chatId: string): Promise<boolean>;
     };
+    /** Account-wide human typing pace: every send waits its typing time. */
+    typingPacer?: {
+        wait(text: string): Promise<void>;
+    };
     /** Bridge log line callback. */
     log(level: 'info' | 'warn' | 'error' | 'debug', message: string): void;
     /** W1: emit one outbound/queue decision event for a chat. The bridge owns

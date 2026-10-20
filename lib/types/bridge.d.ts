@@ -232,6 +232,10 @@ export interface BridgeDeps {
     sendBudget?: {
         acquire(chatId: string): Promise<boolean>;
     };
+    /** Account-wide human typing pace (every outgoing message waits its typing time). */
+    typingPacer?: {
+        wait(text: string): Promise<void>;
+    };
     /** Per-group cap on member-started turns. */
     groupCooldown?: {
         allow(chatId: string, byAdmin: boolean): boolean;
