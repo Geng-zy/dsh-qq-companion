@@ -279,7 +279,7 @@ describe('session v4 producer-owned source kind（持久化回归）', () => {
     } finally { await stopHarness(h) }
   })
 
-  it('⑥ src 全树扫描不变量：所有会话 source 写入形态都携带 plugin:dsh-onebot', async () => {
+  it('⑥ src 全树扫描不变量：所有会话 source 写入形态都携带 plugin:qq-companion', async () => {
     // 机器护栏：任何新增 `source: { … kind … }` 写入形态必须使用 producer-owned
     // kind（审计 docs/v4-source-audit.md §4 的防漂移条款）。
     const srcDir = join(import.meta.dirname ?? 'src', '..', 'src')
@@ -305,7 +305,7 @@ describe('session v4 producer-owned source kind（持久化回归）', () => {
     // 恰为审计收口的两处写入点（bridge.ts:576/754，T9-C 行号同步），且全部携带 producer-owned kind
     expect(matches.length).toBeGreaterThanOrEqual(2)
     for (const m of matches) {
-      expect(m.file === 'bridge.ts' || m.file === 'commands.ts' || m.file === 'trace.ts' || m.file === 'record.ts' || m.file === 'measure.ts',
+      expect(m.file === 'bridge.ts' || m.file === 'session.ts' || m.file === 'trace.ts' || m.file === 'measure.ts',
         '意外的会话 source 写入形态：' + m.file + ':' + m.line + ' → ' + m.text).toBe(true)
       if (m.file === 'bridge.ts') {
         expect(m.text, m.file + ':' + m.line).toContain(PLUGIN_KIND)

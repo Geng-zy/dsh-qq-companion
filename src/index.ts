@@ -12,7 +12,6 @@
 import { selfCheck } from './selfcheck.js'
 import { QqLiveness } from './liveness.js'
 import { ChatActivity, DailyScheduler, NoteCounter, ProactiveScheduler, SendCounter, TypingPacer, companionStatusLines, setDefaultNoteCounter } from './companion/index.js'
-import type { ScheduledPrompt } from './companion/index.js'
 import { GroupAccess, handleGroupEvent } from './groups.js'
 import type { Context as CordisContext } from '@deepseek-ai/cordis'
 import type SystemPrompt from '@deepseek-ai/dsh-system-prompt'
@@ -23,7 +22,6 @@ import type { ModelSelection } from '@deepseek-ai/dsh-agent'
 import type Z from '@deepseek-ai/schemastery'
 import type { OneBotEvent } from './connection.js'
 import type { BridgeDeps, WorkspaceRegistryLike } from './bridge.js'
-import type { AccessPolicyConfig } from './chat.js'
 import { join } from 'node:path'
 
 // 部署加固：peer 依赖解析失败/关键模块缺失时必须显眼报错并 fail-loud，
