@@ -166,7 +166,6 @@ export function makeEvent(type: string, data: unknown): SessionEvent {
 export async function makeCmdHarness(opts?: {
   agentPresets?: unknown
   dshHome?: string
-  ocrResult?: unknown
   interimMessages?: boolean
   unknownCommand?: 'intercept' | 'passthrough'
   interimRecallMs?: number
@@ -283,13 +282,6 @@ export async function makeCmdHarness(opts?: {
     },
     log: (level: string, message: string) => opts?.log?.(level, message),
   })
-  if (opts?.ocrResult !== undefined) {
-    const real = connection.call.bind(connection)
-    connection.call = (async (action: string, params: unknown) => {
-      if (action === 'ocr_image') return opts.ocrResult
-      return await real(action, params)
-    }) as never
-  }
   connection.onMessage = event => { void bridge.handleInbound(event) }
   bridge.start()
   connection.start()

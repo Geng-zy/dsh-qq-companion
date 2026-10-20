@@ -8,7 +8,6 @@ import type { Agent, AgentRegistry, ModelSelection, ModelSelectionRef } from '@d
 import type { SessionId, SessionStore } from '@deepseek-ai/dsh-session'
 import type { Context } from '@deepseek-ai/cordis'
 
-import type { MediaRef } from './cq.js'
 import type { ChatId, UserRole } from './chat.js'
 import type { AgentPresetsLike, BridgeConfig, SessionPersistenceLike, WorkspaceRegistryLike } from './bridge.js'
 
@@ -50,16 +49,8 @@ export interface ChatSettings {
   workspacePath?: string
   /** /preset override (survives /new resets). */
   presetOverride?: string
-  /** /mode override (true=interim, false=instant); undefined defers to the
-   * global config. */
-  interimOverride?: boolean
   /** /goal (reminds the model of the objective each turn). */
   goal?: string
-  /** Most recent inbound image path (for /ocr), survives /new resets. */
-  lastImagePath?: string
-  /** most recent inbound image ref, registered before command routing
-   * so /ocr can resolve it lazily when the message carried a command. */
-  pendingImageRef?: MediaRef
   /** pending serial-number selection snapshot (see PendingSelection);
    * ephemeral UI state — survives /new like every field here but never
    * persisted, and bounded by the lazy 5-minute TTL instead. */
@@ -73,7 +64,6 @@ export interface ChatSettings {
  * and the /workspace switch path flushes the mapping. */
 export interface PersistedChatSettings {
   session: string
-  interimOverride?: boolean
   goal?: string
   workspacePath?: string
 }
@@ -82,11 +72,10 @@ export interface PersistedChatSettings {
  * persisted settings, else an object
  * with the optional mode/goal/workspace fields. An empty workspacePath counts
  * as unset (never persisted). */
-export function persistEntry(sessionId: string, interimOverride: boolean | undefined, goal: string | undefined, workspacePath: string | undefined): string | PersistedChatSettings {
+export function persistEntry(sessionId: string, goal: string | undefined, workspacePath: string | undefined): string | PersistedChatSettings {
   const ws = workspacePath !== undefined && workspacePath !== '' ? workspacePath : undefined
-  if (interimOverride === undefined && goal === undefined && ws === undefined) return sessionId
+  if (goal === undefined && ws === undefined) return sessionId
   const entry: PersistedChatSettings = { session: sessionId }
-  if (interimOverride !== undefined) entry.interimOverride = interimOverride
   if (goal !== undefined) entry.goal = goal
   if (ws !== undefined) entry.workspacePath = ws
   return entry

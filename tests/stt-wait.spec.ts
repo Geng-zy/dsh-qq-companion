@@ -44,7 +44,7 @@ describe('voice transcript wait', () => {
     const resolve = vi.fn(async () => ({ kind: 'voice', path: '/tmp/v.mp3' }))
     Object.assign(ctx, { transcriber: { enabled: false }, media: { resolve } })
     const pipeline = new InboundPipeline(ctx)
-    const annotation = await pipeline.resolveMediaRef({ kind: 'voice', file: 'abc.amr', url: 'https://x/v.amr' }, 'private:10001')
+    const annotation = await pipeline.resolveMediaRef({ kind: 'voice', file: 'abc.amr', url: 'https://x/v.amr' })
     expect(annotation).toBe('[语音]')
     expect(ctx.call).not.toHaveBeenCalled()
     expect(resolve).not.toHaveBeenCalled()
@@ -54,7 +54,7 @@ describe('voice transcript wait', () => {
     const logs: string[] = []
     const transcribe = vi.fn(async () => '今晚吃火锅吗')
     const pipeline = new InboundPipeline(makePipelineCtx(transcribe, logs))
-    const annotation = await pipeline.resolveMediaRef({ kind: 'voice', url: 'https://x/v.mp3' }, 'private:10001')
+    const annotation = await pipeline.resolveMediaRef({ kind: 'voice', url: 'https://x/v.mp3' })
     expect(annotation).toBe('[语音]（语音转写：今晚吃火锅吗）')
     expect(transcribe).toHaveBeenCalledWith('/tmp/voice-1.mp3')
     expect(logs.some(l => l.startsWith('info: 语音转写完成（6 字'))).toBe(true)
@@ -63,20 +63,20 @@ describe('voice transcript wait', () => {
   it('a failed transcription hands the message over as a bare [语音]', async () => {
     const logs: string[] = []
     const pipeline = new InboundPipeline(makePipelineCtx(async () => { throw new Error('STT command timed out after 60000ms') }, logs))
-    expect(await pipeline.resolveMediaRef({ kind: 'voice', url: 'https://x/v.mp3' }, 'private:10001')).toBe('[语音]')
+    expect(await pipeline.resolveMediaRef({ kind: 'voice', url: 'https://x/v.mp3' })).toBe('[语音]')
     expect(logs.some(line => line.startsWith('warn: STT failed'))).toBe(true)
   })
 
   it('silence (empty transcript) keeps the bare placeholder', async () => {
     const pipeline = new InboundPipeline(makePipelineCtx(async () => '', []))
-    expect(await pipeline.resolveMediaRef({ kind: 'voice', url: 'https://x/v.mp3' }, 'private:10001')).toBe('[语音]')
+    expect(await pipeline.resolveMediaRef({ kind: 'voice', url: 'https://x/v.mp3' })).toBe('[语音]')
   })
 
   it('a transcription slower than the wait limit is not waited for', async () => {
     const logs: string[] = []
     const pipeline = new InboundPipeline(makePipelineCtx(() => new Promise<string>(() => undefined), logs), { voiceWaitMs: 30 })
     const started = Date.now()
-    expect(await pipeline.resolveMediaRef({ kind: 'voice', url: 'https://x/v.mp3' }, 'private:10001')).toBe('[语音]')
+    expect(await pipeline.resolveMediaRef({ kind: 'voice', url: 'https://x/v.mp3' })).toBe('[语音]')
     expect(Date.now() - started).toBeLessThan(2_000)
     expect(logs.some(line => line.includes('还没转写完'))).toBe(true)
   })

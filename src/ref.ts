@@ -5,7 +5,7 @@
  * convention). The same reference is
  * carried by every surface of one fault: the structured log line, the trace
  * event (`data.ref`), the user-visible error notice tail, and the
- * /healthcheck report + diagnostics archive file name — so a user can grep
+ * /doctor report + diagnostics archive file name — so a user can grep
  * mediaDir/qq-trace.jsonl for the whole fault's decision trail.
  *
  * Safety posture (plan R8): references are minted ONLY on fault events —
@@ -24,7 +24,7 @@ export const REF_PREFIXES: Record<FailureRefKind, string> = { conn: 'QQ-CONN-', 
 /** Random character count after the base36 timestamp. */
 export const REF_RANDOM_CHARS = 4
 
-/** How many recent fault references the registry keeps (and the /healthcheck
+/** How many recent fault references the registry keeps (and the /doctor
  * report lists); bounded so a fault storm cannot grow memory. */
 export const FAILURE_REF_MAX = 10
 
@@ -58,7 +58,7 @@ export function newFailureRef(kind: FailureRefKind, options?: { now?: number; ra
 }
 
 /** Whether a string is a well-formed reference number (used to validate the
- * `/healthcheck export <参考号>` argument before it reaches a file name). */
+ * `/doctor export <参考号>` argument before it reaches a file name). */
 export function isFailureRef(value: string): boolean {
   return /^(QQ-CONN-|MF-)[A-Za-z0-9]+$/.test(value)
 }
@@ -74,7 +74,7 @@ export function failureRefSuffix(ref: string | undefined): string {
 
 /**
  * The bounded in-memory registry of recent faults: the bridge records every
- * minted reference here and the /healthcheck report + diagnostics export read
+ * minted reference here and the /doctor report + diagnostics export read
  * the most recent entries. Capacity-bounded (oldest dropped); pure memory —
  * no disk writes, no persistence.
  */

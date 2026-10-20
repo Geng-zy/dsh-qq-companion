@@ -1,5 +1,5 @@
 /**
- * Healthcheck + diagnostics export: `/healthcheck` renders a
+ * Health report + diagnostics export: `/doctor` renders a
  * snapshot summary of the bridge's live state — connection state, transport
  * bind-retry counter, dedup window and write-gate counters, the trace/
  * inbox/audit file sizes, and the most recent ok:false trace events — and
@@ -56,7 +56,7 @@ export interface HealthDeps {
    * absent = the report omits the reference section. */
   failureRefs?: () => FailureRefRecord[]
   /** the reference stamped into the exported archive file name
-   * (explicit /healthcheck export argument, or the latest recorded fault). */
+   * (explicit /doctor export argument, or the latest recorded fault). */
   triggerRef?: string
   /** Extra report lines from the companion features (QQ liveness, plans,
    * memory sizes); absent = no companion section. */
@@ -109,7 +109,7 @@ export function formatBytes(size: number): string {
   return (size / (1024 * 1024)).toFixed(2) + 'MiB'
 }
 
-/** Render the healthcheck summary (plain text, one ▍ block). */
+/** Render the /doctor health summary (plain text, one ▍ block). */
 export async function healthReport(deps: HealthDeps): Promise<string> {
   const lines: string[] = []
   lines.push('▍dsh-qq-companion 体检')

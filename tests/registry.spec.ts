@@ -934,16 +934,13 @@ describe('ChatRegistry', () => {
     await h.connection.stop()
   }, 30_000)
 
-  it('per-chat settings survive /new: workspace, preset, mode, goal, last image and pending ref', async () => {
+  it('per-chat settings survive /new: workspace, preset, goal', async () => {
     const h = await makeCmdHarness()
     const registry = registryOf(h)
     const settings = (): ChatSettings => registry.getSettings('private:10001')
     registry.getSettings('private:10001').workspacePath = '/ws/dir'
     registry.getSettings('private:10001').presetOverride = 'minimal'
-    registry.getSettings('private:10001').interimOverride = false
     registry.getSettings('private:10001').goal = '把事情做好'
-    registry.getSettings('private:10001').lastImagePath = '/media/a.png'
-    registry.getSettings('private:10001').pendingImageRef = { kind: 'image', url: 'http://x/a.jpg' }
     h.sendText('/new')
     await vi.waitFor(() => expect(h.outbound.some(f => JSON.stringify(f.params).includes('已开启新会话'))).toBe(true))
     // /new retires the session but never clears the settings entry — every
@@ -951,15 +948,7 @@ describe('ChatRegistry', () => {
     // semantics, kept verbatim).
     expect(settings().workspacePath).toBe('/ws/dir')
     expect(settings().presetOverride).toBe('minimal')
-    expect(settings().interimOverride).toBe(false)
     expect(settings().goal).toBe('把事情做好')
-    expect(settings().lastImagePath).toBe('/media/a.png')
-    expect(settings().pendingImageRef).toEqual({ kind: 'image', url: 'http://x/a.jpg' })
-    // takePendingImageRef consumes exactly once.
-    expect(settings().pendingImageRef).toBeDefined()
-    const taken = registry.getSettings('private:10001').pendingImageRef
-    registry.getSettings('private:10001').pendingImageRef = undefined
-    expect(taken).toEqual({ kind: 'image', url: 'http://x/a.jpg' })
 
     h.client.close()
     await h.bridge.stop()

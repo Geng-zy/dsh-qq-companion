@@ -6,7 +6,7 @@
  *   trace jsonl（stage=connection、reason 齐全、data.ref 同号）/ healthcheck
  *   报告三处同号逐字相等。
  * - 消息回合故障 → MF-<ts><rand>：⚠️ 运行出错文案尾部附号，trace jsonl 同号
- *   事件 stage/reason 齐全，结构化日志行与 /healthcheck 报告同号；同一故障
+ *   事件 stage/reason 齐全，结构化日志行与 /doctor 报告同号；同一故障
  *   QQ 文案 / trace 行 / 报告三处同号逐字相等。
  * - deferred 错误终态：补发终态通知带同号（不再重复 ⚠️）。
  * - /retry 失败：⚠️ 重试失败 + MF- 号（trace stage=command 同号）。
@@ -74,7 +74,7 @@ describe('参考号生成与注册表（src/ref.ts）', () => {
 })
 
 describe('连接故障 → QQ-CONN- 号贯穿（真实 EADDRINUSE 路径）', () => {
-  it('绑定失败：日志行/trace jsonl（stage=connection）/healthcheck 报告三处同号逐字相等', async () => {
+  it('绑定失败：日志行/trace jsonl（stage=connection）/doctor 报告三处同号逐字相等', async () => {
     const mediaDir = mkdtempSync(join(tmpdir(), 'onebot-ref-conn-'))
     const sink = new TraceSink({ dir: mediaDir })
     const h = await makeHarness({ mediaDir, trace: sink })
@@ -103,8 +103,8 @@ describe('连接故障 → QQ-CONN- 号贯穿（真实 EADDRINUSE 路径）', ()
     expect(events[0]!.ok).toBe(false)
     expect(String(events[0]!.reason)).toContain('EADDRINUSE')
 
-    // /healthcheck 报告：最近故障参考号节含同号（与日志/trace 逐字相等）
-    h.sendText('/healthcheck')
+    // /doctor 报告：最近故障参考号节含同号（与日志/trace 逐字相等）
+    h.sendText('/doctor')
     await vi.waitFor(() => expect(sentTexts(h.outbound).some(t => t.includes('最近故障参考号'))).toBe(true))
     const report = sentTexts(h.outbound).find(t => t.includes('最近故障参考号'))!
     expect(report).toContain('grep 任一参考号')
@@ -143,15 +143,15 @@ describe('消息回合故障 → MF- 号贯穿', () => {
     // 结构化日志行同号
     expect(logs.some(l => l.includes('故障参考号 ' + ref) && l.includes('模型回合出错'))).toBe(true)
 
-    // /healthcheck 报告同号（三处逐字相等的第三处）
-    h.sendText('/healthcheck')
+    // /doctor 报告同号（三处逐字相等的第三处）
+    h.sendText('/doctor')
     await vi.waitFor(() => expect(sentTexts(h.outbound).some(t => t.includes('最近故障参考号（'))).toBe(true))
     const report = sentTexts(h.outbound).find(t => t.includes('最近故障参考号（'))!
     // 同号一致性（逐字）：QQ 文案 ref === trace 行 ref === 报告 ref
     expect(report).toContain(ref)
 
     // export：省略参考号 → 文件名自动携带该故障号
-    h.sendText('/healthcheck export')
+    h.sendText('/doctor export')
     await vi.waitFor(() => expect(sentTexts(h.outbound).some(t => t.includes('诊断包已导出'))).toBe(true))
     const archiveLine = sentTexts(h.outbound).find(t => t.includes('诊断包已导出'))!
     const archivePath = /\/\S*qq-diagnostics-\S*\.zip/.exec(archiveLine)![0]
@@ -230,9 +230,9 @@ describe('正常路径零发号 + export 文件名模式', () => {
     expect(sentTexts(h.outbound).some(t => /MF-[a-z0-9]{4,}|QQ-CONN-[a-z0-9]{4,}/.test(t))).toBe(false)
 
     // 报告「最近故障参考号：无」；export 文件名无号（0.8.1 基线形态）
-    h.sendText('/healthcheck')
+    h.sendText('/doctor')
     await vi.waitFor(() => expect(sentTexts(h.outbound).some(t => t.includes('最近故障参考号：无'))).toBe(true))
-    h.sendText('/healthcheck export')
+    h.sendText('/doctor export')
     await vi.waitFor(() => expect(sentTexts(h.outbound).some(t => t.includes('诊断包已导出'))).toBe(true))
     const archiveLine = sentTexts(h.outbound).find(t => t.includes('诊断包已导出'))!
     const archivePath = /\/\S*qq-diagnostics-\S*\.zip/.exec(archiveLine)![0]
@@ -240,7 +240,7 @@ describe('正常路径零发号 + export 文件名模式', () => {
 
     // 显式传号：合法号逐字入名；报告带「本次导出参考号」
     const explicit = newFailureRef('msg', { now: Date.now() })
-    h.sendText('/healthcheck export ' + explicit)
+    h.sendText('/doctor export ' + explicit)
     await vi.waitFor(() => expect(sentTexts(h.outbound).filter(t => t.includes('诊断包已导出')).length).toBe(2))
     const explicitLine = sentTexts(h.outbound).filter(t => t.includes('诊断包已导出'))[1]!
     const explicitPath = /\/\S*qq-diagnostics-\S*\.zip/.exec(explicitLine)![0]
@@ -249,7 +249,7 @@ describe('正常路径零发号 + export 文件名模式', () => {
 
     // 非法参考号：usage 提示、不落盘
     const before = readdirSync(mediaDir).filter(n => n.endsWith('.zip')).length
-    h.sendText('/healthcheck export bogus-ref')
+    h.sendText('/doctor export bogus-ref')
     await vi.waitFor(() => expect(sentTexts(h.outbound).some(t => t.includes('参考号格式不正确'))).toBe(true))
     expect(readdirSync(mediaDir).filter(n => n.endsWith('.zip')).length).toBe(before)
 

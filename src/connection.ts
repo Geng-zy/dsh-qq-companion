@@ -141,7 +141,7 @@ export class OneBotConnection {
     return this.connectedFlag
   }
 
-  /** The configured listen address (for /healthcheck). */
+  /** The configured listen address (for /doctor). */
   get listenHost(): string {
     return this.config.host
   }
@@ -150,7 +150,7 @@ export class OneBotConnection {
     return this.config.port
   }
 
-  /** Port-in-use bind retries since the last successful listen (for /healthcheck). */
+  /** Port-in-use bind retries since the last successful listen (for /doctor). */
   get portRetryAttempts(): number {
     return this.reverseRetryAttempts
   }

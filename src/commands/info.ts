@@ -1,5 +1,5 @@
 /**
- * Inspection commands: /id, /ver, /status, /doctor, /mode and /ocr.
+ * Inspection commands: /id, /ver, /status and /doctor.
  * @module dsh-qq-companion/commands/info
  */
 import { CommandContext } from './types.js'
@@ -10,7 +10,6 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { type ChatId } from '../chat.js'
-import { fileToBase64 } from '../media.js'
 import { describeError } from '../errors.js'
 import { isFailureRef } from '../ref.js'
 
@@ -51,10 +50,6 @@ export async function handleStatusCommand(ctx: CommandContext, chatId: ChatId): 
   } catch (error) {
     ctx.log('debug', 'resolveByPath failed: ' + String(error))
   }
-  const interim = ctx.interimOverride(chatId)
-  const modeLabel = interim !== undefined
-    ? (interim ? 'interim（合并卡片）' : 'instant（逐条即时）') + '（/mode 覆盖）'
-    : (ctx.config.interimMessages ? 'interim（合并卡片）' : 'instant（逐条即时）') + '（全局配置）'
   const agentState = chat !== undefined
     ? 'busy=' + chat.busy + ' loopBuffer=' + chat.loopBuffer.length
     : '（未建立会话）'
@@ -65,7 +60,7 @@ export async function handleStatusCommand(ctx: CommandContext, chatId: ChatId): 
     'preset  : ' + preset + '\n' +
     'model   : ' + model + '\n' +
     'cwd     : ' + cwd + ' ' + wsSuffix + '\n' +
-    '出站     : ' + modeLabel + '\n' +
+    '中间消息 : ' + (ctx.config.interimMessages ? '开' : '关') + '\n' +
     'agent   : ' + agentState + '\n' +
     '可切回   : ' + switchableCount + ' 条历史会话（/session 查看列表）')
 }
@@ -73,7 +68,7 @@ export async function handleStatusCommand(ctx: CommandContext, chatId: ChatId): 
 /** /doctor: render the health summary, or pack the redacted
  * diagnostics archive with the `export` argument. Failures are reported to
  * the chat as a ⚠️ line, never thrown past the router. */
-export async function handleHealthcheckCommand(ctx: CommandContext, chatId: ChatId, arg: string): Promise<void> {
+export async function handleDoctorCommand(ctx: CommandContext, chatId: ChatId, arg: string): Promise<void> {
   const trimmed = arg.trim()
   // `export [参考号]` — an explicit reference is validated against
   // the reference format before it reaches the archive file name (fail-closed:
@@ -110,69 +105,6 @@ export async function handleHealthcheckCommand(ctx: CommandContext, chatId: Chat
   } catch (error) {
     await ctx.sendToChat(chatId, '⚠️ 体检失败：' + describeError(error))
   }
-}
-
-/** /mode: per-chat outbound-mode override (interim vs instant). */
-export async function handleModeCommand(ctx: CommandContext, chatId: ChatId, arg: string): Promise<void> {
-  const v = arg.trim().toLowerCase()
-  if (v === '' || v === 'status' || v === 'view') {
-    const interim = ctx.interimOverride(chatId)
-    const eff = interim ?? ctx.config.interimMessages
-    const suffix = interim !== undefined ? '（/mode 覆盖）' : '（全局配置）'
-    await ctx.sendToChat(chatId, `当前出站模式：${eff ? 'interim（合并卡片）' : 'instant（逐条即时）'}${suffix}\n用法：/mode interim|instant 切换；/mode 查看`)
-    return
-  }
-  if (v === 'interim' || v === 'on' || v === 'merge') {
-    ctx.setInterimOverride(chatId, true)
-    await ctx.sendToChat(chatId, '✅ 出站模式已切换为 interim（合并卡片）。下一条回复生效。')
-    return
-  }
-  if (v === 'instant' || v === 'off' || v === 'direct') {
-    ctx.setInterimOverride(chatId, false)
-    await ctx.sendToChat(chatId, '✅ 出站模式已切换为 instant（逐条即时）。下一条回复生效。')
-    return
-  }
-  const eff = ctx.interimOverride(chatId) ?? ctx.config.interimMessages
-  await ctx.sendToChat(chatId, `❌ 无法识别的出站模式：${arg.trim()}\n当前生效：${eff ? 'interim（合并卡片）' : 'instant（逐条即时）'}\n用法：/mode interim|instant 切换；/mode 查看当前`)
-}
-
-/** /ocr: OCR the most recent inbound image via NapCat's ocr_image. */
-export async function handleOcrCommand(ctx: CommandContext, chatId: ChatId): Promise<void> {
-  // the command routed before media parsing — resolve the registered
-  // pending image ref now (downloads on first use, records the last-image
-  // path exactly like the normal path).
-  const pending = ctx.takePendingImageRef(chatId)
-  if (pending !== undefined) {
-    await ctx.resolveMediaRef(pending, chatId)
-  }
-  const path = ctx.lastImagePath(chatId)
-  if (path === undefined || path === '') {
-    await ctx.sendToChat(chatId, '请先在对话里发一张图片，再 /ocr。')
-    return
-  }
-  let b64: string
-  try {
-    b64 = await fileToBase64(path, ctx.config.maxImageBytes)
-  } catch (error) {
-    ctx.log('warn', 'ocr image read failed: ' + String(error))
-    await ctx.sendToChat(chatId, `❌ 读取图片失败：${describeError(error)}\n请重新发送图片后再 /ocr。`)
-    return
-  }
-  let lines: string
-  try {
-    const data = await ctx.connection.call('ocr_image', { image: 'base64://' + b64 }) as { texts?: Array<{ text?: string }> }
-    const texts = Array.isArray(data.texts) ? data.texts.map(t => t.text ?? '').filter(t => t !== '') : []
-    lines = texts.join('\n')
-  } catch (error) {
-    ctx.log('warn', 'ocr_image failed: ' + String(error))
-    await ctx.sendToChat(chatId, `❌ OCR 失败：${describeError(error)}\n请稍后重试，或重新发送图片后再 /ocr。`)
-    return
-  }
-  if (lines.trim() === '') {
-    await ctx.sendToChat(chatId, 'OCR 未识别到文本。')
-    return
-  }
-  await ctx.sendToChat(chatId, 'OCR 结果：\n' + lines)
 }
 
 /** Plugin version from package.json, read once (per process). Exported for the /ver ESM regression test. */

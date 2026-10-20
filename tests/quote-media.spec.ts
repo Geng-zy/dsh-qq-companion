@@ -3,7 +3,7 @@
  * a quoted image is fetched (annotated with a local path she can open), a
  * quoted voice is transcribed, a quoted merged forward (聊天记录) is
  * expanded — instead of reaching her as bare [图片]/[语音]/[合并转发]
- * placeholders. A quote never changes the /ocr target.
+ * placeholders.
  * @module dsh-qq-companion/tests/quote-media
  */
 import { describe, expect, it, vi } from 'vitest'
@@ -80,18 +80,6 @@ describe('quoted media', () => {
     await vi.waitFor(() => expect(h.captured.followups).toHaveLength(1))
     const text = h.captured.followups[0].text
     expect(text).toContain('[引用]小红: [合并转发]\n甲: 周六去爬山\n乙: 好啊')
-    await stop(h)
-  })
-
-  it('a quoted image does not become the /ocr target', async () => {
-    const h = await makeCmdHarness()
-    answerGetMsg(h, {
-      message: [{ type: 'image', data: { file: 'base64://' + png } }], raw_message: '[CQ:image,file=base64://...]', sender: { nickname: '小红' },
-    })
-    h.client.send(quoting('看看'))
-    await vi.waitFor(() => expect(h.captured.followups).toHaveLength(1))
-    const settings = (h.bridge as unknown as { registry: { getSettings(id: string): { lastImagePath?: string } } }).registry.getSettings('group:888')
-    expect(settings.lastImagePath).toBeUndefined()
     await stop(h)
   })
 

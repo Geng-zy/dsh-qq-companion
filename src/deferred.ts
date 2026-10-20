@@ -143,7 +143,7 @@ function textOnly(message: DeferredAssistantMessage): string {
 
 /** Build the deferred delivery text for a finished turn. an error
  * ending carries the turn's MF- reference so the补发 terminal notice and the
- * trace/log/healthcheck surfaces share one number. */
+ * trace/log/doctor surfaces share one number. */
 export function buildDeferredText(entry: DeferredEntry, reason: DeferredTurnReason | undefined): string {
   if (reason?.kind === 'error') {
     return DEFERRED_PREFIX + '任务已结束：运行出错：' + (reason.error?.message ?? '未知错误') + failureRefSuffix(entry.ref)

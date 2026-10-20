@@ -63,7 +63,7 @@ export class ChatBridge {
    * JSONL registry, bounded send retries and restart recovery. */
   private readonly deferred: DeferredDelivery
   /** the bounded registry of recent fault references — every minted
-   * QQ-CONN-/MF- number is recorded here for the /healthcheck report and the
+   * QQ-CONN-/MF- number is recorded here for the /doctor report and the
    * diagnostics archive file name. */
   private readonly failureRefs = new FailureRefRegistry()
   /** Live registry indexes — the inbound/outbound/interim/turn links keep
@@ -140,7 +140,6 @@ export class ChatBridge {
       selfId: () => this.deps.connection.selfId,
       policy: deps.policy,
       getChat: chatId => this.chats.get(chatId),
-      getSettings: chatId => this.registry.getSettings(chatId),
       sweepIdleChats: () => this.registry.sweepIdleChats(),
       media: deps.media,
       transcriber: deps.transcriber,
@@ -162,7 +161,7 @@ export class ChatBridge {
         sendToChat: (target, text) => this.sendToChat(target, text),
         log: (level, message) => this.deps.log(level, message),
       }, chatId, content),
-      effectiveInterim: chatId => this.effectiveInterim(chatId),
+      effectiveInterim: () => this.deps.config.interimMessages,
       log: (level, message) => this.deps.log(level, message),
       config: deps.config,
     })
@@ -450,11 +449,6 @@ export class ChatBridge {
     return out.trim()
   }
 
-  /** Per-chat outbound-mode override (/mode), falling back to the global config. */
-  private effectiveInterim(chatId: ChatId): boolean {
-    return this.registry.getSettings(chatId).interimOverride ?? this.deps.config.interimMessages
-  }
-
   /**
    * Slash-command router. Commands are admin-only and are matched on the
    * first word; a leading @mention glued to the command (QQ group at + text)
@@ -510,13 +504,10 @@ export class ChatBridge {
       presetOverride: chatId => bridge.registry.getSettings(chatId).presetOverride,
       setPresetOverride: (chatId, id) => { bridge.registry.setPresetOverride(chatId, id) },
       hasPresetOverride: chatId => bridge.registry.getSettings(chatId).presetOverride !== undefined,
-      interimOverride: chatId => bridge.registry.getSettings(chatId).interimOverride,
-      // /mode and /goal persist with the chat mapping (debounced).
-      setInterimOverride: (chatId, value) => { bridge.registry.getSettings(chatId).interimOverride = value; bridge.registry.saveMappingDebounced() },
+      // /goal persists with the chat mapping (debounced).
       goal: chatId => bridge.registry.getSettings(chatId).goal,
       setGoal: (chatId, value) => { bridge.registry.getSettings(chatId).goal = value; bridge.registry.saveMappingDebounced() },
       deleteGoal: chatId => { bridge.registry.getSettings(chatId).goal = undefined; bridge.registry.saveMappingDebounced() },
-      lastImagePath: chatId => bridge.registry.getSettings(chatId).lastImagePath,
       // pending serial-number selection snapshot (lazy TTL lives in commands).
       pendingSelection: chatId => bridge.registry.getSettings(chatId).pendingSelection,
       setPendingSelection: (chatId, value) => { bridge.registry.getSettings(chatId).pendingSelection = value },
@@ -526,13 +517,6 @@ export class ChatBridge {
       // /session list previews: cold-read each retired session's first user
       // input through the persistence port (read handle, small prefix).
       sessionPersistence: bridge.deps.sessionPersistence,
-      takePendingImageRef: chatId => {
-        const settings = bridge.registry.getSettings(chatId)
-        const ref = settings.pendingImageRef
-        if (ref !== undefined) settings.pendingImageRef = undefined
-        return ref
-      },
-      resolveMediaRef: (ref, chatId) => bridge.inbound.resolveMediaRef(ref, chatId),
       llmCatalog: bridge.deps.llmCatalog,
       workspaceRegistry: bridge.deps.workspaceRegistry,
       agentDefaultModel: bridge.deps.agentDefaultModel,
@@ -540,7 +524,7 @@ export class ChatBridge {
       commands: bridge.deps.commands,
       connection: bridge.deps.connection,
       dshHome: bridge.deps.dshHome,
-      // the healthcheck command renders/packs through the bridge.
+      // the /doctor command renders/packs through the bridge.
       healthReport: () => bridge.buildHealthReport(),
       // export takes an optional trigger reference (file-name stamp).
       exportDiagnostics: triggerRef => bridge.exportDiagnosticsPackage(triggerRef),
@@ -654,7 +638,7 @@ export class ChatBridge {
 
   // ------------------------------------------------------------ health
 
-  /** The health deps the /healthcheck command renders from (resolved live). */
+  /** The health deps the /doctor command renders from (resolved live). */
   private healthDeps(): HealthDeps {
     const conn = this.deps.connection
     return {
@@ -674,12 +658,12 @@ export class ChatBridge {
     }
   }
 
-  /** /healthcheck: render the health summary. */
+  /** /doctor: render the health summary. */
   private async buildHealthReport(): Promise<string> {
     return healthReport(this.healthDeps())
   }
 
-  /** /healthcheck export: pack the redacted diagnostics archive. the
+  /** /doctor export: pack the redacted diagnostics archive. the
    * file name carries the trigger reference — the explicit command argument,
    * or the most recent recorded fault reference when omitted. */
   private async exportDiagnosticsPackage(triggerRef?: string): Promise<string> {

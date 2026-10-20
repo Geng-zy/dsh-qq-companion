@@ -1,9 +1,9 @@
 /**
- * healthcheck + diagnostics tests: the report sections (connection /
+ * /doctor health report + diagnostics tests: the report sections (connection /
  * retry+self-heal / dedup+write-gate counters / file sizes / recent ok:false
  * events), the config snapshot redaction, secret scrubbing, the ZIP archive
  * structure, the fail-closed no-plaintext-token guarantee of the exported
- * diagnostics package, and the /healthcheck command routing.
+ * diagnostics package, and the /doctor command routing.
  * @module dsh-qq-companion/tests/health
  */
 import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
@@ -136,18 +136,18 @@ describe('diagnostics archive (zip)', () => {
   })
 })
 
-describe('/healthcheck command', () => {
-  it('routes /healthcheck to the health summary and /healthcheck export to the archive path', async () => {
+describe('/doctor command', () => {
+  it('routes /doctor to the health summary and /doctor export to the archive path', async () => {
     const h = await makeCmdHarness()
-    h.sendText('/healthcheck')
+    h.sendText('/doctor')
     await vi.waitFor(() => {
       expect(h.outbound.some(f => JSON.stringify(f.params).includes('▍dsh-qq-companion 体检'))).toBe(true)
     }, { timeout: 15_000 })
-    h.sendText('/healthcheck export')
+    h.sendText('/doctor export')
     await vi.waitFor(() => {
       expect(h.outbound.some(f => JSON.stringify(f.params).includes('诊断包已导出'))).toBe(true)
     }, { timeout: 15_000 })
-    h.sendText('/healthcheck what')
+    h.sendText('/doctor what')
     await vi.waitFor(() => {
       expect(h.outbound.some(f => JSON.stringify(f.params).includes('用法：/doctor'))).toBe(true)
     }, { timeout: 15_000 })

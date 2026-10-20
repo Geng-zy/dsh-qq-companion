@@ -1,8 +1,8 @@
 /**
- * Mapping-file settings persistence tests: /mode (/mode → interimOverride)
+ * Mapping-file settings persistence tests: /goal
  * and /goal survive a restart through the chat-sessions.json mapping. The
  * format is additive — a legacy entry is a bare chat→session-id string; an
- * entry with persisted settings becomes { session, interimOverride?, goal? }.
+ * entry with persisted settings becomes { session, goal?, workspacePath? }.
  * Covers: command-setter wiring → debounced write → restart round-trip, the
  * legacy-file fallback, and the idle-eviction snapshot cycle.
  * @module dsh-qq-companion/tests/mapping-settings
@@ -63,17 +63,16 @@ function mkdtemp(): string {
 }
 
 describe('mapping-file settings persistence', () => {
-  it('persists /mode and /goal through the command setters and restores them on restart', async () => {
+  it('persists /goal through the command setter and restores it on restart', async () => {
     const h = await makeHarness()
     h.sendText('你好')
     await vi.waitFor(() => expect(h.captured.followups).toHaveLength(1))
-    h.sendText('/mode instant')
     h.sendText('/goal 做好测试')
     // The debounced write lands the entry in the new additive format (the
     // legacy shape is a bare string; settings turn it into an object).
     await vi.waitFor(async () => {
       const mapping = JSON.parse(await readFile(join(h.mediaDir, 'chat-sessions.json'), 'utf8')) as Record<string, unknown>
-      expect(mapping['private:10001']).toEqual({ session: h.sessionIds[0], interimOverride: false, goal: '做好测试' })
+      expect(mapping['private:10001']).toEqual({ session: h.sessionIds[0], goal: '做好测试' })
     }, { timeout: 10_000 })
     h.client.close()
     await h.bridge.stop()
@@ -107,11 +106,10 @@ describe('mapping-file settings persistence', () => {
     })
     bridge2.start()
     await vi.waitFor(() => expect(registryOf({ bridge: bridge2 }).getSettings('private:10001').goal).toBe('做好测试'))
-    expect(registryOf({ bridge: bridge2 }).getSettings('private:10001').interimOverride).toBe(false)
     await bridge2.stop()
   }, 30_000)
 
-  it('loadMapping accepts a legacy mapping file and falls back to the current defaults', async () => {
+  it('loadMapping accepts a legacy mapping file (bare ids, old interimOverride field) and falls back to the current defaults', async () => {
     const sessionIds: string[] = []
     const captured = { followups: [] as Array<{ text: string; sessionId: string }> }
     const agents = makeFakeAgents(sessionIds, captured, { resumeOk: true })
@@ -119,7 +117,7 @@ describe('mapping-file settings persistence', () => {
     // Old format: bare chat→session strings, no settings fields at all.
     await writeFile(join(deps.config.mediaDir, 'chat-sessions.json'), JSON.stringify({
       'private:10001': 'onebot-private-10001',
-      'private:10002': { session: 'onebot-private-10002', goal: '只带目标的条目' },
+      'private:10002': { session: 'onebot-private-10002', goal: '只带目标的条目', interimOverride: false },
     }), 'utf8')
     const registry = new ChatRegistry(deps)
     await registry.loadMapping()
@@ -127,19 +125,16 @@ describe('mapping-file settings persistence', () => {
     expect(registry.chats.get('private:10001')?.sessionId).toBe('onebot-private-10001')
     expect(registry.chats.get('private:10002')?.sessionId).toBe('onebot-private-10002')
     // Legacy chat: no settings on file → the current defaults apply.
-    expect(registry.getSettings('private:10001').interimOverride).toBeUndefined()
     expect(registry.getSettings('private:10001').goal).toBeUndefined()
     // New-format partial entry: only the fields present are restored.
     expect(registry.getSettings('private:10002').goal).toBe('只带目标的条目')
-    expect(registry.getSettings('private:10002').interimOverride).toBeUndefined()
     await registry.stop()
   })
 
-  it('keeps persisted mode/goal across an idle eviction cycle (settings snapshot)', async () => {
+  it('keeps a persisted goal across an idle eviction cycle (settings snapshot)', async () => {
     const sessionIds: string[] = []
     const deps1 = makeRegistryDeps({ agents: makeFakeAgents(sessionIds, { followups: [] }, { resumeOk: true }), config: { chatIdleEvictDays: 7 } })
     const registry1 = new ChatRegistry(deps1)
-    registry1.getSettings('private:10001').interimOverride = false
     registry1.getSettings('private:10001').goal = '把事情做好'
     await registry1.ensureChat('private:10001', '小明')
     const chat = registry1.chats.get('private:10001')!
@@ -148,14 +143,13 @@ describe('mapping-file settings persistence', () => {
     expect(registry1.chats.has('private:10001')).toBe(false)
     await registry1.saveMapping()
     await registry1.stop()
-    const mapping = JSON.parse(await readFile(join(deps1.config.mediaDir, 'chat-sessions.json'), 'utf8')) as Record<string, { session: string; interimOverride?: boolean; goal?: string }>
-    expect(mapping['private:10001']).toEqual({ session: sessionIds[0], interimOverride: false, goal: '把事情做好' })
+    const mapping = JSON.parse(await readFile(join(deps1.config.mediaDir, 'chat-sessions.json'), 'utf8')) as Record<string, { session: string; goal?: string }>
+    expect(mapping['private:10001']).toEqual({ session: sessionIds[0], goal: '把事情做好' })
 
     const deps2 = makeRegistryDeps({ agents: makeFakeAgents([], { followups: [] }, { resumeOk: true }), config: { mediaDir: deps1.config.mediaDir } })
     const registry2 = new ChatRegistry(deps2)
     await registry2.loadMapping()
     expect(registry2.chats.get('private:10001')?.sessionId).toBe(sessionIds[0])
-    expect(registry2.getSettings('private:10001').interimOverride).toBe(false)
     expect(registry2.getSettings('private:10001').goal).toBe('把事情做好')
     await registry2.stop()
   })

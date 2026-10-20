@@ -269,7 +269,7 @@ describe('commands', () => {
     await h.connection.stop()
   })
 
-  it('slash /goal /plan /mode set per-chat state and forward to host plan command', async () => {
+  it('slash /goal /plan set per-chat state and forward to host plan command', async () => {
     const commands = { execute: vi.fn(async () => ({ commandId: 'cmd-1', result: { kind: 'success', text: 'Plan mode on. Use /plan off to leave.' } })) }
     const h = await makeCmdHarness({ commands })
 
@@ -300,15 +300,6 @@ describe('commands', () => {
     h.sendText('再来一轮')
     await vi.waitFor(() => expect(h.captured.followups).toHaveLength(2))
     expect(h.captured.followups[1].text).not.toContain('【计划模式】')
-
-    h.sendText('/mode instant')
-    await vi.waitFor(() => {
-      expect(h.outbound.some(f => JSON.stringify(f.params).includes('已切换为 instant'))).toBe(true)
-    })
-    h.sendText('/mode')
-    await vi.waitFor(() => {
-      expect(h.outbound.some(f => JSON.stringify(f.params).includes('instant（逐条即时）（/mode 覆盖）'))).toBe(true)
-    })
 
     h.client.close()
     await h.bridge.stop()
@@ -544,30 +535,6 @@ describe('commands', () => {
     await h.connection.stop()
   })
 
-  it('slash /ocr recognizes the most recent inbound image', async () => {
-    const h = await makeCmdHarness({ ocrResult: { texts: [{ text: '第一行文字' }, { text: '第二行文字' }] } })
-
-    // No image yet → friendly prompt.
-    h.sendText('/ocr')
-    await vi.waitFor(() => {
-      expect(h.outbound.some(f => JSON.stringify(f.params).includes('请先在对话里发一张图片'))).toBe(true)
-    })
-
-    // Seed a fake image path and OCR it (ocr_image stubbed above).
-    const png = join(h.mediaDir, 'seed.png')
-    await writeFile(png, Buffer.from('89504e470d0a1a0a', 'hex'))
-    ;(h.bridge as unknown as { registry: { getSettings(id: string): { lastImagePath?: string } } }).registry.getSettings('private:10001').lastImagePath = png
-    h.sendText('/ocr')
-    await vi.waitFor(() => {
-      expect(h.outbound.some(f => JSON.stringify(f.params).includes('第一行文字'))).toBe(true)
-      expect(h.outbound.some(f => JSON.stringify(f.params).includes('第二行文字'))).toBe(true)
-    })
-
-    h.client.close()
-    await h.bridge.stop()
-    await h.connection.stop()
-  })
-
   it('command messages carrying media skip media downloads', async () => {
     const h = await makeCmdHarness()
     const media = (h.bridge as unknown as { deps: { media: MediaStore } }).deps.media
@@ -597,36 +564,6 @@ describe('commands', () => {
     await h.connection.stop()
   })
 
-  it('/ocr resolves the image registered from a command message', async () => {
-    const h = await makeCmdHarness({ ocrResult: { texts: [{ text: '命令消息里的图片' }] } })
-    const media = (h.bridge as unknown as { deps: { media: MediaStore } }).deps.media
-    let downloads = 0
-    const realDownload = media.downloadUrl.bind(media)
-    media.downloadUrl = async (...args: Parameters<MediaStore['downloadUrl']>) => {
-      downloads += 1
-      return await realDownload(...args)
-    }
-    // base64 image: materialized locally without downloadUrl, so the lazy
-    // /ocr resolution is fully observable (download count must stay 0).
-    const png = Buffer.from('89504e470d0a1a0a', 'hex').toString('base64')
-    h.client.send(JSON.stringify({
-      post_type: 'message', message_type: 'private', user_id: 10001, self_id: 10002,
-      message: [
-        { type: 'text', data: { text: '/ocr ' } },
-        { type: 'image', data: { file: 'base64://' + png } },
-      ],
-      raw_message: '/ocr [CQ:image,file=base64://...]',
-      sender: { user_id: 10001, nickname: '小明' },
-    }))
-    await vi.waitFor(() => {
-      expect(h.outbound.some(f => JSON.stringify(f.params).includes('命令消息里的图片'))).toBe(true)
-    })
-    expect(downloads).toBe(0)
-    h.client.close()
-    await h.bridge.stop()
-    await h.connection.stop()
-  })
-
   it('slash /help lists the full routed command table for an admin', async () => {
     const h = await makeCmdHarness()
     h.sendText('/help')
@@ -634,7 +571,7 @@ describe('commands', () => {
       expect(h.outbound.some(f => JSON.stringify(f.params).includes('可用命令'))).toBe(true)
     })
     const helpText = h.outbound.filter(f => f.action === 'send_msg').map(f => JSON.stringify(f.params)).join('\n')
-    for (const name of ['new', 'stop', 'model', 'workspace', 'preset', 'session', 'status', 'retry', 'id', 'ver', 'ocr', 'mode', 'plan', 'permission', 'goal', 'help']) {
+    for (const name of ['new', 'stop', 'model', 'workspace', 'preset', 'session', 'status', 'doctor', 'retry', 'id', 'ver', 'plan', 'permission', 'goal', 'help']) {
       expect(helpText).toContain('/' + name)
     }
     expect(h.captured.followups).toHaveLength(0)
@@ -646,7 +583,7 @@ describe('commands', () => {
   it('rejects every routed slash command for a non-admin with no side effects', async () => {
     const commands = { execute: vi.fn(async () => ({ kind: 'success', text: 'unreachable' })) }
     const h = await makeCmdHarness({ commands })
-    for (const name of ['new', 'stop', 'model', 'workspace', 'preset', 'session', 'status', 'retry', 'id', 'ver', 'ocr', 'mode', 'plan', 'permission', 'goal', 'help']) {
+    for (const name of ['new', 'stop', 'model', 'workspace', 'preset', 'session', 'status', 'doctor', 'retry', 'id', 'ver', 'plan', 'permission', 'goal', 'help']) {
       const before = h.outbound.length
       h.sendGroupTextAs('/' + name, 20002)
       await vi.waitFor(() => {
@@ -662,13 +599,13 @@ describe('commands', () => {
     await h.connection.stop()
   }, 60_000)
 
-  it('command table registers exactly the 20 routed commands, one row each, and /help renders the grouped card from the table', () => {
+  it('command table registers exactly the 18 routed commands, one row each, and /help renders the grouped card from the table', () => {
     // Row order = the /help line order inside each group; the router matches
     // by name so ordering is routing-neutral. Adding a command is exactly one
     // row here (group + usage-style help) — /help picks it up for free.
-    expect(COMMANDS.map(c => c.name)).toEqual(['new', 'stop', 'steer', 'model', 'workspace', 'preset', 'session', 'status', 'doctor', 'retry', 'id', 'ver', 'ocr', 'mode', 'plan', 'permission', 'group', 'task', 'goal', 'help'])
-    expect(COMMANDS).toHaveLength(20)
-    expect(new Set(COMMANDS.map(c => c.name)).size).toBe(20)
+    expect(COMMANDS.map(c => c.name)).toEqual(['new', 'stop', 'steer', 'model', 'workspace', 'preset', 'session', 'status', 'doctor', 'retry', 'id', 'ver', 'plan', 'permission', 'group', 'task', 'goal', 'help'])
+    expect(COMMANDS).toHaveLength(18)
+    expect(new Set(COMMANDS.map(c => c.name)).size).toBe(18)
     for (const c of COMMANDS) {
       expect(c.adminOnly).toBe(true)
       expect(c.help).not.toContain('\n')
@@ -688,18 +625,16 @@ describe('commands', () => {
       '/session [序号] 查看/切回历史会话',
       '/permission [w|f|预设名|序号] 切换权限预设（w=工作区可写+需审批，f=全盘+免审批）',
       '▍输出',
-      '/mode [interim|instant] 出站模式（合并卡片/逐条即时）',
       '/plan [off|内容] 宿主计划模式',
       '▍查询',
       '/status 会话全景',
-      '/doctor [export [参考号]] 运行体检（export [参考号] 导出脱敏诊断包，文件名含参考号）',
+      '/doctor [export [参考号]] 体检：连接、账号在线、定时任务、记忆和表情包；export [参考号] 导出脱敏诊断包',
       '/id 会话标识（session/chat）',
       '/ver 插件版本',
       '▍操作',
       '/stop 停止当前生成',
       '/steer <补充内容> 向运行中的任务补充指令',
       '/retry 重跑上一条',
-      '/ocr 识别最近一张图片',
       '▍其他',
       '/model [--default] <provider> <model> 切换模型（--default 改部署默认；无参两级序号列表）',
       '/group [list|allow <群号>|remove <群号>] 群白名单',
@@ -712,22 +647,19 @@ describe('commands', () => {
     for (const c of COMMANDS) {
       expect(card.split('\n').filter(l => l.startsWith('/' + c.name + ' '))).toHaveLength(1)
     }
-    // The alias never appears in /help (only the primary name is listed).
-    expect(card).not.toContain('/healthcheck')
   })
 
-  it('/healthcheck is an equivalent alias of /doctor: same handler, same output', async () => {
+  it('/doctor is the one health command; /ocr, /mode and /healthcheck are gone', async () => {
     const h = await makeCmdHarness()
     h.sendText('/doctor')
     await vi.waitFor(() => {
       expect(h.outbound.some(f => JSON.stringify(f.params).includes('▍dsh-qq-companion 体检'))).toBe(true)
     }, { timeout: 15_000 })
-    h.sendText('/healthcheck')
+    for (const removed of ['/healthcheck', '/ocr', '/mode instant']) h.sendText(removed)
     await vi.waitFor(() => {
-      expect(h.outbound.filter(f => JSON.stringify(f.params).includes('▍dsh-qq-companion 体检'))).toHaveLength(2)
+      expect(h.outbound.filter(f => JSON.stringify(f.params).includes('未知命令'))).toHaveLength(3)
     }, { timeout: 15_000 })
-    // The alias was routed (two identical health summaries), not intercepted.
-    expect(JSON.stringify(h.outbound)).not.toContain('未知命令')
+    expect(h.outbound.filter(f => JSON.stringify(f.params).includes('▍dsh-qq-companion 体检'))).toHaveLength(1)
     h.client.close()
     await h.bridge.stop()
     await h.connection.stop()
@@ -754,13 +686,6 @@ describe('commands', () => {
       expect(text()).toContain('没有可重试的上一条消息')
       expect(text()).toContain('先发送一条消息，之后才能 /retry')
     })
-    // /mode invalid value: current effective mode + the legal values.
-    h.sendText('/mode blah')
-    await vi.waitFor(() => {
-      expect(text()).toContain('无法识别的出站模式：blah')
-      expect(text()).toContain('当前生效：interim（合并卡片）')
-      expect(text()).toContain('用法：/mode interim|instant')
-    })
     // /workspace pointing at a file (not a directory): numbered-list pointer.
     h.sendText('/workspace ' + notDir)
     await vi.waitFor(() => {
@@ -786,27 +711,25 @@ describe('commands', () => {
 
   it('unknown command with a close match suggests candidates and is consumed', async () => {
     const h = await makeCmdHarness()
-    // Prefix match: /he is a prefix of /help (and of the /healthcheck alias of
-    // /doctor — the alias suggests the primary name).
+    // Prefix match: /he is a prefix of /help.
     h.sendText('/he')
     await vi.waitFor(() => {
-      expect(h.outbound.some(f => JSON.stringify(f.params).includes('未知命令 /he，你是想用 /doctor（/help）吗？'))).toBe(true)
+      expect(h.outbound.some(f => JSON.stringify(f.params).includes('未知命令 /he，你是想用 /help吗？'))).toBe(true)
     })
-    // Prefix match with several candidates, table order, max shown as /model（/mode）.
-    h.sendText('/mo')
+    // Prefix match with several candidates, in table order.
+    h.sendText('/st')
     await vi.waitFor(() => {
-      expect(h.outbound.some(f => JSON.stringify(f.params).includes('你是想用 /model（/mode）吗？'))).toBe(true)
+      expect(h.outbound.some(f => JSON.stringify(f.params).includes('你是想用 /stop（/steer、/status）吗？'))).toBe(true)
     })
     // Edit-distance fallback (input length ≥4): /vers ≈ /ver.
     h.sendText('/vers')
     await vi.waitFor(() => {
       expect(h.outbound.some(f => JSON.stringify(f.params).includes('你是想用 /ver吗？'))).toBe(true)
     })
-    // Misspelling /helthcheck (distance 1 from the /healthcheck alias) still
-    // suggests — mapped to the primary name /doctor.
-    h.sendText('/helthcheck')
+    // Misspelling /doctr (distance 1 from /doctor) still suggests.
+    h.sendText('/doctr')
     await vi.waitFor(() => {
-      expect(h.outbound.some(f => JSON.stringify(f.params).includes('未知命令 /helthcheck，你是想用 /doctor吗？'))).toBe(true)
+      expect(h.outbound.some(f => JSON.stringify(f.params).includes('未知命令 /doctr，你是想用 /doctor吗？'))).toBe(true)
     })
     // All three were consumed: none reached the model.
     expect(h.captured.followups).toHaveLength(0)

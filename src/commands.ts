@@ -7,7 +7,7 @@
 import { CommandContext, CommandSender } from './commands/types.js'
 import { handleGoalCommand, handleRetryCommand, handleSessionCommand, handleSteerCommand, handleStopCommand } from './commands/session.js'
 import { handleModelCommand, handlePresetCommand, handleWorkspaceCommand } from './commands/model.js'
-import { handleHealthcheckCommand, handleIdCommand, handleModeCommand, handleOcrCommand, handleStatusCommand, handleVerCommand } from './commands/info.js'
+import { handleDoctorCommand, handleIdCommand, handleStatusCommand, handleVerCommand } from './commands/info.js'
 import { handlePermissionCommand, handlePlanCommand } from './commands/host.js'
 import { handleTaskCommand } from './companion/task-command.js'
 import { handleGroupCommand } from './groups.js'
@@ -60,12 +60,10 @@ export const COMMANDS: CommandDefinition[] = [
   { name: 'preset', adminOnly: true, group: '会话', help: '[id|序号] 查看/切换 agent 预设', handler: (ctx, chatId, arg) => handlePresetCommand(ctx, chatId, arg) },
   { name: 'session', adminOnly: true, group: '会话', help: '[序号] 查看/切回历史会话', handler: (ctx, chatId, arg) => handleSessionCommand(ctx, chatId, arg) },
   { name: 'status', adminOnly: true, group: '查询', help: '会话全景', handler: (ctx, chatId) => handleStatusCommand(ctx, chatId) },
-  { name: 'doctor', aliases: ['healthcheck'], adminOnly: true, group: '查询', help: '[export [参考号]] 运行体检（export [参考号] 导出脱敏诊断包，文件名含参考号）', handler: (ctx, chatId, arg) => handleHealthcheckCommand(ctx, chatId, arg) },
+  { name: 'doctor', adminOnly: true, group: '查询', help: '[export [参考号]] 体检：连接、账号在线、定时任务、记忆和表情包；export [参考号] 导出脱敏诊断包', handler: (ctx, chatId, arg) => handleDoctorCommand(ctx, chatId, arg) },
   { name: 'retry', adminOnly: true, group: '操作', help: '重跑上一条', handler: (ctx, chatId) => handleRetryCommand(ctx, chatId) },
   { name: 'id', adminOnly: true, group: '查询', help: '会话标识（session/chat）', handler: (ctx, chatId) => handleIdCommand(ctx, chatId) },
   { name: 'ver', adminOnly: true, group: '查询', help: '插件版本', handler: (ctx, chatId) => handleVerCommand(ctx, chatId) },
-  { name: 'ocr', adminOnly: true, group: '操作', help: '识别最近一张图片', handler: (ctx, chatId) => handleOcrCommand(ctx, chatId) },
-  { name: 'mode', adminOnly: true, group: '输出', help: '[interim|instant] 出站模式（合并卡片/逐条即时）', handler: (ctx, chatId, arg) => handleModeCommand(ctx, chatId, arg) },
   { name: 'plan', adminOnly: true, group: '输出', help: '[off|内容] 宿主计划模式', handler: (ctx, chatId, arg) => handlePlanCommand(ctx, chatId, arg) },
   { name: 'permission', adminOnly: true, group: '会话', help: '[w|f|预设名|序号] 切换权限预设（w=工作区可写+需审批，f=全盘+免审批）', handler: (ctx, chatId, arg) => handlePermissionCommand(ctx, chatId, arg) },
   { name: 'group', aliases: ['qun'], adminOnly: true, group: '其他', help: '[list|allow <群号>|remove <群号>] 群白名单', handler: (ctx, chatId, arg) => handleGroupCommand(ctx.groupAccess, arg, text => ctx.sendToChat(chatId, text)) },

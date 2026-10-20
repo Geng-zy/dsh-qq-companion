@@ -22,7 +22,6 @@ import {
   RESTRICTED_PREFIX, sanitizeNickname, wrapUserMessage,
 } from './chat.js'
 import type { BridgeConfig } from './bridge.js'
-import type { ChatSettings } from './registry.js'
 import { describeError } from './errors.js'
 import { currentTrace, TRACE_REASONS } from './trace.js'
 
@@ -137,8 +136,6 @@ export interface InboundContext {
   policy: AccessPolicyConfig
   /** Live chat lookup (loop-residue reset + the rate-limit window). */
   getChat(chatId: ChatId): InboundChat | undefined
-  /** Per-chat settings (recent-image registration for /ocr). */
-  getSettings(chatId: ChatId): ChatSettings
   /** lazy idle-chat sweep before each inbound message. */
   sweepIdleChats(): Promise<void>
   /** Media store: ref resolution, URL downloads, fresh-path writes, temp cleanup. */
@@ -289,11 +286,7 @@ export class InboundPipeline {
     // route slash commands BEFORE any media/quote I/O — a message that
     // happens to carry media must not pay for downloads or get_msg calls just
     // to be consumed as a command (admin-only; unknown /-words still fall
-    // through to the model). The most recent inbound image is registered from
-    // parsed.media up front so /ocr still sees it (resolved lazily there).
-    for (const ref of inbound.media) {
-      if (ref.kind === 'image') this.ctx.getSettings(chatId).pendingImageRef = ref
-    }
+    // through to the model).
     if (await this.ctx.tryHandleCommand(chatId, inbound.text, userId, nickname)) {
       currentTrace()?.emit('command', { ok: true, reason: TRACE_REASONS.inboundCommand })
       return
@@ -311,12 +304,8 @@ export class InboundPipeline {
       forward = expansion.text
       if (expansion.media.length > 0) {
         // Forward-embedded images ride the same buildBody pipeline (their
-        // '[图片]' placeholders are inline in the expansion text). Preserve
-        // the pre-routing /ocr ref so a direct image in the same message
-        // stays the /ocr target.
-        const pending = this.ctx.getSettings(chatId).pendingImageRef
+        // '[图片]' placeholders are inline in the expansion text).
         forward = await this.ctx.buildBody(expansion.text, expansion.media, chatId)
-        this.ctx.getSettings(chatId).pendingImageRef = pending
       }
     }
 
@@ -427,14 +416,14 @@ export class InboundPipeline {
   async buildBody(
     text: string,
     media: MediaRef[],
-    chatId: ChatId,
+    _chatId: ChatId,
   ): Promise<string> {
     if (media.length === 0) return text
     let out = text
     for (const ref of media) {
       const placeholder = placeholderFor(ref)
       const idx = out.indexOf(placeholder)
-      const annotation = await this.resolveMediaRef(ref, chatId)
+      const annotation = await this.resolveMediaRef(ref)
       if (idx >= 0 && annotation !== '') {
         out = out.slice(0, idx) + annotation + out.slice(idx + placeholder.length)
       } else if (idx >= 0) {
@@ -448,7 +437,7 @@ export class InboundPipeline {
   }
 
   /** Resolve one media ref to a text annotation with a local path. */
-  async resolveMediaRef(ref: MediaRef, chatId: ChatId): Promise<string> {
+  async resolveMediaRef(ref: MediaRef): Promise<string> {
     if (ref.kind === 'file') {
       return await this.resolveNasFile(ref)
     }
@@ -477,14 +466,8 @@ export class InboundPipeline {
     })
     if (resolved === undefined) return ''
     switch (resolved.kind) {
-      case 'image': {
-        // Remember the most recent inbound image for /ocr (survives /new);
-        // consume the pre-routing pending ref so /ocr never re-resolves it.
-        const settings = this.ctx.getSettings(chatId)
-        settings.lastImagePath = resolved.path
-        settings.pendingImageRef = undefined
+      case 'image':
         return (ref.sticker === true ? '[表情包:' : '[图片:') + resolved.path + ']'
-      }
       case 'voice':
         // The message waits for its transcript (a couple of seconds), so
         // she answers what was said instead of replying to a bare [语音]
@@ -530,7 +513,7 @@ export class InboundPipeline {
    * message goes through the same media path as a direct one: images are
    * fetched (she can look at them), voice is transcribed, videos and files
    * are fetched, and a quoted merged forward (聊天记录) is expanded. A quote
-   * never changes the /ocr target.
+   * gets the same treatment.
    */
   async expandQuote(messageId: string, chatId?: ChatId): Promise<string> {
     let data: { message?: unknown; raw_message?: string; sender?: { nickname?: string } }
@@ -547,19 +530,12 @@ export class InboundPipeline {
     let text = cqUnescape(parsed.text)
     let forward = ''
     if (chatId !== undefined) {
-      const settings = this.ctx.getSettings(chatId)
-      const ocrTarget = { lastImagePath: settings.lastImagePath, pendingImageRef: settings.pendingImageRef }
-      try {
-        if (parsed.media.length > 0) text = await this.ctx.buildBody(text, parsed.media, chatId)
-        if (parsed.forwardId !== undefined) {
-          const expansion = await this.expandForward(parsed.forwardId)
-          forward = expansion.media.length > 0 ? await this.ctx.buildBody(expansion.text, expansion.media, chatId) : expansion.text
-          // the expansion carries its own [合并转发] heading
-          text = text.replace('[合并转发]', '').trim()
-        }
-      } finally {
-        settings.lastImagePath = ocrTarget.lastImagePath
-        settings.pendingImageRef = ocrTarget.pendingImageRef
+      if (parsed.media.length > 0) text = await this.ctx.buildBody(text, parsed.media, chatId)
+      if (parsed.forwardId !== undefined) {
+        const expansion = await this.expandForward(parsed.forwardId)
+        forward = expansion.media.length > 0 ? await this.ctx.buildBody(expansion.text, expansion.media, chatId) : expansion.text
+        // the expansion carries its own [合并转发] heading
+        text = text.replace('[合并转发]', '').trim()
       }
     }
     const body = [text, forward].filter(part => part.trim() !== '').join('\n')
