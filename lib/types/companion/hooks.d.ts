@@ -22,6 +22,8 @@ export interface CompanionHooksConfig {
     publicMemoryMaxBytes?: number;
     groupMemoryDir?: string;
     groupMemoryMaxBytes?: number;
+    /** The owner's private details group notes must not contain (besides the admin QQ numbers). */
+    memoryNoteDenyWords?: string[];
 }
 export declare class CompanionHooks {
     private readonly config;
@@ -29,12 +31,14 @@ export declare class CompanionHooks {
     private readonly log;
     private readonly resetChat;
     private readonly now;
+    private readonly adminUsers;
     constructor(options: {
         config: CompanionHooksConfig;
         activity?: ChatActivity;
         log: Log;
         resetChat: (chatId: string) => Promise<void>;
         now?: () => number;
+        adminUsers?: () => readonly string[];
     });
     private get owner();
     /**

@@ -82,6 +82,7 @@ export interface Config {
     stickerDailyMax: number;
     privateResetDays: number;
     groupResetDays: number;
+    memoryNoteDenyWords: string[];
     privateSessionKeepDays: number;
     groupSessionKeepDays: number;
     proactiveEnabled: boolean;

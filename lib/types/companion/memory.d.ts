@@ -3,9 +3,9 @@ export declare const NOTES_HEADING = "## \u7FA4\u53CB\u8BF4\u7684\uFF08\u672A\u7
 /** Heading used by earlier versions; still recognized so files are not given a second section. */
 export declare const LEGACY_NOTES_HEADINGS: string[];
 /** Max characters per note. */
-export declare const NOTE_MAX_CHARS = 120;
+export declare const NOTE_MAX_CHARS = 200;
 /** Max notes per chat per local day. */
-export declare const NOTES_PER_DAY = 10;
+export declare const NOTES_PER_DAY = 30;
 /** Refuse new notes once the file reaches this many bytes. */
 export declare const NOTES_FILE_MAX_BYTES: number;
 /** Section for notes the admin asked for in person (verified by QQ number). */
@@ -39,18 +39,20 @@ export declare function insertUnderHeading(current: string, heading: string, lin
 /**
  * Append one note to a memory file.
  * - Default (a group member asked, or the model decided): a hearsay line
- *   under NOTES_HEADING, behind the keyword fence and the per-day cap.
+ *   under NOTES_HEADING, behind the keyword fence, the owner's private words
+ *   (`privateWords`, e.g. the admin QQ numbers) and the per-day cap.
  * - `confirmedBy` set (the running turn was started by an admin, verified
  *   by QQ number — never by message text): a line under
- *   confirmedNotesHeading, no identity fence and no per-day cap; secrets are
- *   still refused.
+ *   confirmedNotesHeading, no identity fence, no private-word check and no
+ *   per-day cap; secrets are still refused.
  * The file size cap applies to both.
  * @param file - the memory file path (fixed by config, never by the model).
  * @param chatId - where the note came from (recorded on the line).
  * @param text - the note.
  * @param maxBytes - refuse once the file reaches this size.
+ * @param privateWords - the owner's private details a member's note must not contain.
  */
-export declare function appendMemoryNote(file: string, chatId: string, text: string, now?: () => number, maxBytes?: number, counter?: NoteCounter, confirmedBy?: string): Promise<NoteResult>;
+export declare function appendMemoryNote(file: string, chatId: string, text: string, now?: () => number, maxBytes?: number, counter?: NoteCounter, confirmedBy?: string, privateWords?: readonly string[]): Promise<NoteResult>;
 /** Test hook: forget the per-day counters. */
 export declare function resetNoteCounts(): void;
 /** Default group memory cap shown in a new file (the config's default). */
