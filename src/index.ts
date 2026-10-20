@@ -713,6 +713,10 @@ export function apply(ctx: Context, config: Config): void {
   // share the same number for one fault.
   connection.onFailure = (stage: string, detail: string): string => bridge.registerConnectionFailure(stage, detail)
 
+  // A group that leaves the allowlist (/group remove, kicked, or dropped from
+  // the config while dsh was down) has its session retired.
+  groupAccess.onRemoved = groupId => bridge.retireGroup(groupId)
+
   // Lifecycle: start the bridge and transport; unwind everything on unload.
   // daily scheduled prompts (diary …), fired into their chats.
   const scheduler = new DailyScheduler({ prompts: config.scheduledPrompts, fire: prompt => bridge.fireScheduled(prompt), log, stateFile: join(mediaDir, 'scheduler-state.json') })
@@ -738,6 +742,8 @@ export function apply(ctx: Context, config: Config): void {
   proactiveRef = proactive
   ctx.effect(() => {
     bridge.start()
+    // after start(): the mapping load it kicks off is what this waits for.
+    void groupAccessLoaded.then(() => bridge.retireDisallowedGroups()).catch(error => log('warn', '清理不在白名单的群会话失败: ' + String(error)))
     void Promise.all([activityLoaded, scheduler.load(), proactive?.load(), noteCounter.load()]).then(() => { scheduler.start(); proactive?.start() })
     liveness.start()
     connection.start()

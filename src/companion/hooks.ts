@@ -14,6 +14,7 @@ import { formatTranscript } from './activity.js'
 import { appendMemoryNote, ensureGroupMemory, groupMemoryPaths } from './memory.js'
 import type { NoteResult } from './memory.js'
 import { PROACTIVE_PASS, isProactivePass } from './proactive.js'
+import { cutFabricatedContext } from './sanitize.js'
 import type { ScheduledPrompt } from './scheduler.js'
 import type { Log } from './time.js'
 
@@ -88,6 +89,19 @@ export class CompanionHooks {
     }
     this.activity?.record(chatId, 'bot', text)
     return true
+  }
+
+  /**
+   * Before any model text goes out: cut a fabricated transcript continuation
+   * (see sanitize.ts).
+   * @returns the text to send ('' = nothing left to send).
+   */
+  cleanOutgoing(chatId: string, text: string): string {
+    const result = cutFabricatedContext(text)
+    if (result.cut) {
+      this.log('warn', '回复里出现了模仿聊天记录格式的编造内容，已截掉 ' + (text.length - result.text.length) + ' 字: ' + chatId)
+    }
+    return result.text
   }
 
   /** The wake-up text of one proactive check-in. */

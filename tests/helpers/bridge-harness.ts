@@ -206,6 +206,10 @@ export async function makeCmdHarness(opts?: {
   trace?: TraceSink
   /** T4 (P3): optional log capture for reference-number assertions. */
   log?: (level: string, message: string) => void
+  /** Group access (absent = open). The array is used as-is, so a test can
+   * mutate it like GroupAccess does. */
+  groupPolicy?: 'open' | 'allowlist' | 'disabled'
+  groupAllowFrom?: string[]
 }) {
   const ctx = new Context()
   const sessionIds: string[] = []
@@ -269,7 +273,7 @@ export async function makeCmdHarness(opts?: {
       ...(opts?.trace !== undefined ? { trace: opts.trace } : {}),
     },
     policy: {
-      dmPolicy: 'open', groupPolicy: 'open', allowFrom: [], groupAllowFrom: [],
+      dmPolicy: 'open', groupPolicy: opts?.groupPolicy ?? 'open', allowFrom: [], groupAllowFrom: opts?.groupAllowFrom ?? [],
       adminUsers: ['10001'], allowAllUsers: opts?.allowAllUsers ?? false, requireMention: true,
     },
     log: (level: string, message: string) => opts?.log?.(level, message),

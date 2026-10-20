@@ -1236,6 +1236,34 @@ export class ChatRegistry {
     void this.saveMapping()
   }
 
+  /** Every chat with a session: live ones and idle-evicted ones. */
+  knownChatIds(): ChatId[] {
+    return [...new Set([...this.chats.keys(), ...this.evictedChats.keys()])]
+  }
+
+  /**
+   * Retire a chat's session for good (e.g. a group that left the allowlist):
+   * a live chat is reset like /new; an idle-evicted one has its recorded
+   * session retired so it is never resumed. Either way the next message
+   * starts a fresh session (with the current preset). History stays on disk.
+   * @returns whether there was a session to retire.
+   */
+  async retireChat(chatId: ChatId): Promise<boolean> {
+    if (this.chats.has(chatId)) {
+      await this.resetChat(chatId)
+      return true
+    }
+    const evicted = this.evictedChats.get(chatId)
+    if (evicted === undefined) return false
+    this.retiredSessionIds.add(evicted.session)
+    void this.saveRetired()
+    this.recordSwitchable(chatId, evicted.session)
+    this.evictedChats.delete(chatId)
+    void this.saveMapping()
+    this.deps.log('info', 'retired idle chat ' + chatId + ' (session ' + evicted.session + ')')
+    return true
+  }
+
   /** Read the chat→session mapping file (for /id and /status when no live chat). */
   async sessionIdFromMapping(chatId: ChatId): Promise<string | undefined> {
     const file = joinMappingPath(this.deps.config.mediaDir)

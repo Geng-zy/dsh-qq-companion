@@ -62,6 +62,8 @@ export class GroupAccess implements GroupAccessLike {
   private added: string[] = []
   private removed: string[] = []
   private readonly writer: SerialFileWriter
+  /** Called after a group leaves the effective allowlist. */
+  onRemoved: ((groupId: string) => Promise<void>) | undefined
 
   constructor(options: {
     policy: { groupAllowFrom: readonly string[]; groupPolicy: AccessPolicyConfig['groupPolicy'] }
@@ -115,6 +117,13 @@ export class GroupAccess implements GroupAccessLike {
     if (this.configured.includes(groupId) && !this.removed.includes(groupId)) this.removed.push(groupId)
     this.apply()
     await this.save()
+    if (present && this.onRemoved !== undefined) {
+      try {
+        await this.onRemoved(groupId)
+      } catch (error) {
+        this.log('warn', '群 ' + groupId + ' 的旧会话退休失败: ' + describeError(error))
+      }
+    }
     return present ? 'removed' : 'absent'
   }
 
