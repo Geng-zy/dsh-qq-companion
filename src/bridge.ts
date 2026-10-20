@@ -141,7 +141,7 @@ export class ChatBridge {
       transcriber: deps.transcriber,
       tryHandleCommand: (chatId, text, userId, nickname) => this.tryHandleCommand(chatId, text, userId, nickname),
       buildBody: (text, media, chatId) => this.buildBody(text, media, chatId),
-      expandQuote: messageId => this.expandQuote(messageId),
+      expandQuote: (messageId, chatId) => this.expandQuote(messageId, chatId),
       dispatchFollowup: (chatId, text, role, nickname) => this.dispatchFollowup(chatId, text, role, nickname),
       interceptBusyTurn: (chatId, text, role, nickname, plain) => this.interceptBusyTurn(chatId, text, role, nickname, plain),
       sendToChat: (chatId, text) => this.sendToChat(chatId, text),
@@ -615,8 +615,8 @@ export class ChatBridge {
   }
 
   /** Expand a quoted (reply) message into [引用] text via get_msg. */
-  private expandQuote(messageId: string): Promise<string> {
-    return this.inbound.expandQuote(messageId)
+  private expandQuote(messageId: string, chatId: ChatId): Promise<string> {
+    return this.inbound.expandQuote(messageId, chatId)
   }
 
   // ------------------------------------------------------------ outbound

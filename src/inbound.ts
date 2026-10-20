@@ -15,7 +15,7 @@ import { extForInboundName } from './media.js'
 import type { Transcriber } from './stt.js'
 import { transcriptLabel } from './stt.js'
 import type { OneBotSegment, MediaRef } from './cq.js'
-import { cqUnescape, detectMention, parseMessage, segmentText } from './cq.js'
+import { cqUnescape, detectMention, parseMessage } from './cq.js'
 import type { AccessPolicyConfig, ChatId, UserRole } from './chat.js'
 import {
   buildChatId, buildGroupMessagePrefix, classifyUserRole, dmAllowed, groupAllowed,
@@ -152,7 +152,7 @@ export interface InboundContext {
   /** Message body assembly (bridge facade: overridable, see the pipeline-order test). */
   buildBody(text: string, media: MediaRef[], chatId: ChatId): Promise<string>
   /** Quote (reply) expansion (bridge facade: overridable, see the pipeline-order test). */
-  expandQuote(messageId: string): Promise<string>
+  expandQuote(messageId: string, chatId: ChatId): Promise<string>
   /** Turn dispatch — bridge-owned orchestration (ensureChat + per-turn prefixes). */
   dispatchFollowup(chatId: ChatId, text: string, role: UserRole, nickname?: string): Promise<void>
   /** busy-turn policy seam — invoked for every non-command message
@@ -291,7 +291,7 @@ export class InboundPipeline {
 
     let quote = ''
     if (inbound.replyId !== undefined) {
-      quote = await this.ctx.expandQuote(inbound.replyId)
+      quote = await this.ctx.expandQuote(inbound.replyId, chatId)
     }
     let forward = ''
     if (inbound.forwardId !== undefined) {
@@ -513,25 +513,47 @@ export class InboundPipeline {
     }
   }
 
-  /** Expand a quoted (reply) message into [引用] text via get_msg. */
-  async expandQuote(messageId: string): Promise<string> {
+  /**
+   * Expand a quoted (reply) message into [引用] text via get_msg. The quoted
+   * message goes through the same media path as a direct one: images are
+   * fetched (she can look at them), voice is transcribed, videos and files
+   * are fetched, and a quoted merged forward (聊天记录) is expanded. A quote
+   * never changes the /ocr target.
+   */
+  async expandQuote(messageId: string, chatId?: ChatId): Promise<string> {
+    let data: { message?: unknown; raw_message?: string; sender?: { nickname?: string } }
     try {
-      const data = await this.ctx.call('get_msg', { message_id: Number(messageId) }) as {
-        message?: unknown
-        raw_message?: string
-        sender?: { nickname?: string }
-      }
-      const segments = Array.isArray(data.message) ? data.message as OneBotSegment[] : undefined
-      const raw = typeof data.raw_message === 'string' ? data.raw_message : ''
-      const text = cqUnescape(segmentText(segments, raw))
-      if (text.trim() === '') return ''
-      const name = data.sender?.nickname ?? ''
-      return '[引用]' + (name !== '' ? name + ': ' : '') + text
+      data = await this.ctx.call('get_msg', { message_id: Number(messageId) }) as typeof data
     } catch (error) {
       this.ctx.log('debug', 'quote expansion failed: ' + describeError(error))
       currentTrace()?.emit('quote', { ok: false, reason: '引用消息展开失败，已降级为空引用: ' + describeError(error) })
       return ''
     }
+    const segments = Array.isArray(data?.message) ? data.message as OneBotSegment[] : undefined
+    const raw = typeof data?.raw_message === 'string' ? data.raw_message : ''
+    const parsed = parseMessage(segments, raw)
+    let text = cqUnescape(parsed.text)
+    let forward = ''
+    if (chatId !== undefined) {
+      const settings = this.ctx.getSettings(chatId)
+      const ocrTarget = { lastImagePath: settings.lastImagePath, pendingImageRef: settings.pendingImageRef }
+      try {
+        if (parsed.media.length > 0) text = await this.ctx.buildBody(text, parsed.media, chatId)
+        if (parsed.forwardId !== undefined) {
+          const expansion = await this.expandForward(parsed.forwardId)
+          forward = expansion.media.length > 0 ? await this.ctx.buildBody(expansion.text, expansion.media, chatId) : expansion.text
+          // the expansion carries its own [合并转发] heading
+          text = text.replace('[合并转发]', '').trim()
+        }
+      } finally {
+        settings.lastImagePath = ocrTarget.lastImagePath
+        settings.pendingImageRef = ocrTarget.pendingImageRef
+      }
+    }
+    const body = [text, forward].filter(part => part.trim() !== '').join('\n')
+    if (body === '') return ''
+    const name = data?.sender?.nickname ?? ''
+    return '[引用]' + (name !== '' ? name + ': ' : '') + body
   }
 
   /**
