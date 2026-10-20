@@ -9,7 +9,7 @@ import type { LlmModelInfo, LlmProviderInfo } from '@deepseek-ai/dsh-llm'
 import type { Session, SessionEvent, SessionId, SessionStore } from '@deepseek-ai/dsh-session'
 
 import type { AccessPolicyConfig } from './chat.js'
-import type { ChatActivity, ScheduledPrompt } from './companion/index.js'
+import type { ChatActivity, ScheduledPrompt, StickerLibrary } from './companion/index.js'
 import type { OneBotConnection } from './connection.js'
 import type { GroupAccessLike } from './groups.js'
 import type { MediaStore } from './media.js'
@@ -215,6 +215,8 @@ export interface BridgeDeps {
   typingPacer?: { wait(text: string): Promise<void> }
   /** per-chat activity (idle reset, handoff recap, diary input). */
   activity?: ChatActivity
+  /** Her sticker library (absent = no sticker tools). */
+  stickers?: StickerLibrary
   /** proactive wake-ups (for /task listing and run-now). */
   proactive?: { remaining(): string[]; fireNow(): Promise<void> }
   /** Resolves once the host's boot-time configuration (the loader service) is

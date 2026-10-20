@@ -15,6 +15,7 @@ export interface CompanionStatusDeps {
   sendCounter?: () => SendCounterSnapshot
   scheduler?: () => Array<{ id: string; time: string; firedToday: boolean }>
   proactive?: () => { remaining: string[]; firedToday: number }
+  stickers?: () => { count: number; maxCount: number; today: number; dailyMax: number }
   /** Memory files to size; `max` (bytes) renders a percentage. */
   memoryFiles?: Array<{ label: string; path: string; max?: number }>
   /** Root of per-group memory dirs. */
@@ -63,6 +64,8 @@ export async function companionStatusLines(deps: CompanionStatusDeps): Promise<s
   if (p !== undefined) {
     lines.push('主动聊天：今天已叫醒 ' + p.firedToday + ' 次，还剩 ' + (p.remaining.length > 0 ? p.remaining.join('、') : '无'))
   }
+  const st = deps.stickers?.()
+  if (st !== undefined) lines.push('表情包：' + st.count + '/' + st.maxCount + ' 张 · 今天新存 ' + st.today + '/' + st.dailyMax + ' 张')
   const files: string[] = []
   for (const f of deps.memoryFiles ?? []) {
     if (f.path !== '') files.push(sized(f.label, await size(f.path), f.max))

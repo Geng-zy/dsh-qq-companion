@@ -39,6 +39,7 @@
 | `/task` | 列出定时任务和今天剩余的主动聊天时间；`/task <id>`、`/task checkin` 立刻执行 |
 | `/doctor` 陪伴状态 | QQ 账号是否真在线、定时任务今天执行没有、主动聊天计划、每个记忆文件占上限多少 |
 | 设置页 | 陪伴、记忆与会话、主动聊天三组配置都能在 dsh 网页的设置里改 |
+| 表情包库 | 她把收到的表情包、照片存进自己的库（带标签），聊天时按情绪找一张发出去，每次回复最多 1 张；改和删只有主人能让她做 |
 | 防风控 | 所有消息按真人打字速度发（整个小号同一时间只打一条）、群里不拆句；`/doctor` 显示发送量 |
 
 ## 安装
@@ -183,7 +184,8 @@ npm run docs:config                # 改了配置项后重新生成 docs/CONFIG.
 | `src/bridge.ts` / `src/registry.ts` / `src/session-ledger.ts` | QQ 会话 ↔ dsh 会话；会话映射、恢复、切换；退休会话和可切回列表 |
 | `src/inbound.ts` / `src/outbound.ts` / `src/interim.ts` | 收消息（权限、媒体、引用）；发消息（拆句、打字节奏、离线补发）；中间消息 |
 | `src/commands.ts` / `src/commands/` | 斜杠命令表和各命令 |
-| `src/companion/` | 陪伴功能：换新会话、记忆、定时任务、主动聊天、打字节奏、/doctor 陪伴状态 |
+| `src/companion/` | 陪伴功能：换新会话、记忆、定时任务、主动聊天、打字节奏、表情包库、/doctor 陪伴状态 |
+| `src/sticker-tools.ts` | 表情包的存、搜、发、改、删工具 |
 | `src/t2i/` | 长回复转图片卡片（解析、排版、绘制、字体） |
 | `src/stt.ts` | 语音转写 |
 | `src/connection.ts` / `src/liveness.ts` | OneBot 连接；QQ 在线监视 |

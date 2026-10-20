@@ -22,6 +22,8 @@ export interface MediaRef {
   fileId?: string
   name?: string
   subType?: string
+  /** A QQ sticker (表情包 / 商城表情), not a photo or screenshot. */
+  sticker?: boolean
 }
 
 /** A fully parsed inbound message. */
@@ -185,13 +187,11 @@ export function parseMessage(segments: OneBotSegment[] | undefined, raw: string)
   let forwardId: string | undefined
 
   const appendImage = (data: Record<string, string>): void => {
+    // NapCat sends sub_type as a number (1 = sticker), CQ strings as text.
     const subType = data.sub_type ?? data['sub-type']
-    if (subType === '1') {
-      textParts.push('[表情包]')
-      return
-    }
-    media.push({ kind: 'image', url: data.url || undefined, file: data.file || undefined, subType })
-    textParts.push('[图片]')
+    const sticker = String(subType ?? '') === '1'
+    media.push({ kind: 'image', url: data.url || undefined, file: data.file || undefined, subType: subType === undefined ? undefined : String(subType), ...(sticker ? { sticker: true } : {}) })
+    textParts.push(sticker ? '[表情包]' : '[图片]')
   }
 
   const list = segments !== undefined && segments.length > 0 ? segments : parseCqString(raw)
@@ -243,6 +243,16 @@ export function parseMessage(segments: OneBotSegment[] | undefined, raw: string)
         if (seg.data.id !== undefined || seg.data.resId !== undefined) {
           forwardId = seg.data.id ?? seg.data.resId
           textParts.push('[合并转发]')
+        }
+        break
+      case 'mface':
+        // QQ 商城表情: fetched like a sticker when the implementation gives a
+        // URL; otherwise only its name (e.g. [狗头]) is known.
+        if (typeof seg.data.url === 'string' && seg.data.url !== '') {
+          media.push({ kind: 'image', url: seg.data.url, sticker: true })
+          textParts.push('[表情包]')
+        } else {
+          textParts.push(seg.data.summary ? String(seg.data.summary) : '[表情包]')
         }
         break
       case 'json':

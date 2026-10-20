@@ -30,6 +30,7 @@ import { OutboundPipeline, type OutboundSegment, type SendOptions } from './outb
 import { buildPlatformPrompt } from './prompt.js'
 import { FailureRefRegistry, failureRefSuffix, type FailureRefKind } from './ref.js'
 import { ChatRegistry, type ChatAgent } from './registry.js'
+import { registerStickerTools } from './sticker-tools.js'
 import { registerMemoryNoteTool, registerTools } from './tools.js'
 import { currentTrace, newTraceId, runWithTrace, TRACE_REASONS, type TraceScope, type TraceStage } from './trace.js'
 
@@ -84,6 +85,9 @@ export class ChatBridge {
    * running turn (one notice per turn; cleared at turn/end and on chat
    * removal — bounded by the chat population). */
   private readonly queueNoticeChats = new Set<ChatId>()
+  /** chats that already sent their one sticker in the running turn
+   * (cleared at turn/start and on chat removal). */
+  private readonly stickerSentChats = new Set<string>()
   private stopping = false
 
   /** companion behavior (session renewal, pass marker, wake-up texts). */
@@ -105,6 +109,7 @@ export class ChatBridge {
         this.stopTyping(chat)
         this.traceByChat.delete(chat.chatId)
         this.queueNoticeChats.delete(chat.chatId)
+        this.stickerSentChats.delete(chat.chatId)
       },
       installChannelScope: agentCtx => this.installChannelScope(agentCtx),
       isAdminPrivate: chatId => this.isAdminPrivate(chatId),
@@ -226,6 +231,13 @@ export class ChatBridge {
     // disarm the deferred silent-wait timers（pending 条目已落盘，
     // 重启后 loadPersisted 恢复跟踪续投）。
     this.deferred.stopAll()
+  }
+
+  /** One sticker per reply: claim the running turn's slot for a chat. */
+  takeStickerSlot(chatId: string): boolean {
+    if (this.stickerSentChats.has(chatId)) return false
+    this.stickerSentChats.add(chatId)
+    return true
   }
 
   /** Map an agent session id back to its chat (for model tools). */
@@ -700,6 +712,7 @@ export class ChatBridge {
       chat.activeTurnRole = chat.pendingTurnRoles.shift() ?? 'member'
       chat.lastActivityAt = Date.now()
       chat.busy = true
+      this.stickerSentChats.delete(chatId)
       // arm the deferred silent-wait window for this turn（每次模型
       // 输出重置；turn/end 解除；deferredTimeoutMs<=0 时为 no-op）。
       this.deferred.onTurnStart(chatId, session.id)
@@ -884,6 +897,7 @@ export class ChatBridge {
     })
     const writeNote = this.companion.memoryNoteWriter()
     if (writeNote !== undefined) registerMemoryNoteTool(agentCtx, this, writeNote)
+    if (this.deps.stickers !== undefined) registerStickerTools(agentCtx, this, this.deps.stickers)
   }
 
   // ------------------------------------------------------------ typing

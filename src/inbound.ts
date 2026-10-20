@@ -471,7 +471,7 @@ export class InboundPipeline {
         const settings = this.ctx.getSettings(chatId)
         settings.lastImagePath = resolved.path
         settings.pendingImageRef = undefined
-        return '[图片:' + resolved.path + ']'
+        return (ref.sticker === true ? '[表情包:' : '[图片:') + resolved.path + ']'
       }
       case 'voice':
         // The message waits for its transcript (a couple of seconds), so
@@ -695,7 +695,7 @@ export class InboundPipeline {
 /** The placeholder a media ref contributes to the parsed text. */
 function placeholderFor(ref: MediaRef): string {
   switch (ref.kind) {
-    case 'image': return '[图片]'
+    case 'image': return ref.sticker === true ? '[表情包]' : '[图片]'
     case 'voice': return '[语音]'
     case 'video': return '[视频]'
     default: return ref.name !== undefined ? '[文件:' + ref.name + ']' : '[文件]'

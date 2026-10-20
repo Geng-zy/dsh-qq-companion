@@ -69,6 +69,10 @@
 | `publicMemoryMaxBytes` | number | `6144` | 公开记忆文件达到这个大小（字节）后 qq_memory_note 不再追加 |
 | `groupMemoryDir` | string | `""` | 每个群一份记忆的根目录；留空=所有群共用 publicMemoryFile |
 | `groupMemoryMaxBytes` | number | `8192` | 每个群的记忆文件达到这个大小（字节）后 qq_memory_note 不再追加 |
+| `stickerDir` | string | `""` | 表情包库目录（图片和 index.json 放在这里）；留空 = 不开表情包功能（没有存/搜/发表情包的工具） |
+| `stickerMaxCount` | number | `300` | 表情包库最多存多少张；满了要先删再存 |
+| `stickerMaxBytes` | number | `1048576` | 一张表情包的最大字节数 |
+| `stickerDailyMax` | number | `20` | 每天最多新存多少张（控制她看图打标签的花费；合并到已有表情包不算） |
 | `privateResetDays` | number | `0` | 私聊会话跨过这么多个凌晨 4 点后，下一条消息开新会话（附交接；0=关闭） |
 | `groupResetDays` | number | `0` | 群聊会话跨过这么多个凌晨 4 点后，下一条消息开新会话（附交接；0=关闭） |
 | `proactiveEnabled` | boolean | `false` | 每天在时段内随机叫醒机器人几次，让它决定要不要主动找管理员 |

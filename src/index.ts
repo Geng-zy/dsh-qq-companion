@@ -11,7 +11,7 @@
 
 import { selfCheck } from './selfcheck.js'
 import { QqLiveness } from './liveness.js'
-import { ChatActivity, DailyScheduler, NoteCounter, ProactiveScheduler, SendCounter, TypingPacer, companionStatusLines, setDefaultNoteCounter } from './companion/index.js'
+import { ChatActivity, DailyScheduler, NoteCounter, ProactiveScheduler, SendCounter, StickerLibrary, TypingPacer, companionStatusLines, setDefaultNoteCounter } from './companion/index.js'
 import { GroupAccess, handleGroupEvent } from './groups.js'
 import type { Context as CordisContext } from '@deepseek-ai/cordis'
 import type SystemPrompt from '@deepseek-ai/dsh-system-prompt'
@@ -138,6 +138,10 @@ export function apply(ctx: Context, config: Config): void {
   // Counts what the account sends (shown by /doctor).
   const sendCounter = new SendCounter()
   const typingPacer = new TypingPacer({ config: { perCharMs: config.typingDelayPerCharMs, minMs: config.typingDelayMinMs, maxMs: config.typingDelayMaxMs } })
+  // Her sticker library (off when no directory is configured).
+  const stickers = config.stickerDir !== ''
+    ? new StickerLibrary({ dir: config.stickerDir, maxCount: config.stickerMaxCount, maxBytes: config.stickerMaxBytes, dailyMax: config.stickerDailyMax, log })
+    : undefined
   // Per-day memory-note counts survive restarts.
   const noteCounter = new NoteCounter(join(mediaDir, 'note-counts.json'), log)
   setDefaultNoteCounter(noteCounter)
@@ -249,6 +253,7 @@ export function apply(ctx: Context, config: Config): void {
     policy,
     groupAccess,
     activity,
+    ...(stickers !== undefined ? { stickers } : {}),
     ...(config.proactiveEnabled ? { proactive: proactiveHandle } : {}),
     sendCounter,
     typingPacer,
@@ -257,6 +262,7 @@ export function apply(ctx: Context, config: Config): void {
       liveness: () => liveness.snapshot(),
       scheduler: () => scheduler.snapshot(),
       ...(proactiveRef !== undefined ? { proactive: () => proactiveRef!.snapshot() } : {}),
+      ...(stickers !== undefined ? { stickers: () => stickers.snapshot() } : {}),
       memoryFiles: [
         { label: '公开', path: config.publicMemoryFile, max: config.publicMemoryMaxBytes },
         ...(config.adminWorkspacePath !== '' ? [{ label: '私密', path: join(config.adminWorkspacePath, 'AGENTS.md') }] : []),
@@ -307,7 +313,7 @@ export function apply(ctx: Context, config: Config): void {
     bridge.start()
     // after start(): the mapping load it kicks off is what this waits for.
     void groupAccessLoaded.then(() => bridge.retireDisallowedGroups()).catch(error => log('warn', '清理不在白名单的群会话失败: ' + String(error)))
-    void Promise.all([activityLoaded, scheduler.load(), proactive?.load(), noteCounter.load()]).then(() => { scheduler.start(); proactive?.start() })
+    void Promise.all([activityLoaded, scheduler.load(), proactive?.load(), noteCounter.load(), stickers?.load()]).then(() => { scheduler.start(); proactive?.start() })
     liveness.start()
     connection.start()
     // QQ 平台说明与 qq_* 工具现按会话 agent 注入（见 ChatBridge.installChannelScope）

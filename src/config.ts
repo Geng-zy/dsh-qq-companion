@@ -89,6 +89,10 @@ export interface Config {
   publicMemoryMaxBytes: number
   groupMemoryDir: string
   groupMemoryMaxBytes: number
+  stickerDir: string
+  stickerMaxCount: number
+  stickerMaxBytes: number
+  stickerDailyMax: number
   privateResetDays: number
   groupResetDays: number
   proactiveEnabled: boolean
@@ -277,6 +281,14 @@ export const Config: Z<Config> = z.object({
     .description('每个群一份记忆的根目录；留空=所有群共用 publicMemoryFile'),
   groupMemoryMaxBytes: z.number().default(8 * 1024)
     .description('每个群的记忆文件达到这个大小（字节）后 qq_memory_note 不再追加'),
+  stickerDir: z.string().default('')
+    .description('表情包库目录（图片和 index.json 放在这里）；留空 = 不开表情包功能（没有存/搜/发表情包的工具）'),
+  stickerMaxCount: z.number().default(300)
+    .description('表情包库最多存多少张；满了要先删再存'),
+  stickerMaxBytes: z.number().default(1024 * 1024)
+    .description('一张表情包的最大字节数'),
+  stickerDailyMax: z.number().default(20)
+    .description('每天最多新存多少张（控制她看图打标签的花费；合并到已有表情包不算）'),
   privateResetDays: z.number().default(0)
     .description('私聊会话跨过这么多个凌晨 4 点后，下一条消息开新会话（附交接；0=关闭）'),
   groupResetDays: z.number().default(0)
