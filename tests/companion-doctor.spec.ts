@@ -57,7 +57,6 @@ describe('companion /doctor block', () => {
       transport: { host: '127.0.0.1', port: 1 },
       retryState: {},
       dedup: { entries: 0, windowSeconds: 300 },
-      writeGate: { minuteUsed: 0, minuteLimit: 1, dayUsed: 0, dayLimit: 1 },
       configSnapshot: {},
       log: () => undefined,
     }

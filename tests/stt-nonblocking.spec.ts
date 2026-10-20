@@ -46,6 +46,17 @@ function makePipelineCtx(transcribe: (path: string) => Promise<string>, steers: 
 }
 
 describe('STT non-blocking', () => {
+  it('with transcription off, a voice message fetches and converts nothing', async () => {
+    const ctx = makePipelineCtx(async () => 'x', [], [])
+    const resolve = vi.fn(async () => ({ kind: 'voice', path: '/tmp/v.mp3' }))
+    Object.assign(ctx, { transcriber: { enabled: false }, media: { resolve } })
+    const pipeline = new InboundPipeline(ctx)
+    const annotation = await pipeline.resolveMediaRef({ kind: 'voice', file: 'abc.amr', url: 'https://x/v.amr' }, 'private:10001')
+    expect(annotation).toBe('[语音]')
+    expect(ctx.call).not.toHaveBeenCalled()
+    expect(resolve).not.toHaveBeenCalled()
+  })
+
   it('returns the [语音] placeholder immediately and steers the transcript when ready', async () => {
     const slow = deferred<string>()
     const steers: Array<{ chatId: ChatId; text: string }> = []

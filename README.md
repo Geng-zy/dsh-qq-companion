@@ -129,7 +129,7 @@ sudo apt install fonts-noto-cjk fonts-wqy-zenhei fonts-noto-color-emoji fonts-de
 | `ownerTitle` | `管理员` | 系统提示和通知里对管理员的称呼 |
 | `splitLines` | `false` | 最终回复按行拆成多条消息 |
 | `splitMaxMessages` | `6` | 最多拆几条；行数超过就整段发 |
-| `typingDelayPerCharMs` / `typingDelayMinMs` / `typingDelayMaxMs` | `80` / `500` / `2500` | 拆分发送时的打字停顿 |
+| `typingDelayPerCharMs` / `typingDelayMinMs` / `typingDelayMaxMs` | `80` / `500` / `2500` | 打字速度：开 `humanTypingPace` 时每条消息都按它等，关时只用在拆句的后续几行之间 |
 | `adminPreset` | 空 | 管理员私聊默认预设（`/preset` 覆盖优先） |
 | `adminPermission` | 空 | 管理员私聊每个新会话自动执行的宿主 `/permission` 预设 |
 | `adminWorkspacePath` | 空 | 管理员私聊的工作目录 |

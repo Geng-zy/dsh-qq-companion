@@ -334,7 +334,7 @@ describe('诊断组 — 6 个观测/调试布尔键的文案契约（中文标�
       expect(field.hint!.length).toBeGreaterThan(20) // 一句话「关掉会怎样」而非空占位
     }
     expect(diagnosticsGroup.fields.map((field) => field.label)).toEqual([
-      '主动写审计',
+      '工具发送审计',
       '决策追踪（trace）',
     ])
   })

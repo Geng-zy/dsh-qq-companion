@@ -71,6 +71,11 @@ if [ ! -x "$TSC" ]; then
   exit 1
 fi
 
+# Start from an empty lib/ so modules deleted from src/ leave nothing behind.
+# lib/client.js (the settings page, hand-written) is the one file kept.
+find lib -type f ! -path lib/client.js -delete 2>/dev/null || true
+find lib -mindepth 1 -type d -empty -delete 2>/dev/null || true
+
 echo "=== Compiling src → lib (tsc $("$TSC" --version), dsh install: $NODE_MODULES) ==="
 "$TSC" -p tsconfig.json
 

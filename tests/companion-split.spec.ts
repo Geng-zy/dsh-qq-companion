@@ -44,7 +44,7 @@ describe('typingDelayMs', () => {
 })
 
 describe('OutboundPipeline humanized sends', () => {
-  function makePipeline(config: Partial<{ splitLines: boolean; splitMaxMessages: number }> = {}) {
+  function makePipeline(config: Partial<{ splitLines: boolean; splitMaxMessages: number; humanTypingPace: boolean }> = {}) {
     const sent: Array<{ action: string; params: Record<string, unknown> }> = []
     const sleeps: number[] = []
     let nextId = 100
@@ -80,6 +80,14 @@ describe('OutboundPipeline humanized sends', () => {
     expect(ids).toEqual(['100', '101', '102'])
     // No pause before the first line; then length-based pauses.
     expect(h.sleeps).toEqual([typingDelayMs('是上班累还是心累呀', 80, 500, 2500), typingDelayMs('要不要一起点个宵夜', 80, 500, 2500)])
+  })
+
+  it('with humanTypingPace every line, the first included, waits its typing time', async () => {
+    const h = makePipeline({ splitLines: true, humanTypingPace: true })
+    await h.pipeline.sendToChat('private:10001', reply, final)
+    expect(h.texts()).toEqual(['呜 摸摸', '是上班累还是心累呀', '要不要一起点个宵夜'])
+    expect(h.sleeps).toHaveLength(3)
+    expect(h.sleeps[0]).toBe(typingDelayMs('呜 摸摸', 80, 500, 2500))
   })
 
   it('quotes the replied-to message on the first line only', async () => {

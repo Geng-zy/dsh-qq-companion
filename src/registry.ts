@@ -12,19 +12,24 @@ import { installModelSelection } from '@deepseek-ai/dsh-agent'
 import type { SessionId } from '@deepseek-ai/dsh-session'
 import { SessionId as makeSessionId } from '@deepseek-ai/dsh-session'
 import { readFile } from 'node:fs/promises'
+import { join } from 'node:path'
+
+import type { SessionReadHandleLike } from './bridge-types.js'
+import type { ChatId } from './chat.js'
+import { sessionIdForChat } from './chat.js'
+import { ensureGroupMemory, groupMemoryPaths } from './companion/index.js'
+import { describeError } from './errors.js'
 import { SerialFileWriter } from './persist.js'
 import { SessionLedger } from './session-ledger.js'
 import type { SwitchableSession } from './session-ledger.js'
 
-import { ensureGroupMemory, groupMemoryPaths } from './companion/index.js'
-import type { ChatId } from './chat.js'
-import { sessionIdForChat } from './chat.js'
-import type { SessionReadHandleLike } from './bridge.js'
-import { describeError } from './errors.js'
-
 export * from './registry-types.js'
 export type { SwitchableSession } from './session-ledger.js'
 import { ChatAgent, ChatSettings, MAPPING_FILE, PersistedChatSettings, RegistryDeps, SessionSwitchOutcome, persistEntry, resolveRecordedPreset } from './registry-types.js'
+
+/** File under mediaDir holding the per-chat /preset overrides. */
+const PRESETS_FILE = 'preset-overrides.json'
+type AgentHandle = { agent: Agent; dispose(): Promise<void> }
 
 /**
  * The chat↔session registry: dual index, persistence pair, per-chat settings
@@ -105,11 +110,10 @@ export class ChatRegistry {
   /** the ChatAgent literal shared by the create and resume assembly
    * paths — every field starts at its neutral initial value. `nickname` is
    * the one deliberate divergence between the callers (create seeds it from
-   * the inbound message, resume starts with ''); pinned by
-   * the characterization tests in bridge.spec.ts. */
+   * the inbound message, resume starts with ''). */
   private createChatAgent(
     chatId: ChatId,
-    handle: { agent: Agent; dispose(): Promise<void> },
+    handle: AgentHandle,
     selectionRef: ModelSelectionRef | undefined,
     nickname: string,
   ): ChatAgent {
@@ -174,13 +178,13 @@ export class ChatRegistry {
         // mapping entry as a settings carrier after /new or a /workspace
         // switch). Resuming it would resurrect retired history — skip the
         // resume, keep the settings, and fall through to a fresh create.
-        this.restoreEvictedSettings(chatId, evicted)
+        this.restoreSettings(chatId, evicted)
         this.evictedChats.delete(chatId)
       } else {
         try {
           const resumed = await this.resumeChat(chatId, evicted.session)
           // the evicted chat's persisted mode/goal/workspace come back with it.
-          this.restoreEvictedSettings(chatId, evicted)
+          this.restoreSettings(chatId, evicted)
           this.evictedChats.delete(chatId)
           return resumed
         } catch (error) {
@@ -190,7 +194,7 @@ export class ChatRegistry {
           // settings: restore them onto chatSettings so the fresh create
           // below keys them in (and, if that create also fails, saveMapping's
           // settings-only fallback keeps writing them under the derived bare id).
-          this.restoreEvictedSettings(chatId, evicted)
+          this.restoreSettings(chatId, evicted)
           this.evictedChats.delete(chatId)
           this.deps.log('warn', 'resume of evicted session failed for ' + chatId + '; falling back to a fresh session: ' + describeError(error))
         }
@@ -223,7 +227,7 @@ export class ChatRegistry {
     // back to config.agentPreset, so a /preset override was written to the
     // header but the agent still got the configured preset's tools.
     const setup = this.buildSetup(selectionRef, presetId)
-    let handle: { agent: Agent; dispose(): Promise<void> }
+    let handle: AgentHandle
     try {
       handle = await this.deps.agents.create({
         sessionId,
@@ -252,18 +256,7 @@ export class ChatRegistry {
     const actualSessionId = handle.agent.session.id
     await this.attachToWorkspace(actualSessionId, handle.agent.session.header?.cwd)
     const chat = this.createChatAgent(chatId, handle, selectionRef, nickname)
-    try {
-      await handle.agent.whenIdle()
-    } catch (error) {
-      // create succeeded but the first idle wait failed — dispose the
-      // orphan agent instead of leaking it.
-      try {
-        await handle.dispose()
-      } catch {
-        // the whenIdle failure is the cause; a dispose failure must not mask it
-      }
-      throw error
-    }
+    await this.settle(handle)
     this.chats.set(chatId, chat)
     if (this.deps.onSessionCreated !== undefined) {
       try {
@@ -278,14 +271,59 @@ export class ChatRegistry {
     return chat
   }
 
-  /** apply the persisted-settings snapshot (mode/goal/workspace override)
-   * of an evicted or reset chat onto its settings entry — shared by the
-   * evicted-resume path and its retired-session fast path. */
-  private restoreEvictedSettings(chatId: ChatId, evicted: PersistedChatSettings): void {
+  /** apply a persisted-settings snapshot (mode/goal/workspace override)
+   * onto a chat's settings entry — used for mapping entries read from disk
+   * and for the snapshots of evicted / reset chats. */
+  private restoreSettings(chatId: ChatId, entry: Partial<PersistedChatSettings>): void {
     const settings = this.getSettings(chatId)
-    if (evicted.interimOverride !== undefined) settings.interimOverride = evicted.interimOverride
-    if (evicted.goal !== undefined) settings.goal = evicted.goal
-    if (evicted.workspacePath !== undefined && evicted.workspacePath !== '') settings.workspacePath = evicted.workspacePath
+    if (typeof entry.interimOverride === 'boolean') settings.interimOverride = entry.interimOverride
+    if (typeof entry.goal === 'string' && entry.goal !== '') settings.goal = entry.goal
+    if (typeof entry.workspacePath === 'string' && entry.workspacePath !== '') settings.workspacePath = entry.workspacePath
+  }
+
+  /** The persisted-settings snapshot of a chat under one session id: the
+   * live settings win, `known` (an earlier snapshot) fills the gaps. */
+  private settingsSnapshot(chatId: ChatId, session: string, known?: PersistedChatSettings): PersistedChatSettings {
+    const live = this.chatSettings.get(chatId)
+    return {
+      session,
+      interimOverride: live?.interimOverride ?? known?.interimOverride,
+      goal: live?.goal ?? known?.goal,
+      workspacePath: live?.workspacePath ?? known?.workspacePath,
+    }
+  }
+
+  /** Wait for a fresh agent to settle; when that fails, dispose it (no
+   * orphan agent) and rethrow the original error. */
+  private async settle(handle: AgentHandle): Promise<void> {
+    try {
+      await handle.agent.whenIdle()
+    } catch (error) {
+      try {
+        await handle.dispose()
+      } catch {
+        // the whenIdle failure is the cause; a dispose failure must not mask it
+      }
+      throw error
+    }
+  }
+
+  /** Take a chat out of the live indexes: typing stopped, interim recall
+   * timers cleared. The agent itself is disposed by the caller. */
+  private detachChat(chat: ChatAgent): void {
+    this.deps.onChatRemoved(chat)
+    this.clearInterimTimers(chat)
+    this.chats.delete(chat.chatId)
+    this.bySession.delete(chat.sessionId)
+  }
+
+  /** Dispose a detached chat's agent; a failure only logs. */
+  private async disposeChat(chat: ChatAgent, what: string): Promise<void> {
+    try {
+      await chat.dispose()
+    } catch (error) {
+      this.deps.log('warn', what + ' dispose failed: ' + describeError(error))
+    }
   }
 
   /** Resume persisted chats from the mapping file (best-effort). */
@@ -304,16 +342,11 @@ export class ChatRegistry {
         // their current defaults). restoring the override first closes the
         // hole where a failed resume (retire → fresh session) lost the
         // per-chat /workspace choice.
-        if (typeof entry === 'object' && entry !== null) {
-          const settings = this.getSettings(chatId)
-          if (typeof entry.interimOverride === 'boolean') settings.interimOverride = entry.interimOverride
-          if (typeof entry.goal === 'string' && entry.goal !== '') settings.goal = entry.goal
-          if (typeof entry.workspacePath === 'string' && entry.workspacePath !== '') settings.workspacePath = entry.workspacePath
-        }
+        if (typeof entry === 'object' && entry !== null) this.restoreSettings(chatId as ChatId, entry)
         // a durably retired session id (recorded by resetChat's settings
         // snapshot) must never be resumed — the entry only carries the
-        // settings for the chat's NEXT session. (review closure): keep
-        // the object entry in evictedChats so any mid-flight saveMapping
+        // settings for the chat's NEXT session. Keep the object entry in
+        // evictedChats so any mid-flight saveMapping
         // (stop(), another chat's createChat) still writes it — a
         // settings-only chat sits in neither chats nor evictedChats, and one
         // dropped save would erase workspacePath/goal/mode from the file
@@ -367,29 +400,17 @@ export class ChatRegistry {
       this.deps.log('debug', 'workspace override restored for ' + chatId + ': ' + headerCwd)
     }
     const chat = this.createChatAgent(chatId, handle, selectionRef, '')
-    try {
-      await handle.agent.whenIdle()
-    } catch (error) {
-      // same orphan rule as the create path — dispose before rethrowing.
-      try {
-        await handle.dispose()
-      } catch {
-        // the whenIdle failure is the cause
-      }
-      throw error
-    }
+    await this.settle(handle)
     this.chats.set(chatId, chat)
     this.bySession.set(handle.agent.session.id, chatId)
     return chat
   }
 
   private mappingPath(): string {
-    return this.deps.config.mediaDir.endsWith('/') || this.deps.config.mediaDir.endsWith('\\')
-      ? this.deps.config.mediaDir + MAPPING_FILE
-      : this.deps.config.mediaDir + '/' + MAPPING_FILE
+    return join(this.deps.config.mediaDir, MAPPING_FILE)
   }
 
-  /** (hole C): make a just-set /workspace override durable even when the
+  /** Make a just-set /workspace override durable even when the
    * chat is not live (before its first message, or after a failed resume).
    * saveMapping covers chats/evictedChats plus a settings-only
    * fallback, so the settings survive either way — the snapshot still pins
@@ -400,17 +421,10 @@ export class ChatRegistry {
    * chat: the normal save path covers it. */
   noteWorkspaceOverride(chatId: ChatId): void {
     if (this.chats.has(chatId)) return
-    const settings = this.chatSettings.get(chatId)
-    if (settings === undefined) return
-    const workspacePath = settings.workspacePath
+    const workspacePath = this.chatSettings.get(chatId)?.workspacePath
     if (workspacePath === undefined || workspacePath === '') return
     const known = this.evictedChats.get(chatId)
-    this.evictedChats.set(chatId, {
-      session: known?.session ?? makeSessionId(sessionIdForChat(chatId)),
-      interimOverride: settings.interimOverride ?? known?.interimOverride,
-      goal: settings.goal ?? known?.goal,
-      workspacePath,
-    })
+    this.evictedChats.set(chatId, this.settingsSnapshot(chatId, known?.session ?? makeSessionId(sessionIdForChat(chatId)), known))
   }
 
   /** Lazily created serialized writers (deps are assigned in the constructor). */
@@ -437,8 +451,8 @@ export class ChatRegistry {
       // /mode, /goal or /workspace changes on a not-yet-resumed chat must
       // reach the file (union semantics: a field kept in only one of the
       // two places still survives).
-      const live = this.chatSettings.get(chatId)
-      mapping[chatId] = persistEntry(evicted.session, live?.interimOverride ?? evicted.interimOverride, live?.goal ?? evicted.goal, live?.workspacePath ?? evicted.workspacePath)
+      const entry = this.settingsSnapshot(chatId, evicted.session, evicted)
+      mapping[chatId] = persistEntry(entry.session, entry.interimOverride, entry.goal, entry.workspacePath)
     }
     for (const chat of this.chats.values()) {
       const settings = this.chatSettings.get(chat.chatId)
@@ -489,26 +503,13 @@ export class ChatRegistry {
       this.deps.log('warn', 'idle-evict flush failed for ' + chatId + ' (keeping the chat): ' + String(error))
       return
     }
-    this.deps.onChatRemoved(chat)
-    this.clearInterimTimers(chat)
-    this.chats.delete(chatId)
-    this.bySession.delete(chat.sessionId)
+    this.detachChat(chat)
     // snapshot the persisted settings before the eviction clears them,
     // so saveMapping keeps writing the chat's mode/goal/workspace override
     // while it is idle.
-    const evictedSettings = this.chatSettings.get(chatId)
-    this.evictedChats.set(chatId, {
-      session: chat.sessionId,
-      interimOverride: evictedSettings?.interimOverride,
-      goal: evictedSettings?.goal,
-      workspacePath: evictedSettings?.workspacePath,
-    })
+    this.evictedChats.set(chatId, this.settingsSnapshot(chatId, chat.sessionId))
     this.chatSettings.delete(chatId)
-    try {
-      await chat.dispose()
-    } catch (error) {
-      this.deps.log('warn', 'idle-evict dispose failed: ' + String(error))
-    }
+    await this.disposeChat(chat, 'idle-evict')
     this.deps.log('info', 'evicted idle chat ' + chatId + ' (session ' + chat.sessionId + ' kept resumable)')
   }
 
@@ -535,13 +536,10 @@ export class ChatRegistry {
     return this.ledger.loadRetired()
   }
 
-
-
-  // ---------------------------------------------------- switchable history
+  // ---------------------------------------------------- presets & switchable history
 
   private presetsPath(): string {
-    const dir = this.deps.config.mediaDir
-    return (dir.endsWith('/') || dir.endsWith('\\') ? dir : dir + '/') + 'preset-overrides.json'
+    return join(this.deps.config.mediaDir, PRESETS_FILE)
   }
 
   /** Set (or clear with '') a chat's /preset override and persist it, so the
@@ -575,12 +573,10 @@ export class ChatRegistry {
     return this.ledger.loadSwitchable()
   }
 
-
   /** The chat's switchable retired sessions (a copy; newest first). */
   switchableSessions(chatId: ChatId): SwitchableSession[] {
     return this.ledger.switchable(chatId)
   }
-
 
   /**
    * /session <序号>: switch a chat back to one of its switchable (soft-retired)
@@ -613,17 +609,10 @@ export class ChatRegistry {
       // the live session as SOFT-retired (switchable, not broken) and record
       // it so the user can switch back later.
       this.snapshotRetainedSettings(chatId, chat.sessionId)
-      this.deps.onChatRemoved(chat)
-      this.clearInterimTimers(chat)
+      this.detachChat(chat)
       this.ledger.softRetire(chat.sessionId)
       this.ledger.recordSwitchable(chatId, chat.sessionId)
-      this.chats.delete(chatId)
-      this.bySession.delete(chat.sessionId)
-      try {
-        await chat.dispose()
-      } catch (error) {
-        this.deps.log('warn', 'session switch dispose failed: ' + describeError(error))
-      }
+      await this.disposeChat(chat, 'session switch')
     } else {
       // Chat not live (before its first message / after a failed resume):
       // carry the switch through the evictedChats carrier exactly like
@@ -632,14 +621,7 @@ export class ChatRegistry {
       // from the carrier. On resume failure below the carrier points at the
       // hard-retired target, which the evicted branch skips into a fresh
       // create with the settings intact.
-      const settings = this.chatSettings.get(chatId)
-      const known = this.evictedChats.get(chatId)
-      this.evictedChats.set(chatId, {
-        session: target,
-        interimOverride: settings?.interimOverride ?? known?.interimOverride,
-        goal: settings?.goal ?? known?.goal,
-        workspacePath: settings?.workspacePath ?? known?.workspacePath,
-      })
+      this.evictedChats.set(chatId, this.settingsSnapshot(chatId, target, this.evictedChats.get(chatId)))
     }
     try {
       await this.resumeChat(chatId, target)
@@ -662,24 +644,17 @@ export class ChatRegistry {
     return { ok: true, sessionId: target }
   }
 
-  /** (review closure): carry the chat's persisted settings across a
-   * reset or a collision heal — snapshot them into evictedChats under the
+  /** carry the chat's persisted settings across a reset, a session
+   * switch or a collision heal — snapshot them into evictedChats under the
    * (about-to-be-retired) session id, so the trailing saveMapping keeps the
    * entry instead of dropping the chat's workspace/goal/mode on a restart.
-   * Only persisted fields trigger the snapshot (a plain /new or heal keeps
-   * the old on-disk behavior: entry dropped); the recorded session
-   * id is retired by the caller, so the carrier is never resumed. Shared by
-   * resetChat and healSessionCollision — logic frozen to the original
-   * resetChat inline snapshot. */
+   * Only persisted fields trigger the snapshot (a plain /new or heal drops
+   * the entry); the recorded session id is retired by the caller, so the
+   * carrier is never resumed. */
   private snapshotRetainedSettings(chatId: ChatId, sessionId: string): void {
     const settings = this.chatSettings.get(chatId)
     if (settings?.interimOverride !== undefined || settings?.goal !== undefined || (settings?.workspacePath !== undefined && settings?.workspacePath !== '')) {
-      this.evictedChats.set(chatId, {
-        session: sessionId,
-        interimOverride: settings.interimOverride,
-        goal: settings.goal,
-        workspacePath: settings.workspacePath,
-      })
+      this.evictedChats.set(chatId, this.settingsSnapshot(chatId, sessionId))
     }
   }
 
@@ -691,23 +666,14 @@ export class ChatRegistry {
   async healSessionCollision(chatId: ChatId): Promise<void> {
     const chat = this.chats.get(chatId)
     if (chat === undefined) return
-    // (review closure): same settings carrier as resetChat — without
-    // the snapshot the trailing saveMapping drops the chat entirely (it sits
-    // in neither chats nor evictedChats), losing workspacePath/goal/mode on a
-    // restart before the next message. Only persisted fields trigger it.
+    // same settings carrier as resetChat (see snapshotRetainedSettings).
     this.snapshotRetainedSettings(chatId, chat.sessionId)
     this.ledger.retireBroken(chat.sessionId)
     // The bare derived id shares the chat's stale log; retire it too so the
     // next ensureChat can never pick it again in this run OR after a restart.
     this.ledger.retireBroken(sessionIdForChat(chatId))
-    this.chats.delete(chatId)
-    this.bySession.delete(chat.sessionId)
-    this.deps.onChatRemoved(chat)
-    try {
-      await chat.dispose()
-    } catch (error) {
-      this.deps.log('warn', 'collision heal dispose failed: ' + String(error))
-    }
+    this.detachChat(chat)
+    await this.disposeChat(chat, 'collision heal')
     this.deps.log('warn', 'healed session collision for ' + chatId + '; a fresh session will be created on next message')
     void this.saveMapping()
   }
@@ -748,7 +714,7 @@ export class ChatRegistry {
   async resolvePresetId(chatId: ChatId): Promise<string | undefined> {
     // A /preset override wins for this chat (survives /new, so the re-created
     // session registers the chosen preset in its header).
-    const override = chatId !== undefined ? this.getSettings(chatId).presetOverride : undefined
+    const override = this.getSettings(chatId).presetOverride
     if (override !== undefined && override !== '') return override
     const presets = this.deps.agentPresets
     if (presets === undefined) return undefined
@@ -876,17 +842,12 @@ export class ChatRegistry {
   async resetChat(chatId: ChatId): Promise<void> {
     const chat = this.chats.get(chatId)
     if (chat !== undefined) {
-      // (hole C): keep the mapping entry alive across the reset — without a
-      // snapshot the trailing saveMapping drops the chat entirely (it sits in
-      // neither chats nor evictedChats), losing the /workspace override (and
-      // mode/goal) on any restart before the next message. The retired session
-      // id is never resumed: createChat skips blocked snapshots and loadMapping
-      // skips durably retired ids. Only persisted fields trigger the snapshot —
-      // a plain /new keeps the old on-disk behavior (entry dropped).
-      // (review): the identical snapshot now also covers collision heals.
+      // keep the mapping entry alive across the reset (see
+      // snapshotRetainedSettings). The retired session id is never resumed:
+      // createChat skips blocked snapshots and loadMapping skips durably
+      // retired ids.
       this.snapshotRetainedSettings(chatId, chat.sessionId)
-      this.deps.onChatRemoved(chat)
-      this.clearInterimTimers(chat)
+      this.detachChat(chat)
       // SOFT retire (not brokenSessions): the old session's history is
       // intact, and /session must keep it switchable — the durable retired
       // record still keeps the id out of every create path (blocked union).
@@ -901,13 +862,7 @@ export class ChatRegistry {
       // chat's own first session broken and un-switchable for /session.
       const bareId = sessionIdForChat(chatId)
       if (bareId !== chat.sessionId) this.ledger.retireBroken(bareId)
-      this.chats.delete(chatId)
-      this.bySession.delete(chat.sessionId)
-      try {
-        await chat.dispose()
-      } catch (error) {
-        this.deps.log('warn', 'reset dispose failed: ' + describeError(error))
-      }
+      await this.disposeChat(chat, 'reset')
       this.deps.log('info', 'reset chat ' + chatId + ' (old session ' + chat.sessionId + ' retired)')
     }
     void this.saveMapping()
@@ -942,9 +897,8 @@ export class ChatRegistry {
 
   /** Read the chat→session mapping file (for /id and /status when no live chat). */
   async sessionIdFromMapping(chatId: ChatId): Promise<string | undefined> {
-    const file = joinMappingPath(this.deps.config.mediaDir)
     try {
-      const text = await readFile(file, 'utf8')
+      const text = await readFile(this.mappingPath(), 'utf8')
       const map = JSON.parse(text) as Record<string, string | PersistedChatSettings>
       const entry = map[chatId]
       const id = typeof entry === 'string' ? entry : entry?.session
@@ -968,23 +922,9 @@ export class ChatRegistry {
       this.mappingSaveTimer = undefined
     }
     await this.saveMapping()
-    for (const chat of this.chats.values()) {
-      this.deps.onChatRemoved(chat)
-      this.clearInterimTimers(chat)
-      try {
-        await chat.dispose()
-      } catch (error) {
-        this.deps.log('warn', 'agent dispose failed: ' + String(error))
-      }
+    for (const chat of [...this.chats.values()]) {
+      this.detachChat(chat)
+      await this.disposeChat(chat, 'agent')
     }
-    this.chats.clear()
-    this.bySession.clear()
   }
-}
-
-/** Join the mapping file name onto the media dir (no trailing-separator loss). */
-function joinMappingPath(mediaDir: string): string {
-  return mediaDir.endsWith('/') || mediaDir.endsWith('\\')
-    ? mediaDir + MAPPING_FILE
-    : mediaDir + '/' + MAPPING_FILE
 }

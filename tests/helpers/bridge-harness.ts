@@ -205,7 +205,7 @@ export async function makeCmdHarness(opts?: {
    * mutate it like GroupAccess does. */
   groupPolicy?: 'open' | 'allowlist' | 'disabled'
   groupAllowFrom?: string[]
-  /** Risk control wiring. */
+  /** Risk control wiring (a typingPacer also turns humanTypingPace on). */
   typingPacer?: { wait(text: string): Promise<void> }
   sendCounter?: { record(): void }
   splitLines?: boolean
@@ -273,6 +273,7 @@ export async function makeCmdHarness(opts?: {
       ...(opts?.trace !== undefined ? { trace: opts.trace } : {}),
       ...(opts?.splitLines !== undefined ? { splitLines: opts.splitLines, typingDelayMinMs: 0, typingDelayMaxMs: 0, typingDelayPerCharMs: 0 } : {}),
       ...(opts?.groupSplitLines !== undefined ? { groupSplitLines: opts.groupSplitLines } : {}),
+      ...(opts?.typingPacer !== undefined ? { humanTypingPace: true } : {}),
     },
     ...(opts?.typingPacer !== undefined ? { typingPacer: opts.typingPacer } : {}),
     ...(opts?.sendCounter !== undefined ? { sendCounter: opts.sendCounter } : {}),

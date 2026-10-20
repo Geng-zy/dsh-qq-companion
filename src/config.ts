@@ -25,7 +25,7 @@ export interface Config {
   unknownCommand: 'intercept' | 'passthrough'
   /** 任务运行中的新消息处理策略：queue=排队（默认）；steer=插话进当前任务。 */
   newMessagePolicy: 'queue' | 'steer'
-  /** (用户裁决 2026-10-12)：steer 模式下自动插话资格：admin=仅管理员（默认）；all=不限。 */
+  /** steer 模式下自动插话资格：admin=仅管理员（默认）；all=不限。 */
   autoSteerPolicy: 'admin' | 'all'
   /** 等待模型回复超时阈值（毫秒）——超时后登记补发跟踪、回合完成后向原聊天补发最终文字；0=关闭。 */
   deferredTimeoutMs: number
@@ -109,14 +109,10 @@ export interface Config {
   allowPrivateHosts: boolean
   /** inbound (chatId, message_id) dedup window in seconds; 0 disables. */
   dedupWindowSeconds: number
-  /** bridge-wide proactive-write (qq_send_* tools) cap per minute; 0 disables. */
-  actionRatePerMinute: number
-  /** bridge-wide proactive-write cap per calendar day; 0 disables. */
-  actionRatePerDay: number
-  /** proactive-write audit jsonl (mediaDir/qq-actions.log). */
+  /** tool-send audit jsonl (mediaDir/qq-actions.log). */
   actionAuditEnabled: boolean
-  /** decision-trace jsonl (mediaDir/qq-trace.jsonl); default off — zero
-   * file, zero behavior difference vs 0.6.0. */
+  /** decision-trace jsonl (mediaDir/qq-trace.jsonl); default off — no
+   * file, no behavior difference. */
   traceEnabled: boolean
   /** trace level; 'warn' records only ok:false (rejected/failed/dropped) events. */
   traceLevel: 'debug' | 'warn'
@@ -312,14 +308,10 @@ export const Config: Z<Config> = z.object({
     .description('会话空闲淘汰天数：chat 超过该天数无任何活动时，在下一条入站消息处理前清理其 agent（会话先落盘 flush、映射保留，之后同一 chat 的消息可 resume 恢复原会话）；0 = 禁用'),
   dedupWindowSeconds: z.number().default(300)
     .description('入站消息去重窗口（秒）：同一会话内相同 message_id 在该窗口内重投（断线重连重放等）只处理第一条，后续静默跳过并记 debug；仅对会触发回复处理的消息事件生效（notice/meta 类不经过此闸）；0 = 禁用去重'),
-  actionRatePerMinute: z.number().default(20)
-    .description('主动写操作每分钟全桥合计上限：约束 qq_send_image/voice/video/file/segments 与 qq_send_forward 等工具发起的主动发送（回合内的被动回复/interim/通知不受此闸，由 rateLimitPerMinute 与离线队列上限约束）；超限拒发并记 warn 与审计；0 = 禁用分钟限额'),
-  actionRatePerDay: z.number().default(500)
-    .description('主动写操作每日（本地自然日）全桥合计上限：口径同 actionRatePerMinute；超限拒发并记 warn 与审计，次日自动恢复；0 = 禁用日限额'),
   actionAuditEnabled: z.boolean().default(true)
-    .description('主动写审计：每次主动写（成功/失败）与拒发事件追加写一行 JSON 到 mediaDir/qq-actions.log（含 ts/chatId/action/ok/reason）；写失败仅 warn 不影响发送'),
+    .description('工具发送审计：她用 qq_send_image/voice/video/file/segments、qq_send_forward 等工具主动发出的每条消息（成功或失败）追加一行 JSON 到 mediaDir/qq-actions.log（含 ts/chatId/action/ok/reason）；写失败只记 warn，不影响发送'),
   traceEnabled: z.boolean().default(false)
-    .description('链路追踪：为每条入站消息生成 traceId 并贯穿入站→模型回合→出站，决策事件（含限流/去重/白名单/@ 门控/闸门拒发与每个静默丢弃分支的中文 reason）逐行 JSON 落盘 mediaDir/qq-trace.jsonl（4MiB 改名轮转，保留 qq-trace.1/2.jsonl；同一原因 5 分钟限频）；默认关闭——关闭时不生成 traceId、不落盘、决策行为与 0.6.0 完全一致'),
+    .description('链路追踪：为每条入站消息生成 traceId 并贯穿入站→模型回合→出站，决策事件（含限流/去重/白名单/@ 门控与每个静默丢弃分支的中文 reason）逐行 JSON 落盘 mediaDir/qq-trace.jsonl（4MiB 改名轮转，保留 qq-trace.1/2.jsonl；同一原因 5 分钟限频）；默认关闭——关闭时不生成 traceId、不落盘，行为与开启时完全一致'),
   traceLevel: z.union([z.const('debug'), z.const('warn')]).default('debug')
     .description('追踪事件级别：debug=记录全部决策事件；warn=仅记录 ok:false（被拒/失败/丢弃）事件'),
   logLevel: z.union([z.const('debug'), z.const('info'), z.const('warn'), z.const('error')]).default('info')

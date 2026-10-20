@@ -46,7 +46,6 @@ export interface HealthDeps {
   /** Dedup window snapshot. */
   dedup: { entries: number; windowSeconds: number }
   /** Write-gate snapshot. */
-  writeGate: { minuteUsed: number; minuteLimit: number; dayUsed: number; dayLimit: number }
   /** The already-redacted config snapshot (see redactSnapshot). */
   configSnapshot: Record<string, unknown>
   /** Secret VALUES to scrub from every packed artifact (e.g. accessToken). */
@@ -118,7 +117,6 @@ export async function healthReport(deps: HealthDeps): Promise<string> {
   lines.push('连接：' + conn + '（' + deps.transport.host + ':' + deps.transport.port + '，selfId=' + (deps.connection.selfId !== '' ? deps.connection.selfId : '未学习') + '）')
   lines.push('端口占用重试：' + (deps.retryState.reverseRetryAttempts ?? '未知') + ' 次')
   lines.push('去重窗口：' + deps.dedup.entries + ' 条在窗（dedupWindowSeconds=' + deps.dedup.windowSeconds + '）')
-  lines.push('写闸门：本分钟 ' + deps.writeGate.minuteUsed + '/' + deps.writeGate.minuteLimit + ' · 今日 ' + deps.writeGate.dayUsed + '/' + deps.writeGate.dayLimit)
   const files: string[] = []
   for (const [name, rotated] of [[TRACE_FILE, traceRotatedFile]] as const) {
     const size = await fileSize(join(deps.mediaDir, name))
@@ -241,8 +239,7 @@ export async function exportDiagnostics(deps: HealthDeps): Promise<string> {
   const stamp = new Date().toISOString().replace(/[-:]/g, '').replace('T', '-').slice(0, 15)
   // the file name carries the trigger reference (sanitized — the
   // command layer validates the format, this layer strips defensively) so the
-  // archive is bound to the fault being investigated. No reference = the
-  // 0.8.1-compatible name.
+  // archive is bound to the fault being investigated.
   const refStamp = (deps.triggerRef ?? '').replace(/[^A-Za-z0-9-]/g, '')
   const archive = join(deps.mediaDir, 'qq-diagnostics-' + stamp + (refStamp !== '' ? '-' + refStamp : '') + '.zip')
   await writeFile(archive, zip)

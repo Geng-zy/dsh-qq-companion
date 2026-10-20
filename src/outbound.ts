@@ -3,10 +3,8 @@
  * sendToChat (sensitive audit → [[qq_forward]] blocks → t2i card / plain
  * text), raw OneBot segment sends, merged forwards, and the offline
  * resend queue (per-chat FIFO, cap 20, TTL 5 min, drained on reconnect).
- * Extracted verbatim from bridge.ts — send order, queueing, TTL/cap and
- * fallback behavior are byte-identical; the bridge keeps same-name facade
- * methods so tools.ts, the command table and the interim domain (still
- * bridge-resident) keep working unchanged.
+ * Sends the model starts through the qq_* tools are written to the audit
+ * log (mediaDir/qq-actions.log).
  * @module dsh-qq-companion/outbound
  */
 import { appendFile, mkdir, readFile } from 'node:fs/promises'
@@ -16,7 +14,8 @@ import type { BridgeConfig } from './bridge.js'
 import type { ChatId } from './chat.js'
 import { splitChatId } from './chat.js'
 import { OneBotActionError, OneBotNotConnectedError } from './connection.js'
-import { DEFAULT_SPLIT_MAX_MESSAGES, extractForwardBlocks, scanSensitive, splitHumanMessages, stripMarkdown, typingDelayMs } from './split.js'
+import { DEFAULT_SPLIT_MAX_MESSAGES, extractForwardBlocks, scanSensitive, splitHumanMessages, stripMarkdown } from './split.js'
+import { DEFAULT_TYPING_DELAY_MAX_MS, DEFAULT_TYPING_DELAY_MIN_MS, DEFAULT_TYPING_DELAY_PER_CHAR_MS, TypingPacer } from './companion/typing-pace.js'
 import { renderTextImage } from './t2i/index.js'
 import { describeError } from './errors.js'
 import { SerialFileWriter } from './persist.js'
@@ -42,11 +41,6 @@ export interface SendOptions {
   humanize?: boolean
 }
 
-/** typing-pause defaults for split replies (milliseconds). */
-export const DEFAULT_TYPING_DELAY_PER_CHAR_MS = 80
-export const DEFAULT_TYPING_DELAY_MIN_MS = 500
-export const DEFAULT_TYPING_DELAY_MAX_MS = 2500
-
 /** Narrow view of a live chat the outbound pipeline may touch — the
  * structural subset of the bridge's ChatAgent the pipeline reads: the
  * nickname used as the t2i card title. Re-evaluated for the per-chat
@@ -68,15 +62,13 @@ export interface OutboundContext {
   connected(): boolean
   /** The connection's own QQ id (forward-node uin). */
   selfId(): string
-  /** Raw OneBot action invocation (send_msg / send_*_forward_msg). 
-   * the target chatId rides along when known so the bridge's inject dry-run
-   * guard can attribute the call to a chat's injected round. */
-  call(action: string, params: Record<string, unknown>, chatId?: ChatId): Promise<unknown>
+  /** Raw OneBot action invocation (send_msg / send_*_forward_msg). */
+  call(action: string, params: Record<string, unknown>): Promise<unknown>
   /** Bridge stop flag: the drain must never run while stopping. */
   isStopping(): boolean
   /** Called after each message went out (send counting for /doctor). */
   onSent?: (chatId: ChatId) => void
-  /** Account-wide human typing pace: every send waits its typing time. */
+  /** The account-wide typing pacer (absent = one built from the config). */
   typingPacer?: { wait(text: string): Promise<void> }
   /** Bridge log line callback. */
   log(level: 'info' | 'warn' | 'error' | 'debug', message: string): void
@@ -84,17 +76,11 @@ export interface OutboundContext {
    * the traceId resolution (chat-level association table; unmapped proactive
    * writes mint a fresh id) — absent = tracing off, zero cost. */
   trace?: (chatId: ChatId, event: { stage: TraceStage; ok?: boolean; reason?: string; data?: Record<string, unknown> }) => void
-  /** The only config fields the outbound pipeline reads. The write-gate
-   * fields ride as optional intersection members so the bridge's BridgeConfig
-   * type stays untouched (absent → the defaults below). */
+  /** The only config fields the outbound pipeline reads. */
   config: Pick<BridgeConfig, 'botQQ' | 'sensitivePatterns' | 'textImageThreshold' | 'maxImageBytes' | 'cardFooter' | 'fontFiles' | 'fontFamilies'> & Partial<{
     /** Audit file directory (mediaDir/qq-actions.log); absent → no audit. */
     mediaDir: string
-    /** bridge-wide proactive-write cap per sliding minute; 0 disables. */
-    actionRatePerMinute: number
-    /** bridge-wide proactive-write cap per calendar day; 0 disables. */
-    actionRatePerDay: number
-    /** proactive-write audit switch (default on). */
+    /** tool-send audit switch (default on). */
     actionAuditEnabled: boolean
     /** split final replies "one line, one message". */
     splitLines: boolean
@@ -102,7 +88,10 @@ export interface OutboundContext {
     groupSplitLines: boolean
     /** most messages one split reply may become. */
     splitMaxMessages: number
-    /** typing pause per character / floor / ceiling (ms). */
+    /** true = every message waits its typing time; false = only the
+     * follow-up lines of a split reply do. */
+    humanTypingPace: boolean
+    /** typing time per character / floor / ceiling (ms). */
     typingDelayPerCharMs: number
     typingDelayMinMs: number
     typingDelayMaxMs: number
@@ -116,11 +105,7 @@ export const PENDING_SENDS_FILE = 'pending-sends.json'
 /** Max queued final replies per chat; the oldest is dropped beyond this. */
 const PENDING_SEND_MAX = 20
 
-/** default bridge-wide proactive-write caps, aligned with the MIT
- * dsh-qq-onebot-bridge's actionRatePerMinute(20) / actionRatePerDay(500). */
-export const DEFAULT_ACTION_RATE_PER_MINUTE = 20
-export const DEFAULT_ACTION_RATE_PER_DAY = 500
-/** proactive-write audit file name, appended under mediaDir (jsonl). */
+/** tool-send audit file name, appended under mediaDir (jsonl). */
 export const ACTION_AUDIT_FILE = 'qq-actions.log'
 
 /**
@@ -137,6 +122,10 @@ export class OutboundPipeline {
   private readonly pendingSends = new Map<ChatId, Array<{ text: string; sentAt: number; humanize: boolean }>>()
   /** typing-pause sleep (tests inject a recorder). */
   private readonly sleep: (ms: number) => Promise<void>
+  /** Typing pace for outgoing messages (see TypingPacer). */
+  private readonly pacer: { wait(text: string): Promise<void> }
+  /** humanTypingPace: pace every message, not just split follow-up lines. */
+  private readonly paceEveryMessage: boolean
 
   /** Durable copy of pendingSends (mediaDir/pending-sends.json), so replies
    * queued while QQ was disconnected survive a dsh restart. Absent = memory
@@ -154,6 +143,17 @@ export class OutboundPipeline {
     // timers in tests must keep influencing the wall-clock path).
     this.now = options.now ?? (() => Date.now())
     this.sleep = options.sleep ?? (ms => new Promise(resolve => setTimeout(resolve, ms)))
+    const c = ctx.config
+    this.pacer = ctx.typingPacer ?? new TypingPacer({
+      config: {
+        perCharMs: c.typingDelayPerCharMs ?? DEFAULT_TYPING_DELAY_PER_CHAR_MS,
+        minMs: c.typingDelayMinMs ?? DEFAULT_TYPING_DELAY_MIN_MS,
+        maxMs: c.typingDelayMaxMs ?? DEFAULT_TYPING_DELAY_MAX_MS,
+      },
+      now: this.now,
+      sleep: this.sleep,
+    })
+    this.paceEveryMessage = c.humanTypingPace === true
   }
 
   /**
@@ -185,8 +185,6 @@ export class OutboundPipeline {
       const ids: string[] = []
       const { body, nodes } = extractForwardBlocks(text, '助手')
       if (nodes.length > 0) {
-        // Passive reply path: [[qq_forward]] blocks inside a turn reply are
-        // NOT gated as proactive writes (see the 口径 note).
         await this.sendForwardNodes(chatId, nodes)
         ids.push('forward')
       }
@@ -228,14 +226,7 @@ export class OutboundPipeline {
           // one line, one message, with a typing pause before
           // each follow-up line; only the first line carries the reply quote.
           for (let i = 0; i < parts.length; i++) {
-            if (i > 0 && this.ctx.typingPacer === undefined) {
-              await this.sleep(typingDelayMs(
-                parts[i],
-                this.ctx.config.typingDelayPerCharMs ?? DEFAULT_TYPING_DELAY_PER_CHAR_MS,
-                this.ctx.config.typingDelayMinMs ?? DEFAULT_TYPING_DELAY_MIN_MS,
-                this.ctx.config.typingDelayMaxMs ?? DEFAULT_TYPING_DELAY_MAX_MS,
-              ))
-            }
+            if (i > 0 && !this.paceEveryMessage) await this.pacer.wait(parts[i])
             const id = await this.sendMsg(chatId, [{ type: 'text', data: { text: parts[i] } }], i === 0 ? options : {})
             if (id !== undefined) ids.push(id)
           }
@@ -296,74 +287,10 @@ export class OutboundPipeline {
     }
   }
 
-  // ── proactive-write gate (minute/day caps + audit) ─────────────────
-  // 口径（per outbound.ts structure）：「主动写」= 模型/命令经 qq_* 工具发起、
-  // 不属于某个入站回合回复链的出站写 —— 即 sendSegments（qq_send_image/voice/
-  // video/file/segments）与公开 sendForward（qq_send_forward）。被动回复不受此
-  // 闸：sendToChat 整条链（最终回复/interim/错误与命令通知、[[qq_forward]] 块，
-  // 后者走未设闸的 sendForwardNodes）由入站 rateLimitPerMinute + 队列上限
-  // 约束。两类计数都是全桥合计（不分会话）。
-
-  /** Sliding-60s timestamps of allowed proactive writes (bridge-wide). */
-  private writeActionTimes: number[] = []
-  /** Calendar-day (local) counter of allowed proactive writes. */
-  private writeDayKey = ''
-  private writeDayCount = 0
   /** Serialized audit-append chain (order discipline, see auditWrite). */
   private auditChain: Promise<void> = Promise.resolve()
 
-  /** health snapshot: the write gate's current usage against its
-   * limits (minute sliding window pruned at read time; day counter). */
-  writeGateStats(): { minuteUsed: number; minuteLimit: number; dayUsed: number; dayLimit: number } {
-    const perMinute = this.ctx.config.actionRatePerMinute ?? DEFAULT_ACTION_RATE_PER_MINUTE
-    const perDay = this.ctx.config.actionRatePerDay ?? DEFAULT_ACTION_RATE_PER_DAY
-    const now = this.now()
-    const minuteUsed = perMinute > 0
-      ? this.writeActionTimes.filter(t => now - t < 60_000).length
-      : 0
-    const d = new Date(now)
-    const dayKey = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0')
-    const dayUsed = perDay > 0 && this.writeDayKey === dayKey ? this.writeDayCount : 0
-    return { minuteUsed, minuteLimit: perMinute, dayUsed, dayLimit: perDay }
-  }
-
-  /** check + consume one proactive-write slot. Returns a non-empty
-   * Chinese rejection reason when the write must be dropped (a warn with the
-   * chatId and the limit name is logged and the rejection is audited);
-   * returns null when allowed (slot consumed). Rejected attempts do not
-   * consume quota. */
-  private writeGateRejectReason(chatId: ChatId, action: string): string | null {
-    const perMinute = this.ctx.config.actionRatePerMinute ?? DEFAULT_ACTION_RATE_PER_MINUTE
-    const perDay = this.ctx.config.actionRatePerDay ?? DEFAULT_ACTION_RATE_PER_DAY
-    if (perMinute <= 0 && perDay <= 0) return null
-    const now = this.now()
-    this.writeActionTimes = this.writeActionTimes.filter(t => now - t < 60_000)
-    const d = new Date(now)
-    const dayKey = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0')
-    if (this.writeDayKey !== dayKey) {
-      this.writeDayKey = dayKey
-      this.writeDayCount = 0
-    }
-    if (perMinute > 0 && this.writeActionTimes.length >= perMinute) {
-      const reason = '写操作频率超限：60 秒内主动写已达 ' + perMinute + ' 次上限（actionRatePerMinute=' + perMinute + '），请稍后再试'
-      this.ctx.log('warn', '已拒发主动写操作: chat=' + chatId + ' action=' + action + '，' + reason)
-      this.auditWrite(chatId, action, false, reason)
-      this.ctx.trace?.(chatId, { stage: 'outbound', ok: false, reason })
-      return reason
-    }
-    if (perDay > 0 && this.writeDayCount >= perDay) {
-      const reason = '写操作次数超限：今日主动写已达 ' + perDay + ' 次上限（actionRatePerDay=' + perDay + '），明日自动恢复'
-      this.ctx.log('warn', '已拒发主动写操作: chat=' + chatId + ' action=' + action + '，' + reason)
-      this.auditWrite(chatId, action, false, reason)
-      this.ctx.trace?.(chatId, { stage: 'outbound', ok: false, reason })
-      return reason
-    }
-    this.writeActionTimes.push(now)
-    this.writeDayCount += 1
-    return null
-  }
-
-  /** append one proactive-write (or rejection / send failure) audit
+  /** append one tool-send (or send failure) audit
    * line to mediaDir/qq-actions.log (jsonl: ts/chatId/action/ok/reason).
    * Fire-and-forget: a write failure only warns and never affects the send
    * path. Writes are chained so lines land in call order even when the fs
@@ -414,23 +341,20 @@ export class OutboundPipeline {
   }
 
   /**
-   * Send raw OneBot segments (used by the media tools). counts as a
-   * proactive write — subject to the minute/day caps and audited.
+   * Send raw OneBot segments (used by the media tools); audited.
    * @param chatId - target chat.
    * @param segments - outbound segments.
    * @returns the sent message id.
    */
   sendSegments(chatId: ChatId, segments: OutboundSegment[]): Promise<string | undefined> {
     return this.enqueue(chatId, async () => {
-      const reject = this.writeGateRejectReason(chatId, 'send_msg')
-      if (reject !== null) throw new OneBotActionError(reject)
       try {
         const id = await this.sendMsg(chatId, segments, {})
         this.auditWrite(chatId, 'send_msg', true, '发送成功')
         return id
       } catch (error) {
         this.auditWrite(chatId, 'send_msg', false, '发送失败: ' + describeError(error))
-        this.ctx.trace?.(chatId, { stage: 'outbound', ok: false, reason: '主动写发送失败: ' + describeError(error) })
+        this.ctx.trace?.(chatId, { stage: 'outbound', ok: false, reason: '工具发送失败: ' + describeError(error) })
         throw error
       }
     })
@@ -464,51 +388,43 @@ export class OutboundPipeline {
   async sendMsg(chatId: ChatId, segments: OutboundSegment[], options: SendOptions): Promise<string | undefined> {
     const ref = splitChatId(chatId)
     const params: Record<string, unknown> = {}
-    let target: number
-    try {
-      target = Number(ref.target)
-      if (!Number.isFinite(target)) throw new Error('bad target')
-    } catch {
-      throw new OneBotActionError('invalid chat target: ' + chatId)
-    }
+    const target = Number(ref.target)
+    if (!Number.isFinite(target)) throw new OneBotActionError('invalid chat target: ' + chatId)
     if (ref.kind === 'group') params.group_id = target
     else params.user_id = target
     params.message = segments
     if (options.replyTo !== undefined) {
       params.message = [{ type: 'reply', data: { id: options.replyTo } }, ...segments]
     }
-    if (this.ctx.typingPacer !== undefined) {
-      await this.ctx.typingPacer.wait(segments.map(s => (s.type === 'text' ? String((s.data as { text?: unknown }).text ?? '') : '')).join(''))
+    if (this.paceEveryMessage) {
+      await this.pacer.wait(segments.map(s => (s.type === 'text' ? String((s.data as { text?: unknown }).text ?? '') : '')).join(''))
     }
-    const data = await this.ctx.call('send_msg', params, chatId) as { message_id?: number | string }
+    const data = await this.ctx.call('send_msg', params) as { message_id?: number | string }
     this.ctx.onSent?.(chatId)
     return data.message_id !== undefined ? String(data.message_id) : undefined
   }
 
-  /** Send [[qq_forward]] nodes as a merged-forward message (proactive write
-   * from the qq_send_forward tool). subject to the minute/day caps
-   * and audited; the passive [[qq_forward]] blocks inside sendToChat bypass
-   * this gate via sendForwardNodes. */
+  /** Send [[qq_forward]] nodes as a merged-forward message (the
+   * qq_send_forward tool); audited. [[qq_forward]] blocks inside a reply go
+   * through sendForwardNodes directly. */
   async sendForward(chatId: ChatId, nodes: Array<{ name: string; content: string }>): Promise<void> {
-    const reject = this.writeGateRejectReason(chatId, 'send_forward_msg')
-    if (reject !== null) throw new OneBotActionError(reject)
     try {
       await this.sendForwardNodes(chatId, nodes)
       this.auditWrite(chatId, 'send_forward_msg', true, '发送成功')
     } catch (error) {
       this.auditWrite(chatId, 'send_forward_msg', false, '发送失败: ' + describeError(error))
-      this.ctx.trace?.(chatId, { stage: 'outbound', ok: false, reason: '主动写发送失败: ' + describeError(error) })
+      this.ctx.trace?.(chatId, { stage: 'outbound', ok: false, reason: '工具发送失败: ' + describeError(error) })
       throw error
     }
   }
 
-  /** Ungated merged-forward send (shared by the gated tool path and the
-   * passive [[qq_forward]] blocks inside sendToChat). */
+  /** Merged-forward send (shared by the tool path and the [[qq_forward]]
+   * blocks inside sendToChat). */
   private async sendForwardNodes(chatId: ChatId, nodes: Array<{ name: string; content: string }>): Promise<void> {
     const ref = splitChatId(chatId)
     const target = Number(ref.target)
     if (!Number.isFinite(target)) throw new OneBotActionError('invalid chat target: ' + chatId)
-    if (this.ctx.typingPacer !== undefined) await this.ctx.typingPacer.wait(nodes.map(n => n.content).join(''))
+    if (this.paceEveryMessage) await this.pacer.wait(nodes.map(n => n.content).join(''))
     const messages = nodes.map(node => ({
       type: 'node',
       data: {
@@ -518,9 +434,9 @@ export class OutboundPipeline {
       },
     }))
     if (ref.kind === 'group') {
-      await this.ctx.call('send_forward_msg', { group_id: target, messages }, chatId)
+      await this.ctx.call('send_forward_msg', { group_id: target, messages })
     } else {
-      await this.ctx.call('send_private_forward_msg', { user_id: target, messages }, chatId)
+      await this.ctx.call('send_private_forward_msg', { user_id: target, messages })
     }
     this.ctx.onSent?.(chatId)
   }

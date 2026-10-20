@@ -393,6 +393,19 @@ describe('review closure: retired-entry and collision-heal settings carriers', (
     expect(mapping['private:10001']).toBeUndefined()
     await registry.stop()
   })
+
+  it('healSessionCollision clears the chat\'s pending interim recall timers', async () => {
+    const deps = makeRegistryDeps({ agents: makeFakeAgents([], { followups: [] }, { resumeOk: true }) })
+    const registry = new ChatRegistry(deps)
+    const chat = await registry.ensureChat('private:10001', '小明')
+    const fired = vi.fn()
+    chat.recallTimers.set('m1', setTimeout(fired, 50))
+    await registry.healSessionCollision('private:10001')
+    expect(chat.recallTimers.size).toBe(0)
+    await new Promise(resolve => setTimeout(resolve, 80))
+    expect(fired).not.toHaveBeenCalled()
+    await registry.stop()
+  })
 })
 
 describe('resume-failed settings carrier + settings-only saveMapping invariant', () => {

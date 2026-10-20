@@ -4,18 +4,18 @@
  * model catalog, session events) and its constructor dependencies.
  * @module dsh-qq-companion/bridge-types
  */
-import type { ChatActivity, ScheduledPrompt } from './companion/index.js'
-import type { GroupAccessLike } from './groups.js'
 import type { AgentRegistry, ModelSelection } from '@deepseek-ai/dsh-agent'
 import type { LlmModelInfo, LlmProviderInfo } from '@deepseek-ai/dsh-llm'
 import type { Session, SessionEvent, SessionId, SessionStore } from '@deepseek-ai/dsh-session'
 
-
+import type { AccessPolicyConfig } from './chat.js'
+import type { ChatActivity, ScheduledPrompt } from './companion/index.js'
 import type { OneBotConnection } from './connection.js'
+import type { GroupAccessLike } from './groups.js'
 import type { MediaStore } from './media.js'
 import type { Transcriber } from './stt.js'
-import type { AccessPolicyConfig } from './chat.js'
 import type { TraceSink } from './trace.js'
+
 /** Resolved runtime configuration for the bridge. */
 export interface BridgeConfig {
   botQQ: string
@@ -51,6 +51,8 @@ export interface BridgeConfig {
   splitMaxMessages?: number
   /** false = one message per reply in groups (fewer sends, less risk control). */
   groupSplitLines?: boolean
+  /** every outgoing message waits its typing time (see TypingPacer). */
+  humanTypingPace?: boolean
   typingDelayPerCharMs?: number
   typingDelayMinMs?: number
   typingDelayMaxMs?: number
@@ -93,14 +95,14 @@ export interface BridgeConfig {
   chatIdleEvictDays?: number
   /** how a new ordinary message is handled while the chat's task
    * (agent turn) is running; absent → 'queue' (the default). 'queue' = the
-   * message keeps the 0.8.1 dispatch path (agent.followup queues it as the
+   * message is dispatched normally (agent.followup queues it as the
    * next turn — consumed AFTER the current turn ends, in arrival order) and
    * the chat gets at most one queue notice per running turn; 'steer' = plain
    * text (no media/quote/forward, non-restricted senders) is submitted as a
    * supplementary instruction into the running turn via the same
    * agent.steer kernel as steerTranscript, with a per-message submit notice. */
   newMessagePolicy?: 'queue' | 'steer'
-  /** (用户裁决 2026-10-12)：steer 模式下自动插话的发送者资格档位；
+  /** steer 模式下自动插话的发送者资格档位；
    * absent → 'admin'（缺省）。'admin' = 仅管理员可自动插话；'all' = 所有
    * 非受限发送者均可。不改变 /steer 命令（始终仅管理员）与 queue 模式行为，
    * 也不放宽受限用户软限制（受限消息任何档都排队）。 */
@@ -110,14 +112,11 @@ export interface BridgeConfig {
    * 最终文字（「（超时补发）」前缀，走既有 outbound 管线）；absent →
    * 600000（保守 10 分钟），0 = 关闭超时补发。 */
   deferredTimeoutMs?: number
-}
-
-/** trace/config extensions: the observability knobs ride as optional
- * members (same pattern as the dedup / write-gate keys) so the declared
- * BridgeConfig shape above stays untouched; absent = the feature is off. */
-export interface TraceBridgeConfig {
-  /** decision-trace sink; absent/disabled = no traceIds, no jsonl, zero
-   * behavior difference vs 0.6.0. */
+  /** inbound (chatId, message_id) dedup window in seconds; absent → 300, 0 disables. */
+  dedupWindowSeconds?: number
+  /** tool-send audit (mediaDir/qq-actions.log); absent → on. */
+  actionAuditEnabled?: boolean
+  /** decision-trace sink; absent/disabled = no traceIds, no jsonl. */
   trace?: TraceSink | undefined
 }
 
@@ -212,7 +211,7 @@ export interface BridgeDeps {
   companionStatus?: () => Promise<string[]>
   /** Counts every message that went out (for /doctor). */
   sendCounter?: { record(): void }
-  /** Account-wide human typing pace (every outgoing message waits its typing time). */
+  /** The account-wide typing pacer (absent = the outbound pipeline builds one). */
   typingPacer?: { wait(text: string): Promise<void> }
   /** per-chat activity (idle reset, handoff recap, diary input). */
   activity?: ChatActivity
@@ -247,7 +246,7 @@ export interface BridgeDeps {
   workspaceRegistry: WorkspaceRegistryLike | undefined
   agentDefaultModel: AgentDefaultModelLike | undefined
   defaultModel: (() => ModelSelection | undefined) | undefined
-  config: BridgeConfig & TraceBridgeConfig
+  config: BridgeConfig
   policy: AccessPolicyConfig
   /** health: the ALREADY-redacted plugin config snapshot (secrets
    * replaced by 已配置/未配置 — see health.redactSnapshot). Absent = the

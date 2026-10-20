@@ -22,7 +22,6 @@ const baseDeps = (mediaDir: string, overrides: Record<string, unknown> = {}) => 
   transport: { host: '127.0.0.1', port: 8643 },
   retryState: { reverseRetryAttempts: 0 },
   dedup: { entries: 3, windowSeconds: 300 },
-  writeGate: { minuteUsed: 2, minuteLimit: 20, dayUsed: 40, dayLimit: 500 },
   configSnapshot: redactSnapshot({ accessToken: 'super-secret-token', botQQ: '10002' }),
   secrets: ['super-secret-token'],
   log: () => undefined,
@@ -43,7 +42,6 @@ describe('health report (src/health.ts)', () => {
     expect(report).toContain('连接：已连接（127.0.0.1:8643')
     expect(report).toContain('端口占用重试：0 次')
     expect(report).toContain('去重窗口：3 条在窗（dedupWindowSeconds=300）')
-    expect(report).toContain('写闸门：本分钟 2/20 · 今日 40/500')
     expect(report).toContain('qq-trace.jsonl')
     expect(report).toContain('最近 ok:false 事件（2 条）')
     expect(report).toContain('群聊未 @ 机器人，已忽略')

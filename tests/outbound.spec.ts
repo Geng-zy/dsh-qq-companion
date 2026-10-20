@@ -245,17 +245,10 @@ describe('outbound pipeline', () => {
   })
 })
 
-describe('outbound proactive-write gate', () => {
+describe('outbound tool-send audit', () => {
   /** Minimal OutboundPipeline harness: a connected fake transport capturing
-   * every send action, config limits injected per test, optional audit dir.
-   * Isolation (0.6.0 flake hygiene): the pipeline gets a monotonic injected
-   * clock instead of the wall clock, so gate windows can never be perturbed
-   * by real-time minute/day boundaries or worker clock jumps. */
-  const makeGateHarness = (opts?: {
-    actionRatePerMinute?: number
-    actionRatePerDay?: number
-    mediaDir?: string
-  }) => {
+   * every send action, optional audit dir, an injected monotonic clock. */
+  const makeAuditHarness = (opts?: { mediaDir?: string }) => {
     const sent: Array<{ action: string; params: Record<string, unknown> }> = []
     const logs: string[] = []
     let clock = 1_700_000_000_000
@@ -272,8 +265,6 @@ describe('outbound proactive-write gate', () => {
       config: {
         botQQ: '10002', sensitivePatterns: [], textImageThreshold: 0, maxImageBytes: 8 * 1024 * 1024,
         cardFooter: 'dsh', fontFiles: [], fontFamilies: [],
-        ...(opts?.actionRatePerMinute !== undefined ? { actionRatePerMinute: opts.actionRatePerMinute } : {}),
-        ...(opts?.actionRatePerDay !== undefined ? { actionRatePerDay: opts.actionRatePerDay } : {}),
         ...(opts?.mediaDir !== undefined ? { mediaDir: opts.mediaDir } : {}),
       },
     }, { now: () => (clock += 25) })
@@ -283,68 +274,44 @@ describe('outbound proactive-write gate', () => {
   const readAudit = (mediaDir: string): Array<Record<string, unknown>> =>
     readFileSync(join(mediaDir, ACTION_AUDIT_FILE), 'utf8').trim().split('\n').map(l => JSON.parse(l) as Record<string, unknown>)
 
-  it('rejects proactive writes beyond actionRatePerMinute with a Chinese warn carrying chatId and limit name', async () => {
-    const { pipeline, sent, logs } = makeGateHarness({ actionRatePerMinute: 2, actionRatePerDay: 0 })
-    expect(await pipeline.sendSegments('group:888', [{ type: 'text', data: { text: '一' } }])).toBe('7')
-    expect(await pipeline.sendSegments('group:888', [{ type: 'text', data: { text: '二' } }])).toBe('7')
-    expect(sent).toHaveLength(2)
-    // The limit is bridge-wide: a different chat consumes the same quota.
-    await expect(pipeline.sendSegments('private:10001', [{ type: 'text', data: { text: '三' } }]))
-      .rejects.toThrow(OneBotActionError)
-    await expect(pipeline.sendSegments('private:10001', [{ type: 'text', data: { text: '四' } }]))
-      .rejects.toThrow('actionRatePerMinute')
-    // Rejected attempts never reach the transport and never consume quota.
-    expect(sent).toHaveLength(2)
-    const warns = logs.filter(l => l.startsWith('warn:已拒发主动写操作'))
-    expect(warns.length).toBeGreaterThanOrEqual(2)
-    expect(warns[0]).toContain('private:10001')
-    expect(warns[0]).toContain('actionRatePerMinute=2')
-    // Still 2/2 used: one more rejected, quota untouched by rejections.
-    expect(pipeline['writeActionTimes']).toHaveLength(2)
-  })
-
-  it('rejects proactive writes beyond actionRatePerDay', async () => {
-    const { pipeline, sent, logs } = makeGateHarness({ actionRatePerMinute: 100, actionRatePerDay: 3 })
-    for (let i = 0; i < 3; i++) {
-      await pipeline.sendSegments('group:888', [{ type: 'text', data: { text: String(i) } }])
-    }
-    expect(sent).toHaveLength(3)
-    await expect(pipeline.sendSegments('group:888', [{ type: 'text', data: { text: '第四条' } }]))
-      .rejects.toThrow('actionRatePerDay')
-    expect(sent).toHaveLength(3)
-    expect(logs.some(l => l.startsWith('warn:已拒发主动写操作') && l.includes('group:888') && l.includes('actionRatePerDay=3'))).toBe(true)
-  })
-
-  it('audits allowed writes and rejections to mediaDir/qq-actions.log (jsonl)', async () => {
+  it('tool sends are never capped: every one goes out and is audited (jsonl, appended)', async () => {
     const mediaDir = mkdtempSync(join(tmpdir(), 'onebot-audit-'))
-    const { pipeline } = makeGateHarness({ actionRatePerMinute: 1, actionRatePerDay: 0, mediaDir })
-    await pipeline.sendSegments('group:888', [{ type: 'text', data: { text: '允许' } }])
-    await expect(pipeline.sendSegments('group:888', [{ type: 'text', data: { text: '拒绝' } }]))
-      .rejects.toThrow(OneBotActionError)
-    await vi.waitFor(() => expect(readAudit(mediaDir)).toHaveLength(2))
+    const { pipeline, sent } = makeAuditHarness({ mediaDir })
+    for (let i = 0; i < 25; i++) {
+      await pipeline.sendSegments(i % 2 === 0 ? 'group:888' : 'private:10001', [{ type: 'text', data: { text: '第' + i + '条' } }])
+    }
+    expect(sent).toHaveLength(25)
+    await vi.waitFor(() => expect(readAudit(mediaDir)).toHaveLength(25))
     const lines = readAudit(mediaDir)
     expect(lines[0]).toMatchObject({ chatId: 'group:888', action: 'send_msg', ok: true, reason: '发送成功' })
     expect(typeof lines[0].ts).toBe('number')
-    expect(lines[1]).toMatchObject({ chatId: 'group:888', action: 'send_msg', ok: false })
-    expect(String(lines[1].reason)).toContain('actionRatePerMinute=1')
-    // Audit appends across calls; never truncates.
+    expect(lines.every(l => l.ok === true)).toBe(true)
     expect(readFileSync(join(mediaDir, ACTION_AUDIT_FILE), 'utf8').endsWith('\n')).toBe(true)
   })
 
-  it('audits tool forward sends (send_forward_msg) but not the passive [[qq_forward]] reply blocks', async () => {
+  it('a failed tool send is audited as ok:false and rethrown', async () => {
     const mediaDir = mkdtempSync(join(tmpdir(), 'onebot-audit-'))
-    // Minute quota = 1: the proactive tool write consumes it entirely.
-    const { pipeline, sent } = makeGateHarness({ actionRatePerMinute: 1, actionRatePerDay: 0, mediaDir })
+    const pipeline = new OutboundPipeline({
+      getChat: () => undefined, connected: () => true, selfId: () => '10002',
+      call: async () => { throw new OneBotActionError('boom') },
+      isStopping: () => false, log: () => undefined,
+      config: { botQQ: '10002', sensitivePatterns: [], textImageThreshold: 0, maxImageBytes: 1, cardFooter: '', fontFiles: [], fontFamilies: [], mediaDir },
+    })
+    await expect(pipeline.sendSegments('group:888', [{ type: 'text', data: { text: 'x' } }])).rejects.toThrow('boom')
+    await vi.waitFor(() => expect(readAudit(mediaDir)).toHaveLength(1))
+    expect(readAudit(mediaDir)[0]).toMatchObject({ action: 'send_msg', ok: false })
+    expect(String(readAudit(mediaDir)[0].reason)).toContain('boom')
+  })
+
+  it('audits tool forward sends (send_forward_msg) but not the [[qq_forward]] reply blocks', async () => {
+    const mediaDir = mkdtempSync(join(tmpdir(), 'onebot-audit-'))
+    const { pipeline, sent } = makeAuditHarness({ mediaDir })
     await pipeline.sendForward('group:888', [{ name: '助手', content: '节点内容' }])
     expect(sent).toEqual([expect.objectContaining({ action: 'send_forward_msg' })])
-    // Passive replies keep flowing (sendToChat is not gated).
-    await pipeline.sendToChat('group:888', '被动回复一')
-    await pipeline.sendToChat('group:888', '被动回复二')
-    // A passive [[qq_forward]] block inside a turn reply also bypasses the gate.
+    await pipeline.sendToChat('group:888', '回复一')
     await pipeline.sendToChat('group:888', '前言 [[qq_forward]]标题\n内容[[/qq_forward]]')
     expect(sent.some(f => f.action === 'send_forward_msg' && JSON.stringify(f.params).includes('内容'))).toBe(true)
-    expect(sent.some(f => f.action === 'send_msg' && JSON.stringify(f.params).includes('被动回复一'))).toBe(true)
-    // Only the one proactive write was audited.
+    expect(sent.some(f => f.action === 'send_msg' && JSON.stringify(f.params).includes('回复一'))).toBe(true)
     await vi.waitFor(() => expect(readAudit(mediaDir)).toHaveLength(1))
     expect(readAudit(mediaDir)[0]).toMatchObject({ chatId: 'group:888', action: 'send_forward_msg', ok: true })
   })
@@ -353,25 +320,11 @@ describe('outbound proactive-write gate', () => {
     // mediaDir points inside a regular file → mkdir/append must fail.
     const blockFile = join(tmpdir(), 'onebot-audit-block-' + Date.now() + '-' + Math.random().toString(16).slice(2))
     writeFileSync(blockFile, 'not a dir')
-    const { pipeline, sent, logs } = makeGateHarness({ actionRatePerMinute: 0, actionRatePerDay: 0, mediaDir: join(blockFile, 'sub') })
+    const { pipeline, sent, logs } = makeAuditHarness({ mediaDir: join(blockFile, 'sub') })
     await expect(pipeline.sendSegments('group:888', [{ type: 'text', data: { text: '照发' } }])).resolves.toBe('7')
     expect(sent).toHaveLength(1)
     await vi.waitFor(() => {
       expect(logs.some(l => l.startsWith('warn:写操作审计写入失败'))).toBe(true)
     })
-    expect(logs.some(l => l.startsWith('warn:已拒发主动写操作'))).toBe(false)
-  })
-
-  it('actionRatePerMinute/actionRatePerDay 0 disables the gate with zero behavior change', async () => {
-    const mediaDir = mkdtempSync(join(tmpdir(), 'onebot-audit-'))
-    const { pipeline, sent, logs } = makeGateHarness({ actionRatePerMinute: 0, actionRatePerDay: 0, mediaDir })
-    for (let i = 0; i < 25; i++) {
-      await pipeline.sendSegments('group:888', [{ type: 'text', data: { text: '第' + i + '条' } }])
-    }
-    expect(sent).toHaveLength(25)
-    expect(logs.some(l => l.startsWith('warn:已拒发主动写操作'))).toBe(false)
-    // Auditing stays on (its own switch): 25 success lines, no rejections.
-    await vi.waitFor(() => expect(readAudit(mediaDir)).toHaveLength(25))
-    expect(readAudit(mediaDir).every(l => l.ok === true)).toBe(true)
   })
 })

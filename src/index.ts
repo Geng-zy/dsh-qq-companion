@@ -1,9 +1,9 @@
 /**
  * dsh-qq-companion: a QQ (OneBot 11 / NapCat) chat channel for DeepSeek Harness.
  *
- * Mounts inside the dsh host process: a reverse- or forward-WebSocket link to
- * NapCat, one Agent per QQ chat, inbound images/voice handled for the model
- * (whisper STT when enabled), outbound replies split at sentence boundaries,
+ * Mounts inside the dsh host process: a reverse-WebSocket server NapCat dials
+ * into, one Agent per QQ chat, inbound images/voice handled for the model
+ * (local speech-to-text when enabled), outbound replies split at line breaks,
  * [[qq_forward]] merged forwards, allowlist/mention access control, and a set
  * of qq_* tools for media and NapCat APIs.
  * @module dsh-qq-companion
@@ -121,7 +121,7 @@ export function apply(ctx: Context, config: Config): void {
     else if (level === 'warn') console.warn(prefix + message)
     else console.log(prefix + message)
   }
-  // 方案 B: the host exposes no queryable default workspace —
+  // The host exposes no queryable default workspace —
   // WorkspaceRegistry has no default getter and the session controller's
   // defaultCwd is assembly-internal — so the unconfigured fallback stays the
   // host process cwd. Say so once at mount so a /root surprise is explainable.
@@ -200,16 +200,6 @@ export function apply(ctx: Context, config: Config): void {
     liveness.onMeta(event)
     logMetaEvent(connection.selfId, event, config.logLevel)
   }
-  // Dedup / write-gate keys: BridgeConfig (bridge.ts) keeps its declared shape; the
-  // pipelines read them off the runtime object via optional intersection
-  // members (see InboundContext/OutboundContext.config), so the spread here
-  // is the wiring — no bridge.ts change.
-  const gateConfig = {
-    dedupWindowSeconds: config.dedupWindowSeconds,
-    actionRatePerMinute: config.actionRatePerMinute,
-    actionRatePerDay: config.actionRatePerDay,
-    actionAuditEnabled: config.actionAuditEnabled,
-  }
   const bridge: import('./bridge.js').ChatBridge = new ChatBridge({
     ctx,
     // the bridge sees only explicit ports — the session-event feed
@@ -246,52 +236,13 @@ export function apply(ctx: Context, config: Config): void {
         return undefined
       }
     },
+    // The bridge reads the plugin config directly; only the resolved media
+    // dir and the keys it knows under another name are set here.
     config: {
-      botQQ: config.botQQ,
-      ignoreSelf: config.ignoreSelf,
-      requireMention: config.requireMention,
-      unknownCommand: config.unknownCommand,
-      newMessagePolicy: config.newMessagePolicy,
-      autoSteerPolicy: config.autoSteerPolicy,
-      deferredTimeoutMs: config.deferredTimeoutMs,
-      interimMessages: config.interimMessages,
-      interimRecallMs: config.interimRecallMs,
-      interimRecall: config.interimRecall,
-      sendErrorNotice: config.sendErrorNotice,
-      rateLimitPerMinute: config.rateLimitPerMinute,
-      restrictedMemberPrefix: config.restrictedMemberPrefix,
-      sensitivePatterns: config.sensitivePatterns,
+      ...config,
       mediaDir,
       maxImageBytes: config.outboundImageMaxBytes,
-      maxVoiceBytes: config.maxVoiceBytes,
-      maxFileBytes: config.maxFileBytes,
-      textImageThreshold: config.textImageThreshold,
-      splitLines: config.splitLines,
-      splitMaxMessages: config.splitMaxMessages,
-      groupSplitLines: config.groupSplitLines,
-      typingDelayPerCharMs: config.typingDelayPerCharMs,
-      typingDelayMinMs: config.typingDelayMinMs,
-      typingDelayMaxMs: config.typingDelayMaxMs,
-      cardFooter: config.cardFooter,
-      fontFiles: config.fontFiles,
-      fontFamilies: config.fontFamilies,
-      agentPreset: config.agentPreset,
-      adminPreset: config.adminPreset,
-      adminPermission: config.adminPermission,
-      adminWorkspacePath: config.adminWorkspacePath,
-      idleResetHours: config.idleResetHours,
-      publicMemoryFile: config.publicMemoryFile,
-      scheduledPrompts: config.scheduledPrompts,
-      publicMemoryMaxBytes: config.publicMemoryMaxBytes,
-      ownerTitle: config.ownerTitle,
-      groupMemoryDir: config.groupMemoryDir,
-      groupMemoryMaxBytes: config.groupMemoryMaxBytes,
-      privateResetDays: config.privateResetDays,
-      groupResetDays: config.groupResetDays,
-      workspacePath: config.workspacePath,
       maxInboundFileBytes: config.inboundFileMaxBytes,
-      chatIdleEvictDays: config.chatIdleEvictDays,
-      ...gateConfig,
       trace: traceSink,
     },
     policy,
@@ -299,7 +250,7 @@ export function apply(ctx: Context, config: Config): void {
     activity,
     ...(config.proactiveEnabled ? { proactive: proactiveHandle } : {}),
     sendCounter,
-    ...(config.humanTypingPace ? { typingPacer } : {}),
+    typingPacer,
     companionStatus: () => companionStatusLines({
       sendCounter: () => sendCounter.snapshot(),
       liveness: () => liveness.snapshot(),

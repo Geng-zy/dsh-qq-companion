@@ -67,11 +67,10 @@ export interface ChatSettings {
 }
 
 /** the persisted per-chat settings carried in one chat-sessions.json
- * entry (additive format: a legacy file holds a bare session-id string). 
- * `workspacePath` joins the additive set so a per-chat /workspace override
- * survives a restart even when the session resume fails — loadMapping
- * restores it BEFORE the resume attempt (hole B), and the /workspace switch
- * path flushes the mapping (hole C). */
+ * entry (a bare session-id string when there are none). `workspacePath`
+ * lets a per-chat /workspace override survive a restart even when the
+ * session resume fails — loadMapping restores it BEFORE the resume attempt,
+ * and the /workspace switch path flushes the mapping. */
 export interface PersistedChatSettings {
   session: string
   interimOverride?: boolean
@@ -80,7 +79,7 @@ export interface PersistedChatSettings {
 }
 
 /** build one mapping entry — a bare session id when the chat carries no
- * persisted settings (byte-identical to the legacy format), else an object
+ * persisted settings, else an object
  * with the optional mode/goal/workspace fields. An empty workspacePath counts
  * as unset (never persisted). */
 export function persistEntry(sessionId: string, interimOverride: boolean | undefined, goal: string | undefined, workspacePath: string | undefined): string | PersistedChatSettings {
@@ -175,8 +174,7 @@ export interface RegistryDeps {
   isStopping(): boolean
   /** Bridge-owned chat runtime teardown when a chat leaves the registry:
    * stop the typing indicator. Interim recall timers are cleared by the
-   * registry itself (ChatAgent state), keeping the reset/heal semantics
-   * byte-identical to the pre-split code. */
+   * registry itself (ChatAgent state). */
   onChatRemoved(chat: ChatAgent): void
   /** Register the QQ platform prompt section + qq_* tools on a new agent's
    * own scope — bridge-owned because the tools call back into the bridge. */

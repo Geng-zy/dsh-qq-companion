@@ -4,11 +4,7 @@
  * raw message event to a neutral NormalizedInbound (null = not processable),
  * and `InboundPipeline`, which runs the normalized message through the
  * policy gate → mention gate → command router → media resolution →
- * quote/forward expansion → rate limit → turn dispatch. Extracted verbatim
- * from bridge.ts — gate order, prefix assembly, media annotation and
- * rate-limit behavior are identical; the bridge keeps same-name facade
- * methods so the onFrame call site, the command table and the
- * pipeline-order tests keep working unchanged.
+ * quote/forward expansion → rate limit → turn dispatch.
  * @module dsh-qq-companion/inbound
  */
 import { writeFile } from 'node:fs/promises'
@@ -167,7 +163,7 @@ export interface InboundContext {
    * turn dispatch, so queue/steer can never bypass an existing gate. Returns
    * true when the seam consumed the message (queued with a once-per-turn
    * notice, or steered into the running turn); false = no running turn →
-   * dispatch normally (the 0.8.1 path, byte-identical). `plain` = the message
+   * dispatch normally. `plain` = the message
    * carries no media, no quote and no forward (steer eligibility precondition:
    * media-bearing messages always queue, never steer). Optional: absent =
    * straight dispatch for every message. */
@@ -176,13 +172,8 @@ export interface InboundContext {
   sendToChat(chatId: ChatId, text: string): Promise<string[]>
   /** Bridge log line callback. */
   log(level: 'info' | 'warn' | 'error' | 'debug', message: string): void
-  /** The only config fields the inbound pipeline reads. The dedup
-   * window rides as an optional intersection member so the bridge's
-   * BridgeConfig type stays untouched (absent → the default window). */
-  config: Pick<BridgeConfig, 'botQQ' | 'ignoreSelf' | 'requireMention' | 'rateLimitPerMinute' | 'restrictedMemberPrefix' | 'maxInboundFileBytes'> & Partial<{
-    /** (chatId, message_id) dedup window in seconds; 0 disables. */
-    dedupWindowSeconds: number
-  }>
+  /** The only config fields the inbound pipeline reads. */
+  config: Pick<BridgeConfig, 'botQQ' | 'ignoreSelf' | 'requireMention' | 'rateLimitPerMinute' | 'restrictedMemberPrefix' | 'maxInboundFileBytes' | 'dedupWindowSeconds'>
 }
 
 /** default (chatId, message_id) dedup window, aligned with the MIT
@@ -444,6 +435,10 @@ export class InboundPipeline {
     if (ref.kind === 'file') {
       return await this.resolveNasFile(ref)
     }
+    // The model only ever sees "[语音]" for a voice message; the audio file
+    // matters only to the transcriber. With transcription off, nothing is
+    // fetched or converted.
+    if (ref.kind === 'voice' && !this.ctx.transcriber.enabled) return '[语音]'
     // A voice segment's own URL usually serves QQ's raw SILK audio, which
     // nothing downstream can decode: ask NapCat for an mp3 first and keep the
     // URL as the fallback.
@@ -465,22 +460,20 @@ export class InboundPipeline {
     })
     if (resolved === undefined) return ''
     switch (resolved.kind) {
-      case 'image':
+      case 'image': {
         // Remember the most recent inbound image for /ocr (survives /new);
         // consume the pre-routing pending ref so /ocr never re-resolves it.
         const settings = this.ctx.getSettings(chatId)
         settings.lastImagePath = resolved.path
         settings.pendingImageRef = undefined
         return '[图片:' + resolved.path + ']'
-      case 'voice': {
+      }
+      case 'voice':
         // dispatch must not wait on STT — the [语音] placeholder ships
         // now and the transcript steers into the turn when it completes. A
         // failure/timeout keeps the placeholder as the final state.
-        if (this.ctx.transcriber.enabled) {
-          void this.transcribeLater(resolved.path, chatId)
-        }
+        void this.transcribeLater(resolved.path, chatId)
         return '[语音]'
-      }
       case 'video':
         return '[视频:' + resolved.path + ']'
       default:
