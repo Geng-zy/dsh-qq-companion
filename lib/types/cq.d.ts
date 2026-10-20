@@ -20,6 +20,8 @@ export interface MediaRef {
     fileId?: string;
     name?: string;
     subType?: string;
+    /** A QQ sticker (表情包 / 商城表情), not a photo or screenshot. */
+    sticker?: boolean;
 }
 /** A fully parsed inbound message. */
 export interface ParsedMessage {

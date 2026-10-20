@@ -76,6 +76,10 @@ export interface Config {
     publicMemoryMaxBytes: number;
     groupMemoryDir: string;
     groupMemoryMaxBytes: number;
+    stickerDir: string;
+    stickerMaxCount: number;
+    stickerMaxBytes: number;
+    stickerDailyMax: number;
     privateResetDays: number;
     groupResetDays: number;
     proactiveEnabled: boolean;

@@ -53,6 +53,9 @@ export declare class ChatBridge {
      * running turn (one notice per turn; cleared at turn/end and on chat
      * removal — bounded by the chat population). */
     private readonly queueNoticeChats;
+    /** chats that already sent their one sticker in the running turn
+     * (cleared at turn/start and on chat removal). */
+    private readonly stickerSentChats;
     private stopping;
     /** companion behavior (session renewal, pass marker, wake-up texts). */
     private readonly companion;
@@ -61,6 +64,8 @@ export declare class ChatBridge {
     start(): void;
     /** Stop everything: dispose agents, save mapping, cancel timers. */
     stop(): Promise<void>;
+    /** One sticker per reply: claim the running turn's slot for a chat. */
+    takeStickerSlot(chatId: string): boolean;
     /** Map an agent session id back to its chat (for model tools). */
     chatForSession(sessionId: string): ChatId | undefined;
     /** Whether a caller backing an agent session may perform file edits. QQ chats

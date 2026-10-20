@@ -12,6 +12,12 @@ export interface CompanionStatusDeps {
         remaining: string[];
         firedToday: number;
     };
+    stickers?: () => {
+        count: number;
+        maxCount: number;
+        today: number;
+        dailyMax: number;
+    };
     /** Memory files to size; `max` (bytes) renders a percentage. */
     memoryFiles?: Array<{
         label: string;
