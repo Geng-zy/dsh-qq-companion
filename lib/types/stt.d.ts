@@ -15,6 +15,9 @@ export interface SttConfig {
     timeoutMs: number;
     /** Only the first this-many seconds are transcribed. */
     maxSeconds?: number;
+    /** Fix-ups applied to every transcript: misheard text → what was meant
+     * (e.g. 大飞鱼 → 大肥鱼, a name the engine cannot know). */
+    replacements?: Readonly<Record<string, string>>;
 }
 /** Most transcriptions waiting behind the running one. */
 export declare const MAX_QUEUE = 5;
@@ -36,6 +39,9 @@ export declare function findSenseVoiceModel(dir: string): Promise<{
 export declare function findWhisperModel(model: string): Promise<string | undefined>;
 /** Clean an engine's raw transcript: engine tags, noise markers, invented credits, length. */
 export declare function cleanTranscript(raw: string): string;
+/** Apply the transcript fix-up table. Longer keys go first, so a longer
+ * phrase wins over a shorter one it contains; empty keys are ignored. */
+export declare function applyReplacements(text: string, replacements: Readonly<Record<string, string>> | undefined): string;
 /** sherpa-onnx prints a JSON object with "text" (on stdout or stderr, depending on version). */
 export declare function parseSherpaOutput(output: string): string;
 export declare class Transcriber {

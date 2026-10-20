@@ -54,6 +54,7 @@ export interface Config {
     sttTimeoutMs: number;
     sttLanguage: string;
     sttMaxSeconds: number;
+    sttReplacements: Record<string, string>;
     textImageThreshold: number;
     cardFooter: string;
     splitLines: boolean;
