@@ -726,11 +726,12 @@ export function apply(ctx: Context, config: Config): void {
     groupAccess,
     activity,
     ...(config.proactiveEnabled ? { proactive: proactiveHandle } : {}),
-    ...(sendBudget.enabled ? { sendBudget } : {}),
+    // Always wired: with every limit at 0 it only counts (for /doctor).
+    sendBudget,
     ...(config.humanTypingPace ? { typingPacer } : {}),
     ...(config.groupReplyMaxPerWindow > 0 ? { groupCooldown } : {}),
     companionStatus: () => companionStatusLines({
-      ...(sendBudget.enabled ? { sendBudget: () => sendBudget.snapshot() } : {}),
+      sendBudget: () => sendBudget.snapshot(),
       liveness: () => liveness.snapshot(),
       scheduler: () => scheduler.snapshot(),
       ...(proactiveRef !== undefined ? { proactive: () => proactiveRef!.snapshot() } : {}),

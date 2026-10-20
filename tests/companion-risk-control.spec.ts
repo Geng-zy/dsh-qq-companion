@@ -121,3 +121,13 @@ describe('wired into the bridge', () => {
     await h.connection.stop()
   })
 })
+
+describe('SendBudget with no limits', () => {
+  it('never waits or drops, but still counts for /doctor', async () => {
+    const sleeps: number[] = []
+    const b = new SendBudget({ config: { minIntervalMs: 0, perMinute: 0, perHour: 0, perDay: 0 }, isExempt: () => false, log: () => undefined, sleep: async ms => { sleeps.push(ms) } })
+    for (let i = 0; i < 50; i++) expect(await b.acquire('group:1')).toBe(true)
+    expect(sleeps).toEqual([])
+    expect(b.snapshot()).toMatchObject({ lastMinute: 50, lastHour: 50, today: 50, dropped: 0 })
+  })
+})
