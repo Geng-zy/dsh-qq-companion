@@ -98,7 +98,7 @@ export interface InboundContext {
     /** Message body assembly (bridge facade: overridable, see the pipeline-order test). */
     buildBody(text: string, media: MediaRef[], chatId: ChatId): Promise<string>;
     /** Quote (reply) expansion (bridge facade: overridable, see the pipeline-order test). */
-    expandQuote(messageId: string): Promise<string>;
+    expandQuote(messageId: string, chatId: ChatId): Promise<string>;
     /** Turn dispatch — bridge-owned orchestration (ensureChat + per-turn prefixes). */
     dispatchFollowup(chatId: ChatId, text: string, role: UserRole, nickname?: string): Promise<void>;
     /** busy-turn policy seam — invoked for every non-command message
@@ -182,8 +182,14 @@ export declare class InboundPipeline {
      * transcription failed or it took longer than VOICE_TRANSCRIPT_WAIT_MS —
      * the message then goes on as a bare [语音]). */
     private transcribe;
-    /** Expand a quoted (reply) message into [引用] text via get_msg. */
-    expandQuote(messageId: string): Promise<string>;
+    /**
+     * Expand a quoted (reply) message into [引用] text via get_msg. The quoted
+     * message goes through the same media path as a direct one: images are
+     * fetched (she can look at them), voice is transcribed, videos and files
+     * are fetched, and a quoted merged forward (聊天记录) is expanded. A quote
+     * never changes the /ocr target.
+     */
+    expandQuote(messageId: string, chatId?: ChatId): Promise<string>;
     /**
      * Fetch an inbound QQ file to a local path. NapCat's get_file may return
      * container-internal paths unreachable from this host, so:
