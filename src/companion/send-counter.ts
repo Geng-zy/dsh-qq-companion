@@ -3,6 +3,7 @@
  * hour and today. Counting only — sending pace is the typing pacer's job.
  * @module dsh-qq-companion/companion/send-counter
  */
+import { dayKey } from './time.js'
 
 export interface SendCounterSnapshot {
   lastMinute: number
@@ -39,8 +40,7 @@ export class SendCounter {
   }
 
   private rollDay(): void {
-    const d = new Date(this.now())
-    const key = d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate()
+    const key = dayKey(this.now())
     if (key !== this.day) {
       this.day = key
       this.todayCount = 0

@@ -4,7 +4,7 @@
  */
 import { describeError } from '../errors.js'
 import { JsonState } from './state.js'
-import { dayKey } from './time.js'
+import { dayKey, minutesOfDay, toMinutes } from './time.js'
 import type { Log } from './time.js'
 
 /** A prompt that was due while dsh was down fires late if it is at most
@@ -57,9 +57,9 @@ export class DailyScheduler {
     this.fired.clear()
     for (const [id, day] of Object.entries(stored?.fired ?? {})) if (typeof day === 'string') this.fired.set(id, day)
     // Overdue beyond the catch-up window: skip for today.
-    this.markPassed(p => this.minutesNow() - this.minutesOf(p.time) > CATCH_UP_MINUTES)
+    this.markPassed(p => minutesOfDay(this.now()) - toMinutes(p.time) > CATCH_UP_MINUTES)
     for (const p of this.prompts) {
-      if (this.fired.get(p.id) !== today && this.minutesNow() >= this.minutesOf(p.time)) {
+      if (this.fired.get(p.id) !== today && minutesOfDay(this.now()) >= toMinutes(p.time)) {
         this.log('info', '定时任务 ' + p.id + ' 在 dsh 停机期间到点（' + p.time + '），补执行')
       }
     }
@@ -70,7 +70,7 @@ export class DailyScheduler {
     const today = dayKey(this.now())
     for (const p of this.prompts) {
       if (this.fired.get(p.id) === today) continue
-      if (this.minutesNow() >= this.minutesOf(p.time) && skip(p)) this.fired.set(p.id, today)
+      if (minutesOfDay(this.now()) >= toMinutes(p.time) && skip(p)) this.fired.set(p.id, today)
     }
   }
 
@@ -96,7 +96,7 @@ export class DailyScheduler {
     const today = dayKey(this.now())
     for (const p of this.prompts) {
       if (this.fired.get(p.id) === today) continue
-      if (this.minutesNow() < this.minutesOf(p.time)) continue
+      if (minutesOfDay(this.now()) < toMinutes(p.time)) continue
       this.fired.set(p.id, today)
       await this.state.save(() => ({ fired: Object.fromEntries(this.fired) }))
       try {
@@ -106,15 +106,5 @@ export class DailyScheduler {
         this.log('warn', '定时任务 ' + p.id + ' 失败: ' + describeError(error))
       }
     }
-  }
-
-  private minutesNow(): number {
-    const d = new Date(this.now())
-    return d.getHours() * 60 + d.getMinutes()
-  }
-
-  private minutesOf(time: string): number {
-    const [h, m] = time.split(':').map(Number)
-    return h * 60 + m
   }
 }

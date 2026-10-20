@@ -10,7 +10,7 @@ import { join } from 'node:path'
 
 import { describeError } from '../errors.js'
 import { SerialFileWriter } from '../persist.js'
-import { boundaryDay } from './time.js'
+import { boundaryDay, hhmm, minutesOfDay } from './time.js'
 import type { Log } from './time.js'
 
 /** Activity file name, under mediaDir. */
@@ -178,8 +178,6 @@ export class ChatActivity {
 /** Format today's excerpt for the diary prompt. */
 export function formatTranscript(lines: readonly ActivityLine[]): string {
   return lines.map(l => {
-    const d = new Date(l.t)
-    const hm = String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0')
-    return '[' + hm + '] ' + (l.who === 'bot' ? '你' : (l.name ?? '对方')) + '：' + l.text
+    return '[' + hhmm(minutesOfDay(l.t)) + '] ' + (l.who === 'bot' ? '你' : (l.name ?? '对方')) + '：' + l.text
   }).join('\n')
 }

@@ -766,9 +766,10 @@ export function apply(ctx: Context, config: Config): void {
       scheduler.stop()
       proactive?.stop()
       liveness.stop()
-      await activity.flush()
       await injectChannel?.stop()
       await bridge.stop()
+      // After the bridge: its last replies are recorded too.
+      await activity.flush()
       await connection.stop()
     }
   }, 'dsh-onebot.lifecycle')

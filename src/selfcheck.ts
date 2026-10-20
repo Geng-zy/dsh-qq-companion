@@ -32,6 +32,9 @@ export interface SelfCheckInput {
   proactiveMaxPerDay: number
   splitLines: boolean
   splitMaxMessages: number
+  humanTypingPace?: boolean
+  typingDelayMinMs?: number
+  typingDelayMaxMs?: number
 }
 
 const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/
@@ -68,6 +71,7 @@ export function selfCheck(c: SelfCheckInput): string[] {
     else if (c.proactiveWindowStart >= c.proactiveWindowEnd) problems.push('主动聊天时段开始不早于结束（不支持跨午夜），不会叫醒')
     if (c.proactiveMinPerDay > c.proactiveMaxPerDay) problems.push('proactiveMinPerDay 大于 proactiveMaxPerDay')
   }
+  if (c.humanTypingPace === true && (c.typingDelayMinMs ?? 0) > (c.typingDelayMaxMs ?? 0)) problems.push('按真人打字速度已开启，但 typingDelayMinMs 大于 typingDelayMaxMs：每条消息都会按最长时间等')
   if (c.splitLines && c.splitMaxMessages <= 1) problems.push('splitLines 已开启但 splitMaxMessages ≤ 1：实际不会拆分')
   return problems
 }

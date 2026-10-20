@@ -4,6 +4,9 @@
 
 - 删除 1.1.4 加的发送总量 / 发送间隔上限（`sendMinIntervalMs`、`sendPerMinute`、`sendPerHour`、`sendPerDay`）和群冷却（`groupReplyMaxPerWindow`、`groupReplyWindowMinutes`），设置页里也去掉。发送节奏统一交给 `humanTypingPace`（按真人打字速度）。配置里还写着这些键的话会被忽略。
 - `/doctor` 的发送量改由一个只计数的模块提供。
+- 修复：插件停止时先停桥接层、再写聊天记录（原来顺序反了，停止前最后几句回复不会记进聊天记录）。
+- 配置自检：开启 `humanTypingPace` 时，`typingDelayMinMs` 大于 `typingDelayMaxMs` 会提醒。
+- 整理：陪伴模块统一用 `companion/time.ts` 的时间换算，去掉几处重复实现。
 
 ## 1.1.5（2026-10-20）
 

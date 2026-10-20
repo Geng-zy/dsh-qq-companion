@@ -7,7 +7,7 @@
 import { describeError } from '../errors.js'
 import type { ChatActivity } from './activity.js'
 import { JsonState } from './state.js'
-import { dayKey, toMinutes } from './time.js'
+import { dayKey, hhmm, minutesOfDay, toMinutes } from './time.js'
 import type { Log } from './time.js'
 
 export interface ProactiveConfig {
@@ -90,8 +90,7 @@ export class ProactiveScheduler {
     this.day = stored.day
     // Slots missed by more than half an hour while dsh was down are dropped
     // (a restart should not open with a stale "just thinking of you").
-    const d = new Date(this.now())
-    const nowMin = d.getHours() * 60 + d.getMinutes()
+    const nowMin = minutesOfDay(this.now())
     this.plan = stored.plan.filter(m => typeof m === 'number' && m >= nowMin - 30)
     this.firedToday = typeof stored.fired === 'number' ? stored.fired : 0
     this.log('info', '恢复今天的主动聊天计划：剩 ' + (this.remaining().join('、') || '无') + '，已叫醒 ' + this.firedToday + ' 次')
@@ -120,7 +119,7 @@ export class ProactiveScheduler {
   /** Today's remaining wake-up times as HH:MM (for /task listing). */
   remaining(): string[] {
     this.ensurePlan()
-    return this.plan.map(m => String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0'))
+    return this.plan.map(hhmm)
   }
 
   /** Wake her right now (the /task checkin test hook): the hard rules
@@ -128,16 +127,13 @@ export class ProactiveScheduler {
   async fireNow(): Promise<void> {
     const c = this.config
     const unanswered = Math.max(0, this.activity.botLinesSinceUser(c.chatId) - 1)
-    const d = new Date(this.now())
-    const time = String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0')
-    await this.fire({ time, unanswered, lastUserAt: this.activity.lastAt(c.chatId) })
+    await this.fire({ time: hhmm(minutesOfDay(this.now())), unanswered, lastUserAt: this.activity.lastAt(c.chatId) })
   }
 
   /** One check (exported for tests). */
   async tick(): Promise<void> {
     this.ensurePlan()
-    const d = new Date(this.now())
-    const nowMin = d.getHours() * 60 + d.getMinutes()
+    const nowMin = minutesOfDay(this.now())
     if (this.plan.length === 0 || this.plan[0] > nowMin) return
     // Fire the earliest due slot; any older missed slots are dropped.
     while (this.plan.length > 1 && this.plan[1] <= nowMin) this.plan.shift()
@@ -158,7 +154,7 @@ export class ProactiveScheduler {
       this.persist()
       return
     }
-    const time = String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0')
+    const time = hhmm(nowMin)
     try {
       await this.fire({ time, unanswered, lastUserAt })
       this.firedToday += 1
@@ -176,8 +172,7 @@ export class ProactiveScheduler {
     const c = this.config
     const span = Math.max(0, c.maxPerDay - c.minPerDay)
     const count = c.minPerDay + Math.floor(this.random() * (span + 1))
-    const d = new Date(this.now())
-    const nowMin = d.getHours() * 60 + d.getMinutes()
+    const nowMin = minutesOfDay(this.now())
     // A restart mid-day plans only the rest of today's window.
     const start = Math.max(toMinutes(c.windowStart), nowMin + 1)
     this.plan = pickCheckinTimes(start, toMinutes(c.windowEnd), count, c.minGapMinutes, this.random)
