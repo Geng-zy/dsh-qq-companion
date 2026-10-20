@@ -35,7 +35,7 @@ export interface HealthDeps {
      * absent = the report omits the reference section. */
     failureRefs?: () => FailureRefRecord[];
     /** the reference stamped into the exported archive file name
-     * (explicit /healthcheck export argument, or the latest recorded fault). */
+     * (explicit /doctor export argument, or the latest recorded fault). */
     triggerRef?: string;
     /** Extra report lines from the companion features (QQ liveness, plans,
      * memory sizes); absent = no companion section. */
@@ -49,7 +49,7 @@ export declare function redactSnapshot(config: Record<string, unknown>): Record<
 export declare function scrubSecrets(text: string, secrets: readonly string[]): string;
 /** One-line-per-artifact file size summary helper (human readable). */
 export declare function formatBytes(size: number): string;
-/** Render the healthcheck summary (plain text, one ▍ block). */
+/** Render the /doctor health summary (plain text, one ▍ block). */
 export declare function healthReport(deps: HealthDeps): Promise<string>;
 interface TraceLine {
     ts: number;

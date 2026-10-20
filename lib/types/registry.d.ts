@@ -14,7 +14,7 @@ export declare class ChatRegistry {
     readonly chats: Map<string, ChatAgent>;
     /** Reverse index: session id → chat id (routes session events to chats). */
     readonly bySession: Map<string, string>;
-    /** Per-chat settings (workspace/preset/mode/goal/ocr), lazy-created. */
+    /** Per-chat settings (workspace/preset/goal), lazy-created. */
     private readonly chatSettings;
     /** Retired / broken session ids and the /session switch-back lists. */
     private readonly ledger;
@@ -137,7 +137,7 @@ export declare class ChatRegistry {
     /** carry the chat's persisted settings across a reset, a session
      * switch or a collision heal — snapshot them into evictedChats under the
      * (about-to-be-retired) session id, so the trailing saveMapping keeps the
-     * entry instead of dropping the chat's workspace/goal/mode on a restart.
+     * entry instead of dropping the chat's workspace/goal on a restart.
      * Only persisted fields trigger the snapshot (a plain /new or heal drops
      * the entry); the recorded session id is retired by the caller, so the
      * carrier is never resumed. */
@@ -195,8 +195,8 @@ export declare class ChatRegistry {
     /**
      * /new: dispose the current chat agent and retire its session id, so the
      * next inbound message creates a brand-new session (fresh history; the old
-     * conversation stays on disk). The chat's settings (workspace/preset/mode/
-     * goal/ocr) all survive — they key the NEXT session of this chat.
+     * conversation stays on disk). The chat's settings (workspace/preset/
+     * goal) all survive — they key the NEXT session of this chat.
      */
     resetChat(chatId: ChatId): Promise<void>;
     /** Every chat with a session: live ones and idle-evicted ones. */

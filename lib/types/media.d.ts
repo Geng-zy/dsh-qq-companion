@@ -1,7 +1,6 @@
 /**
  * Media handling: inbound download/resolution (url / base64:// / file:// /
  * hash via get_image), 6h temp-file cleanup, and outbound base64 encoding.
- * Ported from the Hermes OneBotAdapter media half.
  * @module dsh-qq-companion/media
  */
 /** Size limits (bytes), matching the Hermes adapter's constants. */
@@ -21,6 +20,8 @@ export interface MediaStoreDownloadOptions {
     maxBytes?: number;
     /** Escape hatch for local/NAT reverse-proxy deployments: skip the private-address check (protocol whitelist still applies). */
     allowPrivateHosts?: boolean;
+    /** Plugin log for failures (absent = console). */
+    log?: (level: 'warn', message: string) => void;
 }
 /**
  * Media storage: a scratch directory under the plugin's media root.
@@ -32,6 +33,7 @@ export declare class MediaStore {
     private readonly imageMaxSize;
     private readonly downloadMaxBytes;
     private readonly allowPrivateHosts;
+    private readonly log;
     /**
      * @param dir - absolute scratch directory (created on demand).
      * @param ttlHours - files older than this are deleted on cleanup.

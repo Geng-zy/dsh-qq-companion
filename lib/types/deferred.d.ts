@@ -93,7 +93,7 @@ export interface DeferredOptions {
 export declare function classifySendError(error: unknown): 'retryable' | 'uncertain';
 /** Build the deferred delivery text for a finished turn. an error
  * ending carries the turn's MF- reference so the补发 terminal notice and the
- * trace/log/healthcheck surfaces share one number. */
+ * trace/log/doctor surfaces share one number. */
 export declare function buildDeferredText(entry: DeferredEntry, reason: DeferredTurnReason | undefined): string;
 /**
  * The deferred-delivery tracker: timeout timers, the JSONL registry, bounded

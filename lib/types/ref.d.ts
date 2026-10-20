@@ -5,7 +5,7 @@
  * convention). The same reference is
  * carried by every surface of one fault: the structured log line, the trace
  * event (`data.ref`), the user-visible error notice tail, and the
- * /healthcheck report + diagnostics archive file name — so a user can grep
+ * /doctor report + diagnostics archive file name — so a user can grep
  * mediaDir/qq-trace.jsonl for the whole fault's decision trail.
  *
  * Safety posture (plan R8): references are minted ONLY on fault events —
@@ -20,7 +20,7 @@ export type FailureRefKind = 'conn' | 'msg';
 export declare const REF_PREFIXES: Record<FailureRefKind, string>;
 /** Random character count after the base36 timestamp. */
 export declare const REF_RANDOM_CHARS = 4;
-/** How many recent fault references the registry keeps (and the /healthcheck
+/** How many recent fault references the registry keeps (and the /doctor
  * report lists); bounded so a fault storm cannot grow memory. */
 export declare const FAILURE_REF_MAX = 10;
 /** Detail length cap for a stored record (the trace reason carries the full
@@ -47,7 +47,7 @@ export declare function newFailureRef(kind: FailureRefKind, options?: {
     random?: () => number;
 }): string;
 /** Whether a string is a well-formed reference number (used to validate the
- * `/healthcheck export <参考号>` argument before it reaches a file name). */
+ * `/doctor export <参考号>` argument before it reaches a file name). */
 export declare function isFailureRef(value: string): boolean;
 /** The user-visible suffix appended to a fault notice's tail: the reference
  * plus the trace-file lookup hint. Empty when no reference exists (callers
@@ -55,7 +55,7 @@ export declare function isFailureRef(value: string): boolean;
 export declare function failureRefSuffix(ref: string | undefined): string;
 /**
  * The bounded in-memory registry of recent faults: the bridge records every
- * minted reference here and the /healthcheck report + diagnostics export read
+ * minted reference here and the /doctor report + diagnostics export read
  * the most recent entries. Capacity-bounded (oldest dropped); pure memory —
  * no disk writes, no persistence.
  */

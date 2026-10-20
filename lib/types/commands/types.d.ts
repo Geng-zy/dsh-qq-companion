@@ -7,7 +7,6 @@ import type { GroupAccessLike } from '../groups.js';
 import type { Agent, ModelSelectionRef } from '@deepseek-ai/dsh-agent';
 import type { SessionId } from '@deepseek-ai/dsh-session';
 import type { OneBotConnection } from '../connection.js';
-import type { MediaRef } from '../cq.js';
 import { type ChatId, type UserRole } from '../chat.js';
 import type { PendingSelection, SessionSwitchOutcome, SwitchableSession } from '../registry.js';
 import type { AgentDefaultModelLike, AgentPresetsLike, BridgeConfig, BridgeDeps, LlmCatalogPort, SessionPersistenceLike, WorkspaceRegistryLike } from '../bridge.js';
@@ -71,13 +70,9 @@ export interface CommandContext {
     presetOverride(chatId: ChatId): string | undefined;
     setPresetOverride(chatId: ChatId, id: string): void;
     hasPresetOverride(chatId: ChatId): boolean;
-    interimOverride(chatId: ChatId): boolean | undefined;
-    setInterimOverride(chatId: ChatId, value: boolean): void;
     goal(chatId: ChatId): string | undefined;
     setGoal(chatId: ChatId, value: string): void;
     deleteGoal(chatId: ChatId): void;
-    lastImagePath(chatId: ChatId): string | undefined;
-    lastImagePath(chatId: ChatId): string | undefined;
     /** per-chat pending serial-number selection snapshot (the numbered list
      * a bare /workspace|/model|/preset|/session rendered; lazy 5-min TTL, see below). */
     /** /session: this chat's switchable retired sessions (newest first). */
@@ -90,10 +85,6 @@ export interface CommandContext {
     sessionPersistence: SessionPersistenceLike | undefined;
     pendingSelection(chatId: ChatId): PendingSelection | undefined;
     setPendingSelection(chatId: ChatId, value: PendingSelection | undefined): void;
-    /** Lazy media resolution for the /ocr pending image ref. */
-    resolveMediaRef(ref: MediaRef, chatId: ChatId): Promise<string>;
-    /** Consume the pending pre-routing image ref (get + delete, /ocr only). */
-    takePendingImageRef(chatId: ChatId): MediaRef | undefined;
     /** Services (narrow slices of the bridge deps). */
     /** Live model catalog for /model (port; index.ts wires it over the
      * live llm service — commands never touch Context). */

@@ -31,7 +31,7 @@ export declare class ChatBridge {
      * JSONL registry, bounded send retries and restart recovery. */
     private readonly deferred;
     /** the bounded registry of recent fault references — every minted
-     * QQ-CONN-/MF- number is recorded here for the /healthcheck report and the
+     * QQ-CONN-/MF- number is recorded here for the /doctor report and the
      * diagnostics archive file name. */
     private readonly failureRefs;
     /** Live registry indexes — the inbound/outbound/interim/turn links keep
@@ -142,8 +142,6 @@ export declare class ChatBridge {
      * text. Plan mode is host-owned now (/plan forwards to the host command),
      * so the agent's own plan-mode instruction section governs planning. */
     private prefixTurn;
-    /** Per-chat outbound-mode override (/mode), falling back to the global config. */
-    private effectiveInterim;
     /**
      * Slash-command router. Commands are admin-only and are matched on the
      * first word; a leading @mention glued to the command (QQ group at + text)
@@ -206,15 +204,19 @@ export declare class ChatBridge {
      * chat's initiating traceId; a write with no mapped trace (proactive tool
      * sends) starts a fresh one. No-op with tracing off. */
     private traceChat;
-    /** The health deps the /healthcheck command renders from (resolved live). */
+    /** The health deps the /doctor command renders from (resolved live). */
     private healthDeps;
-    /** /healthcheck: render the health summary. */
+    /** /doctor: render the health summary. */
     private buildHealthReport;
-    /** /healthcheck export: pack the redacted diagnostics archive. the
+    /** /doctor export: pack the redacted diagnostics archive. the
      * file name carries the trigger reference — the explicit command argument,
      * or the most recent recorded fault reference when omitted. */
     private exportDiagnosticsPackage;
     private onSessionEvent;
+    /** A failed turn's notice goes to the owner only: in their own private
+     * chat it is shown there; a failure in a group or someone else's private
+     * chat is reported to the owner privately, never shown to other people. */
+    private sendErrorNotice;
     /** the trace scope for one chat's session events, resolved through the
      * chat-level association table; undefined when tracing is off or the chat
      * has no recorded dispatch (host-initiated turns stay untraced). */

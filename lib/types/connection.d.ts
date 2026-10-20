@@ -24,13 +24,6 @@ export interface OneBotEvent {
     };
     [key: string]: unknown;
 }
-/** Action-call result from the OneBot endpoint. */
-export interface ActionResult {
-    status: string;
-    retcode: number;
-    data: unknown;
-    wording?: string;
-}
 /** Transport configuration. */
 export interface ConnectionConfig {
     host: string;
@@ -96,10 +89,10 @@ export declare class OneBotConnection {
     constructor(config: ConnectionConfig);
     /** Whether the transport currently has a live socket. */
     get connected(): boolean;
-    /** The configured listen address (for /healthcheck). */
+    /** The configured listen address (for /doctor). */
     get listenHost(): string;
     get listenPort(): number;
-    /** Port-in-use bind retries since the last successful listen (for /healthcheck). */
+    /** Port-in-use bind retries since the last successful listen (for /doctor). */
     get portRetryAttempts(): number;
     /** Drop the current socket so the peer reconnects (liveness watchdog: the
      * WebSocket answers pings but the OneBot side has gone silent);

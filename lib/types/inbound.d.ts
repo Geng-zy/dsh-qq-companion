@@ -4,7 +4,6 @@ import type { Transcriber } from './stt.js';
 import type { OneBotSegment, MediaRef } from './cq.js';
 import type { AccessPolicyConfig, ChatId, UserRole } from './chat.js';
 import type { BridgeConfig } from './bridge.js';
-import type { ChatSettings } from './registry.js';
 /**
  * The neutral shape normalizeOneBot11 extracts from one OneBot 11 message
  * event: exactly the fields the inbound pipeline consumes, with the event
@@ -83,8 +82,6 @@ export interface InboundContext {
     policy: AccessPolicyConfig;
     /** Live chat lookup (loop-residue reset + the rate-limit window). */
     getChat(chatId: ChatId): InboundChat | undefined;
-    /** Per-chat settings (recent-image registration for /ocr). */
-    getSettings(chatId: ChatId): ChatSettings;
     /** lazy idle-chat sweep before each inbound message. */
     sweepIdleChats(): Promise<void>;
     /** Media store: ref resolution, URL downloads, fresh-path writes, temp cleanup. */
@@ -151,11 +148,18 @@ export declare class InboundPipeline {
     /** dedup window state: "chatId#messageId" → first-seen epoch ms, in
      * insertion order (Map) so the oldest entry is the LRU victim. */
     private readonly seenMessages;
+    /** Messages are prepared one at a time, across all chats, in arrival
+     * order: a voice message waiting for its transcript (or an image still
+     * downloading) is never overtaken by a later message. */
+    private queue;
     constructor(ctx: InboundContext, options?: InboundPipelineOptions);
     /** health snapshot: how many message_ids are currently held in the
      * dedup window (LRU-capped; see DEDUP_MAX_ENTRIES). */
     get dedupWindowEntries(): number;
+    /** Prepare one message and hand it to the model — after every message
+     * that arrived before it (see `queue`). */
     processInbound(inbound: NormalizedInbound): Promise<void>;
+    private processNow;
     /** (chatId, message_id) sliding-window dedup against OneBot
      * re-delivery (reconnect replay / ws retry). Runs before every other gate
      * so a redelivered message can neither re-trigger a command nor reset the
@@ -175,9 +179,9 @@ export declare class InboundPipeline {
      * Build the message body text: placeholders become annotated local paths
      * (images/voices/videos) and voice files are transcribed when enabled.
      */
-    buildBody(text: string, media: MediaRef[], chatId: ChatId): Promise<string>;
+    buildBody(text: string, media: MediaRef[], _chatId: ChatId): Promise<string>;
     /** Resolve one media ref to a text annotation with a local path. */
-    resolveMediaRef(ref: MediaRef, chatId: ChatId): Promise<string>;
+    resolveMediaRef(ref: MediaRef): Promise<string>;
     /** The transcript label for one voice file ('' when nothing was said,
      * transcription failed or it took longer than VOICE_TRANSCRIPT_WAIT_MS —
      * the message then goes on as a bare [语音]). */
@@ -187,7 +191,7 @@ export declare class InboundPipeline {
      * message goes through the same media path as a direct one: images are
      * fetched (she can look at them), voice is transcribed, videos and files
      * are fetched, and a quoted merged forward (聊天记录) is expanded. A quote
-     * never changes the /ocr target.
+     * gets the same treatment.
      */
     expandQuote(messageId: string, chatId?: ChatId): Promise<string>;
     /**

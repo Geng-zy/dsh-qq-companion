@@ -270,7 +270,7 @@ export interface BridgeDeps {
     policy: AccessPolicyConfig;
     /** health: the ALREADY-redacted plugin config snapshot (secrets
      * replaced by 已配置/未配置 — see health.redactSnapshot). Absent = the
-     * /healthcheck diagnostics export renders without a config section. */
+     * /doctor diagnostics export renders without a config section. */
     configSnapshot?: (() => Record<string, unknown>) | undefined;
     /** Log line callback (level, message). */
     log(level: 'info' | 'warn' | 'error' | 'debug', message: string): void;

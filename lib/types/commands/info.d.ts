@@ -1,5 +1,5 @@
 /**
- * Inspection commands: /id, /ver, /status, /doctor, /mode and /ocr.
+ * Inspection commands: /id, /ver, /status and /doctor.
  * @module dsh-qq-companion/commands/info
  */
 import { CommandContext } from './types.js';
@@ -13,11 +13,7 @@ export declare function handleStatusCommand(ctx: CommandContext, chatId: ChatId)
 /** /doctor: render the health summary, or pack the redacted
  * diagnostics archive with the `export` argument. Failures are reported to
  * the chat as a ⚠️ line, never thrown past the router. */
-export declare function handleHealthcheckCommand(ctx: CommandContext, chatId: ChatId, arg: string): Promise<void>;
-/** /mode: per-chat outbound-mode override (interim vs instant). */
-export declare function handleModeCommand(ctx: CommandContext, chatId: ChatId, arg: string): Promise<void>;
-/** /ocr: OCR the most recent inbound image via NapCat's ocr_image. */
-export declare function handleOcrCommand(ctx: CommandContext, chatId: ChatId): Promise<void>;
+export declare function handleDoctorCommand(ctx: CommandContext, chatId: ChatId, arg: string): Promise<void>;
 /** Plugin version from package.json, read once (per process). Exported for the /ver ESM regression test. */
 export declare let cachedPluginVersion: string | undefined;
 /** The plugin's package root: the nearest ancestor directory holding this

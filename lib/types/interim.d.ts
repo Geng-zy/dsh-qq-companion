@@ -74,7 +74,7 @@ export interface InterimContext {
     chainTail(chatId: ChatId): Promise<unknown>;
     /** Host-plane card relay (assistant/message branch, before any early return). */
     relayHostCards(chatId: ChatId, content: readonly unknown[]): void;
-    /** Per-chat effective outbound mode (/mode override → global config). */
+    /** Whether interim messages are on (config.interimMessages). */
     effectiveInterim(chatId: ChatId): boolean;
     /** Bridge log line callback. */
     log(level: 'info' | 'warn' | 'error' | 'debug', message: string): void;
