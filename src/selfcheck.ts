@@ -9,7 +9,6 @@ import { existsSync } from 'node:fs'
 import { dirname } from 'node:path'
 
 export interface SelfCheckInput {
-  mode: 'reverse' | 'forward'
   host: string
   accessToken: string
   botQQ: string
@@ -44,8 +43,8 @@ const QQ = /^\d{5,12}$/
 /** All problems found (empty = all good). */
 export function selfCheck(c: SelfCheckInput): string[] {
   const problems: string[] = []
-  if (c.mode === 'reverse' && c.accessToken === '') problems.push('accessToken 为空：reverse 模式会拒绝启动，QQ 连不上（设置 accessToken，并在 NapCat 的 WebSocket 客户端里填同一个 token）')
-  if (c.mode === 'reverse' && (c.host === '0.0.0.0' || c.host === '::')) problems.push('host 是 ' + c.host + '：反向 WS 对所有网卡开放，确认防火墙已挡住该端口，或改成 127.0.0.1')
+  if (c.accessToken === '') problems.push('accessToken 为空：插件会拒绝启动，QQ 连不上（设置 accessToken，并在 NapCat 的 WebSocket 客户端里填同一个 token）')
+  if (c.host === '0.0.0.0' || c.host === '::') problems.push('host 是 ' + c.host + '：反向 WS 对所有网卡开放，确认防火墙已挡住该端口，或改成 127.0.0.1')
   if (c.adminUsers.length === 0 && !c.allowAllUsers) problems.push('adminUsers 为空：没人能私聊、也没人能用斜杠命令')
   for (const id of c.adminUsers) if (!QQ.test(id)) problems.push('adminUsers 里的「' + id + '」不像 QQ 号')
   if (c.botQQ !== '' && !QQ.test(c.botQQ)) problems.push('botQQ「' + c.botQQ + '」不像 QQ 号（留空会自动学习）')

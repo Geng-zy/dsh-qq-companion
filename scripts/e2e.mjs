@@ -75,7 +75,6 @@ mkdirSync(workspace)
 writeFileSync(join(profile, 'cordis.patch.yml'), `- id: dsh-onebot
   name: 'dsh-qq-companion'
   config:
-    mode: reverse
     host: 127.0.0.1
     port: ${WS_PORT}
     accessToken: ${TOKEN}

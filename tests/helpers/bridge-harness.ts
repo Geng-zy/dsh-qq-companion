@@ -99,7 +99,7 @@ export async function makeHarness(opts?: { failCreateFor?: string; mediaDir?: st
   const sessions = { flush: vi.fn(async () => undefined) }
   const mediaDir = opts?.mediaDir ?? mkdtempSync(join(tmpdir(), 'onebot-test-'))
   const connection = new OneBotConnection({
-    mode: 'reverse', host: '127.0.0.1', port: 0, url: 'ws://127.0.0.1:3001', accessToken: 'test-token', callTimeoutMs: 3_000,
+    host: '127.0.0.1', port: 0, accessToken: 'test-token', callTimeoutMs: 3_000,
   })
   const bridge = new ChatBridge({
     ctx,
@@ -221,7 +221,7 @@ export async function makeCmdHarness(opts?: {
   const sessions = { flush: vi.fn(async () => undefined) }
   const mediaDir = opts?.mediaDir ?? mkdtempSync(join(tmpdir(), 'onebot-test-'))
   const connection = new OneBotConnection({
-    mode: 'reverse', host: '127.0.0.1', port: 0, url: 'ws://127.0.0.1:3001', accessToken: 'test-token', callTimeoutMs: 3_000,
+    host: '127.0.0.1', port: 0, accessToken: 'test-token', callTimeoutMs: 3_000,
   })
   const bridge = new ChatBridge({
     ctx,

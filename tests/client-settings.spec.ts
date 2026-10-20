@@ -158,13 +158,13 @@ describe('客户端 bundle — descriptor 契约核对（与 src/settings-remote
     expect(() => getSettings.result.schema.parse({ revision: 0, entryActive: true, config: SCHEMA_DEFAULTS, secrets: [], groups: SETTINGS_GROUPS, effect: 'none' })).toThrow()
   })
 
-  it('updateSettings patch codec 接受 29 键任意子集、拒绝非法枚举值', () => {
+  it('updateSettings patch codec 接受任意子集、拒绝非法枚举值', () => {
     const updateSettings = descriptors[1] as { parameters: Array<{ codec: { schema: { parse(value: unknown): unknown } } }> }
     const patchCodec = updateSettings.parameters[0].codec.schema
     expect(patchCodec.parse({ port: 1234 })).toEqual({ port: 1234 })
     expect(patchCodec.parse({ adminUsers: ['10000'], unknownCommand: 'passthrough' })).toEqual({ adminUsers: ['10000'], unknownCommand: 'passthrough' })
     expect(patchCodec.parse({ workspacePath: '/tmp/ws' })).toEqual({ workspacePath: '/tmp/ws' }) // 字符串通道
-    expect(() => patchCodec.parse({ mode: 'invalid' })).toThrow()
+    expect(() => patchCodec.parse({ dmPolicy: 'invalid' })).toThrow()
   })
 })
 
@@ -192,7 +192,6 @@ describe('客户端 bundle — 分组、键集、默认值与 host 一致', () =
     }
     // 枚举键集与宿主 validatePatch 接受的枚举值一致
     const enumField = (key: string) => groups.flatMap((group) => group.fields).find((field) => field.key === key)
-    expect(enumField('mode')?.options).toEqual(['reverse', 'forward'])
     expect(enumField('dmPolicy')?.options).toEqual(['open', 'allowlist', 'disabled'])
     expect(enumField('groupPolicy')?.options).toEqual(['open', 'allowlist', 'disabled'])
     expect(enumField('unknownCommand')?.options).toEqual(['intercept', 'passthrough'])
@@ -279,11 +278,11 @@ describe('客户端 bundle — 保存语义（updateSettings(patch, expectedRevi
   it('仅下发与生效值有差异的键（29 键任意子集）', () => {
     const values = draft({ config: SCHEMA_DEFAULTS })
     values.port = '9999'
-    values.mode = 'forward'
+    values.dmPolicy = 'allowlist'
     values.groupAllowFrom = '111\n222'
     const { patch, invalidKeys } = compute(values, SCHEMA_DEFAULTS)
     expect(invalidKeys).toEqual([])
-    expect(patch).toEqual({ port: 9999, mode: 'forward', groupAllowFrom: ['111', '222'] })
+    expect(patch).toEqual({ port: 9999, dmPolicy: 'allowlist', groupAllowFrom: ['111', '222'] })
   })
 
   it('无差异时 patch 为空对象（no-op 短路，host 不递增 revision）', () => {
@@ -433,6 +432,8 @@ describe('失败守卫（客户端侧）— host edit-failed 中文错误可渲�
   })
 })
 
+const connectionGroup = () => groups.find((group) => group.id === 'connection')!
+
 describe('workspacePath + 「快速填入 workspace」（connection 组新行 + 只填不存的辅助选择器）', () => {
   const fillWorkspacePath = client.fillWorkspacePath as (draft: Record<string, unknown>, path: string) => Record<string, unknown>
   const renderPicker = client.renderWorkspacePicker as (react: unknown, opts: Record<string, unknown>) => StubElement | null
@@ -456,7 +457,7 @@ describe('workspacePath + 「快速填入 workspace」（connection 组新行 + 
 
   it('connection 组追加 workspacePath：键序组尾、中文 label、hint 申明新会话生效与 /workspace 覆盖不受影响', () => {
     const connection = groups.find((group) => group.id === 'connection')!
-    expect(connection.fields.map((field) => field.key)).toEqual(['mode', 'host', 'port', 'url', 'accessToken', 'botQQ', 'workspacePath'])
+    expect(connection.fields.map((field) => field.key)).toEqual(['host', 'port', 'accessToken', 'botQQ', 'workspacePath'])
     const workspaceField = connection.fields.find((field) => field.key === 'workspacePath')!
     expect(workspaceField.type).toBe('string')
     expect(workspaceField.label).toMatch(/\p{Script=Han}/u)
@@ -554,7 +555,7 @@ describe('workspacePath + 「快速填入 workspace」（connection 组新行 + 
         field.key === 'workspacePath' ? renderPicker(stubReact, pickerOpts({ selectedId: 'ws-1' })) : null,
     }))
     // 附加行渲染在 workspacePath 之后（connection 组最后一个字段行后），字段行计数不受影响。
-    expect(withPicker.filter((element) => element.props.className === 'obx-field')).toHaveLength(7)
+    expect(withPicker.filter((element) => element.props.className === 'obx-field')).toHaveLength(connectionGroup().fields.length)
     expect(withPicker.filter((element) => element.props.className === 'obx-workspace-row')).toHaveLength(1)
   })
 })

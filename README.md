@@ -76,7 +76,6 @@ sudo apt install fonts-noto-cjk fonts-wqy-zenhei fonts-noto-color-emoji fonts-de
 - id: dsh-onebot
   name: 'dsh-qq-companion'
   config:
-    mode: reverse
     host: 127.0.0.1
     port: 8643
     accessToken: !!js process.env.ONEBOT_ACCESS_TOKEN   # 建议用环境变量，不把 token 写进文件

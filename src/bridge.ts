@@ -715,19 +715,15 @@ export class ChatBridge {
   private healthDeps(): HealthDeps {
     const conn = this.deps.connection as unknown as {
       reverseRetryAttempts?: number
-      reconnectAttempts?: number
-      selfHealing?: boolean
-      config?: { mode?: string; host?: string; port?: number }
+      config?: { host?: string; port?: number }
     }
     const transport = conn.config ?? {}
     return {
       mediaDir: this.deps.config.mediaDir,
       connection: { connected: this.deps.connection.connected, selfId: this.deps.connection.selfId },
-      transport: { mode: String(transport.mode ?? '未知'), host: String(transport.host ?? ''), port: Number(transport.port ?? 0) },
+      transport: { host: String(transport.host ?? ''), port: Number(transport.port ?? 0) },
       retryState: {
         reverseRetryAttempts: conn.reverseRetryAttempts,
-        reconnectAttempts: conn.reconnectAttempts,
-        selfHealing: conn.selfHealing,
       },
       dedup: {
         entries: this.inbound.dedupWindowEntries,

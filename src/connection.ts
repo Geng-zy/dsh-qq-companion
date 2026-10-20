@@ -1,8 +1,7 @@
 /**
- * OneBot 11 WebSocket transport: reverse server (NapCat ws-reverse dials in)
- * and forward client (we dial NapCat's ws server), frame handling, echo
- * correlation for action calls, heartbeat, and reconnect-with-backoff.
- * Ported from the Hermes OneBotAdapter connection half.
+ * OneBot 11 WebSocket transport: a reverse server NapCat (ws-reverse) dials
+ * into, token check, frame handling, echo correlation for action calls,
+ * heartbeat, and the busy-port bind retry. NapCat does the reconnecting.
  * @module dsh-qq-companion/connection
  */
 
@@ -34,24 +33,13 @@ export interface ActionResult {
   wording?: string
 }
 
-/** Connection mode. */
-export type OneBotMode = 'reverse' | 'forward'
-
 /** Transport configuration. */
 export interface ConnectionConfig {
-  mode: OneBotMode
   host: string
   port: number
-  url: string
   accessToken: string
   /** Per-action call timeout in ms. */
   callTimeoutMs: number
-  /**
-   * Forward-mode reconnect attempt limit before giving up with a recovery
-   * hint. Undefined keeps the built-in default (100); 0 retries forever (the
-   * backoff ladder still caps the delay at its last value).
-   */
-  reconnectMaxAttempts?: number
   /**
    * injected log sink (level, message). Absent → a console fallback
    * keeps the transport independently usable; index.ts wires the same
@@ -60,9 +48,7 @@ export interface ConnectionConfig {
   log?: (level: 'info' | 'warn' | 'error' | 'debug', message: string) => void
 }
 
-/** Reconnect backoff ladder (seconds); the last value repeats. */
-const RECONNECT_BACKOFF = [2, 5, 10, 30, 60]
-const MAX_RECONNECT_ATTEMPTS = 100
+/** Ping interval; two missed pongs drop the socket. */
 const HEARTBEAT_MS = 30_000
 /**
  * Per-frame byte cap for both directions. ws defaults to 100MiB, letting a
@@ -87,17 +73,6 @@ const CHURN_MAX_REPLACES = 5
 const REVERSE_RETRY_MS = 15_000
 /** Steady-state log dedup: the first failure plus one error line every 10 minutes. */
 const REVERSE_LOG_EVERY = Math.max(1, Math.round(600_000 / REVERSE_RETRY_MS))
-/**
- * forward self-heal (after the reconnect ladder gave up): 15s dials with
- * a rolling-hour cap of SELF_HEAL_HOURLY_CAP attempts; once the budget is
- * exhausted the interval stretches to 60s so a multi-hour outage cannot hammer
- * the peer. The ladder itself ([2,5,10,30,60] + reconnectMaxAttempts) is
- * untouched — self-heal only starts where the ladder's give-up branch ends.
- */
-const SELF_HEAL_INTERVAL_MS = 15_000
-const SELF_HEAL_SLOW_INTERVAL_MS = 60_000
-const SELF_HEAL_HOURLY_CAP = 120
-const HOUR_MS = 3_600_000
 /** Error thrown for action calls that fail or time out. */
 export class OneBotActionError extends Error {
   constructor(message: string) {
@@ -123,7 +98,7 @@ interface PendingAction {
 
 /**
  * OneBot 11 transport. One instance handles exactly one peer: either a
- * reverse server accepting NapCat's dial-in or a forward client dialing out.
+ * reverse server accepting NapCat's dial-in.
  * All frames share the same correlation table.
  */
 export class OneBotConnection {
@@ -140,7 +115,7 @@ export class OneBotConnection {
   onNoticeOrRequest: (event: OneBotEvent) => void = () => undefined
   /**
    * fault-reference hook, called at the significant connection
-   * failure points (forward reconnect give-up, reverse bind failure, reverse
+   * failure points (bind failure, reverse
    * server error) — the bridge implements it by minting/recording/tracing a
    * `QQ-CONN-…` reference; the returned reference is appended to the log
    * line so host logs and the trace file share the same number. Absent
@@ -154,9 +129,6 @@ export class OneBotConnection {
   private heartbeatTimer: ReturnType<typeof setInterval> | undefined
   private pending = new Map<string, PendingAction>()
   private stopping = false
-  private reconnectPromise: Promise<void> | undefined
-  private reconnectTimer: ReturnType<typeof setTimeout> | undefined
-  private reconnectAttempts = 0
   private connectedFlag = false
   /** Reverse churn guard: timestamps (ms) of recent healthy-socket replacements. */
   private reverseReplaces: number[] = []
@@ -164,12 +136,6 @@ export class OneBotConnection {
   private reverseRetryTimer: ReturnType<typeof setTimeout> | undefined
   /** bind failures since the last successful listen (log dedup + takeover count). */
   private reverseRetryAttempts = 0
-  /** pending self-heal dial timer (forward mode, after the ladder gave up). */
-  private selfHealTimer: ReturnType<typeof setTimeout> | undefined
-  /** true from a self-heal dial start until it succeeds (routes failures back to self-heal). */
-  private selfHealing = false
-  /** start timestamps (ms) of self-heal dials within the rolling hour. */
-  private selfHealTimes: number[] = []
 
   /** The bot's own QQ id, learned from meta events (or config botQQ). */
   selfId = ''
@@ -184,9 +150,8 @@ export class OneBotConnection {
   }
 
   /** Drop the current socket so the peer reconnects (liveness watchdog: the
-   * WebSocket answers pings but the OneBot side has gone silent). Reverse
-   * mode: NapCat dials back in; forward mode: the close handler schedules a
-   * reconnect. No-op without a socket. */
+   * WebSocket answers pings but the OneBot side has gone silent);
+   * NapCat dials back in. No-op without a socket. */
   dropSocket(reason: string): void {
     const socket = this.socket
     if (socket === undefined) return
@@ -223,30 +188,19 @@ export class OneBotConnection {
     else if (level === 'warn') console.warn(line)
     else console.log(line)
   }
-  /** Start the transport (server or client) without blocking. */
+  /** Start listening without blocking. */
   start(): void {
-    // Reentrancy guard: a live socket/server, a pending reconnect, a pending
-    // EADDRINUSE bind retry, or a pending self-heal dial means the transport
-    // is already up (or about to dial/binding). Restarting blindly would
-    // leave a stale timer dialing/binding into the new session (ghosts).
-    if (this.socket !== undefined || this.server !== undefined || this.reconnectTimer !== undefined || this.reconnectPromise !== undefined || this.reverseRetryTimer !== undefined || this.selfHealTimer !== undefined) {
-      return
-    }
+    // Reentrancy guard: a live socket/server or a pending bind retry means the
+    // transport is already up (or about to bind); starting again would leave a
+    // stale timer binding into the new session.
+    if (this.socket !== undefined || this.server !== undefined || this.reverseRetryTimer !== undefined) return
     this.stopping = false
-    if (this.config.mode === 'reverse') this.startReverseServer()
-    else void this.connectForwardOnce()
+    this.startReverseServer()
   }
 
-  /** Stop the transport: close sockets, cancel reconnects, fail pending calls. */
+  /** Stop the transport: close sockets, cancel the bind retry, fail pending calls. */
   async stop(): Promise<void> {
     this.stopping = true
-    // Cancel a pending reconnect dial: a stale timer firing into the next
-    // start() would open a second (ghost) connection.
-    if (this.reconnectTimer !== undefined) {
-      clearTimeout(this.reconnectTimer)
-      this.reconnectTimer = undefined
-    }
-    this.reconnectPromise = undefined
     // cancel a pending EADDRINUSE bind retry (stop() is the only exit
     // of that loop, so it must be able to kill it).
     if (this.reverseRetryTimer !== undefined) {
@@ -254,13 +208,6 @@ export class OneBotConnection {
       this.reverseRetryTimer = undefined
     }
     this.reverseRetryAttempts = 0
-    // cancel a pending self-heal dial the same way.
-    if (this.selfHealTimer !== undefined) {
-      clearTimeout(this.selfHealTimer)
-      this.selfHealTimer = undefined
-    }
-    this.selfHealing = false
-    this.selfHealTimes = []
     if (this.heartbeatTimer !== undefined) {
       clearInterval(this.heartbeatTimer)
       this.heartbeatTimer = undefined
@@ -438,119 +385,6 @@ export class OneBotConnection {
     }, REVERSE_RETRY_MS).unref()
   }
 
-  // ------------------------------------------------------------------ forward
-
-  private connectForwardOnce(): void {
-    if (this.stopping) return
-    const url = this.config.url
-    const headers: Record<string, string> = {}
-    if (this.config.accessToken !== '') headers.Authorization = 'Bearer ' + this.config.accessToken
-    let socket: WebSocket
-    try {
-      socket = new WebSocket(url, { headers, handshakeTimeout: 10_000, maxPayload: MAX_FRAME_BYTES })
-    } catch (error) {
-      this.log('error', 'forward WS connect failed: ' + describeError(error) + errorStack(error))
-      this.scheduleForwardRetry()
-      return
-    }
-    this.socket = socket
-    socket.on('open', () => {
-      this.reconnectAttempts = 0
-      // a successful dial (initial, ladder retry, or self-heal) fully
-      // restores normal reconnect semantics and resets the self-heal budget.
-      this.selfHealing = false
-      this.selfHealTimes = []
-      if (this.selfHealTimer !== undefined) {
-        clearTimeout(this.selfHealTimer)
-        this.selfHealTimer = undefined
-      }
-      this.lastPongAt = Date.now()
-      this.setConnected(true)
-      this.startHeartbeat()
-    })
-    socket.on('message', data => this.onFrame(data))
-    socket.on('pong', () => {
-      if (this.socket !== socket) return // stale socket: a newer dial owns the timestamps
-      this.lastPongAt = Date.now()
-    })
-    socket.on('error', error => {
-      this.log('warn', 'forward WS error: ' + describeError(error))
-    })
-    socket.on('close', code => {
-      if (this.socket !== socket) return // stale socket: a newer dial has replaced it
-      this.socket = undefined
-      this.stopHeartbeat()
-      this.setConnected(false)
-      this.failAllPending(new OneBotNotConnectedError('OneBot WS closed (code ' + code + ')'))
-      this.scheduleForwardRetry()
-    })
-  }
-
-  private scheduleReconnect(): void {
-    if (this.stopping || this.reconnectPromise !== undefined) return
-    this.reconnectAttempts += 1
-    // reconnectMaxAttempts: undefined -> built-in default, positive -> give up
-    // once exceeded, 0 or negative -> retry forever (the ladder still caps the
-    // delay at its last value).
-    const max = this.config.reconnectMaxAttempts ?? MAX_RECONNECT_ATTEMPTS
-    if (max > 0 && this.reconnectAttempts > max) {
-      // the give-up is the ladder's terminal fault point — one
-      // QQ-CONN reference for the whole outage (individual ladder retries
-      // stay reference-free to avoid fault storms).
-      const ref = this.onFailure?.('forward-reconnect-give-up', 'forward 重连 ' + max + ' 次后放弃（reconnectMaxAttempts=' + max + '），转入慢速自愈')
-      this.log('error', 'giving up forward WS reconnect after ' + max + ' retries (reconnectMaxAttempts=' + max + '); check the NapCat ws address and network, then restart the plugin or reload the qq-companion channel to reconnect; slow self-heal retries continue every ' + SELF_HEAL_INTERVAL_MS / 1000 + 's (capped at ' + SELF_HEAL_HOURLY_CAP + '/hour) until the peer comes back' + (ref !== undefined ? '（参考号 ' + ref + '）' : ''))
-      this.scheduleSelfHeal()
-      return
-    }
-    const index = Math.min(this.reconnectAttempts - 1, RECONNECT_BACKOFF.length - 1)
-    const delay = RECONNECT_BACKOFF[index] * 1000
-    this.reconnectPromise = new Promise<void>(resolve => {
-      this.reconnectTimer = setTimeout(() => {
-        this.reconnectTimer = undefined
-        this.reconnectPromise = undefined
-        resolve()
-        this.connectForwardOnce()
-      }, delay).unref()
-    })
-  }
-
-  /**
-   * Failure-path dispatcher: while a self-heal dial is in flight (selfHealing),
-   * failures route back to the self-heal scheduler instead of the ladder, so
-   * the give-up state is not silently rebuilt. Anything else keeps the ladder
-   * semantics untouched.
-   */
-  private scheduleForwardRetry(): void {
-    if (this.selfHealing) {
-      this.scheduleSelfHeal()
-      return
-    }
-    this.scheduleReconnect()
-  }
-
-  /**
-   * long-period recovery after the reconnect ladder gave up. Dials every
-   * 15s, but a rolling-hour budget of SELF_HEAL_HOURLY_CAP attempts applies;
-   * once exhausted the interval stretches to 60s, so a multi-hour outage dials
-   * at most 15s×budget + 60/hour afterwards instead of hammering the peer.
-   * The ladder state (reconnectAttempts) stays frozen at its give-up value; a
-   * successful dial clears everything (see the 'open' handler).
-   */
-  private scheduleSelfHeal(): void {
-    if (this.stopping || this.selfHealTimer !== undefined) return
-    const now = Date.now()
-    this.selfHealTimes = this.selfHealTimes.filter(at => now - at < HOUR_MS)
-    const capped = this.selfHealTimes.length >= SELF_HEAL_HOURLY_CAP
-    const delay = capped ? SELF_HEAL_SLOW_INTERVAL_MS : SELF_HEAL_INTERVAL_MS
-    this.selfHealTimer = setTimeout(() => {
-      this.selfHealTimer = undefined
-      if (this.stopping) return
-      this.selfHealTimes.push(Date.now())
-      this.selfHealing = true
-      this.connectForwardOnce()
-    }, delay).unref()
-  }
-
   // ------------------------------------------------------------------ shared
 
   private attachSocket(socket: WebSocket): void {
@@ -593,7 +427,7 @@ export class OneBotConnection {
       if (socket.readyState !== WebSocket.OPEN) return
       const now = Date.now()
       if (now - this.lastPongAt >= 2 * HEARTBEAT_MS) {
-        this.log('warn', 'heartbeat timeout: no pong for ' + (now - this.lastPongAt) + 'ms (mode=' + this.config.mode + '); terminating socket')
+        this.log('warn', 'heartbeat timeout: no pong for ' + (now - this.lastPongAt) + 'ms; terminating socket')
         socket.terminate()
         return
       }

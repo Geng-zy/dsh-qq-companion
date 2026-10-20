@@ -10,6 +10,7 @@
 - 语音下载优先请 NapCat 转成 mp3（语音自带的链接多半是 SILK 原始格式），NapCat 返回的 base64 / 链接 / 本机路径统一处理。
 
 ### 删除
+- 正向 WebSocket 模式（插件主动连 NapCat）：只保留 NapCat 反向连接插件。配置 `mode`、`url`、`reconnectMaxAttempts` 和设置页里的“连接模式”“正向服务器地址”去掉（配置里还写着会被忽略）。
 - 调试注入（`qq-inject.jsonl`）和入站录制 / 离线回放，相关配置 `injectEnabled`、`injectDryRun`、`injectIntervalMs`、`recordInbound`、`inboxRedact` 去掉（配置里还写着会被忽略）。
 - 1.1.4 加的发送总量 / 间隔上限和群冷却（见 1.1.6）。
 

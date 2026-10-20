@@ -150,12 +150,9 @@ export function apply(ctx: Context, config: Config): void {
   }
   const connection = new OneBotConnection(
     {
-      mode: config.mode,
       host: config.host,
       port: config.port,
-      url: config.url,
       accessToken: config.accessToken,
-      reconnectMaxAttempts: config.reconnectMaxAttempts,
       callTimeoutMs: 30_000,
       log,
     },
@@ -377,5 +374,5 @@ export function apply(ctx: Context, config: Config): void {
   const problems = selfCheck({ ...config, adminUsers: policy.adminUsers, allowAllUsers: policy.allowAllUsers })
   if (problems.length === 0) log('info', '配置自检通过')
   else for (const problem of problems) log('warn', '配置自检：' + problem)
-  console.log('[qq-companion] mounted (mode=' + config.mode + ', media=' + mediaDir + ', admins=' + policy.adminUsers.length + ')')
+  console.log('[qq-companion] mounted (listen=' + config.host + ':' + config.port + ', media=' + mediaDir + ', admins=' + policy.adminUsers.length + ')')
 }

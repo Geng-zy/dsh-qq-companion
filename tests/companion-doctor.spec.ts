@@ -54,7 +54,7 @@ describe('companion /doctor block', () => {
     const base = {
       mediaDir: mkdtempSync(join(tmpdir(), 'doctor-')),
       connection: { connected: true, selfId: '1' },
-      transport: { mode: 'reverse', host: '127.0.0.1', port: 1 },
+      transport: { host: '127.0.0.1', port: 1 },
       retryState: {},
       dedup: { entries: 0, windowSeconds: 300 },
       writeGate: { minuteUsed: 0, minuteLimit: 1, dayUsed: 0, dayLimit: 1 },

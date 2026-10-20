@@ -19,8 +19,8 @@ import { makeCmdHarness } from './helpers/bridge-harness.js'
 const baseDeps = (mediaDir: string, overrides: Record<string, unknown> = {}) => ({
   mediaDir,
   connection: { connected: true, selfId: '10002' },
-  transport: { mode: 'reverse', host: '127.0.0.1', port: 8643 },
-  retryState: { reverseRetryAttempts: 0, reconnectAttempts: 0, selfHealing: false },
+  transport: { host: '127.0.0.1', port: 8643 },
+  retryState: { reverseRetryAttempts: 0 },
   dedup: { entries: 3, windowSeconds: 300 },
   writeGate: { minuteUsed: 2, minuteLimit: 20, dayUsed: 40, dayLimit: 500 },
   configSnapshot: redactSnapshot({ accessToken: 'super-secret-token', botQQ: '10002' }),
@@ -40,8 +40,8 @@ describe('health report (src/health.ts)', () => {
     const report = await healthReport(baseDeps(mediaDir, {
     }))
     expect(report).toContain('▍dsh-qq-companion 体检')
-    expect(report).toContain('连接：已连接（mode=reverse 127.0.0.1:8643')
-    expect(report).toContain('重试/自愈：reverse 接管重试 0 次 · forward 重连 0 次 · 自愈中 否')
+    expect(report).toContain('连接：已连接（127.0.0.1:8643')
+    expect(report).toContain('端口占用重试：0 次')
     expect(report).toContain('去重窗口：3 条在窗（dedupWindowSeconds=300）')
     expect(report).toContain('写闸门：本分钟 2/20 · 今日 40/500')
     expect(report).toContain('qq-trace.jsonl')
@@ -56,7 +56,7 @@ describe('health report (src/health.ts)', () => {
       retryState: {},
     }))
     expect(report).toContain('连接：未连接')
-    expect(report).toContain('重试/自愈：reverse 接管重试 未知 次')
+    expect(report).toContain('端口占用重试：未知 次')
     expect(report).toContain('最近 ok:false 事件：无（或 trace 未开启）')
   })
 })

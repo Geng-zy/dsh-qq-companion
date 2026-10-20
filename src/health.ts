@@ -1,7 +1,7 @@
 /**
  * Healthcheck + diagnostics export: `/healthcheck` renders a
  * snapshot summary of the bridge's live state — connection state, transport
- * retry/self-heal counters, dedup window and write-gate counters, the trace/
+ * bind-retry counter, dedup window and write-gate counters, the trace/
  * inbox/audit file sizes, and the most recent ok:false trace events — and
  * `exportDiagnostics` packs the observability artifacts (trace jsonl +
  * rotations, inbox jsonl + rotations, actions audit log, a redacted config
@@ -38,11 +38,11 @@ export interface HealthDeps {
   mediaDir: string
   /** Connection snapshot. */
   connection: { connected: boolean; selfId: string }
-  /** Transport config summary (mode/host/port) for the connection line. */
-  transport: { mode: string; host: string; port: number }
-  /** Runtime transport retry/self-heal counters (defensive read of the
+  /** Listen address for the connection line. */
+  transport: { host: string; port: number }
+  /** Bind-retry counter (defensive read of the
    * connection's internal state; undefined fields render as 未知). */
-  retryState: { reverseRetryAttempts?: number; reconnectAttempts?: number; selfHealing?: boolean }
+  retryState: { reverseRetryAttempts?: number }
   /** Dedup window snapshot. */
   dedup: { entries: number; windowSeconds: number }
   /** Write-gate snapshot. */
@@ -115,9 +115,8 @@ export async function healthReport(deps: HealthDeps): Promise<string> {
   const lines: string[] = []
   lines.push('▍dsh-qq-companion 体检')
   const conn = deps.connection.connected ? '已连接' : '未连接'
-  lines.push('连接：' + conn + '（mode=' + deps.transport.mode + ' ' + deps.transport.host + ':' + deps.transport.port + '，selfId=' + (deps.connection.selfId !== '' ? deps.connection.selfId : '未学习') + '）')
-  const retry = deps.retryState
-  lines.push('重试/自愈：reverse 接管重试 ' + (retry.reverseRetryAttempts ?? '未知') + ' 次 · forward 重连 ' + (retry.reconnectAttempts ?? '未知') + ' 次 · 自愈中 ' + (retry.selfHealing === undefined ? '未知' : retry.selfHealing ? '是' : '否'))
+  lines.push('连接：' + conn + '（' + deps.transport.host + ':' + deps.transport.port + '，selfId=' + (deps.connection.selfId !== '' ? deps.connection.selfId : '未学习') + '）')
+  lines.push('端口占用重试：' + (deps.retryState.reverseRetryAttempts ?? '未知') + ' 次')
   lines.push('去重窗口：' + deps.dedup.entries + ' 条在窗（dedupWindowSeconds=' + deps.dedup.windowSeconds + '）')
   lines.push('写闸门：本分钟 ' + deps.writeGate.minuteUsed + '/' + deps.writeGate.minuteLimit + ' · 今日 ' + deps.writeGate.dayUsed + '/' + deps.writeGate.dayLimit)
   const files: string[] = []

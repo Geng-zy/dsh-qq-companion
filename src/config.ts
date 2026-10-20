@@ -16,13 +16,9 @@ import { IMAGE_MAX_BYTES, MEDIA_MAX_BYTES, VOICE_MAX_BYTES } from './media.js'
 
 /** Plugin configuration (validated by schemastery). */
 export interface Config {
-  mode: 'reverse' | 'forward'
   host: string
   port: number
-  url: string
   accessToken: string
-  /** Forward-mode reconnect attempt limit; 0 = retry forever. */
-  reconnectMaxAttempts: number
   botQQ: string
   requireMention: boolean
   /** Unknown slash-command handling: intercept（默认）=拦截并给建议；passthrough=透传给模型。 */
@@ -150,18 +146,12 @@ const OUTBOUND_IMAGE_MAX_BYTES = IMAGE_MAX_BYTES
 const INBOUND_FILE_MAX_BYTES = 20 * 1024 * 1024
 
 export const Config: Z<Config> = z.object({
-  mode: z.union([z.const('reverse'), z.const('forward')]).default('reverse')
-    .description('连接模式：reverse = NapCat ws-reverse 拨入（本插件监听端口）；forward = 本插件主动连接 NapCat 的 ws 服务'),
   host: z.string().default('127.0.0.1')
     .description('reverse 模式监听地址；跨机部署（NapCat 从其他机器拨入）需显式改为 0.0.0.0'),
   port: z.number().default(8643)
     .description('reverse 模式监听端口'),
-  url: z.string().default('ws://127.0.0.1:3001')
-    .description('forward 模式的 NapCat ws 地址'),
   accessToken: z.string().role('secret').default('')
     .description('OneBot access_token（reverse 校验 / forward 发送 Authorization: Bearer）'),
-  reconnectMaxAttempts: z.number().default(100)
-    .description('forward 模式重连上限：连续失败达到该次数后放弃重连并打印恢复指引；0 = 无限重试（退避间隔封顶 60s）'),
   botQQ: z.string().default('')
     .description('机器人自身 QQ 号；留空则从 meta 事件自动学习'),
   requireMention: z.boolean().default(true)

@@ -81,7 +81,7 @@ describe('连接故障 → QQ-CONN- 号贯穿（真实 EADDRINUSE 路径）', ()
     const connLog: string[] = []
     // 第二个反向连接绑到已被 harness 占用的端口 → EADDRINUSE（attempt 1 立即记错并发号）
     const conn2 = new OneBotConnection({
-      mode: 'reverse', host: '127.0.0.1', port: h.connection.address()!.port, url: '', accessToken: 'test-token', callTimeoutMs: 1_000,
+      host: '127.0.0.1', port: h.connection.address()!.port, accessToken: 'test-token', callTimeoutMs: 1_000,
       log: (_level, message) => connLog.push(message),
     })
     conn2.onFailure = (stage, detail) => h.bridge.registerConnectionFailure(stage, detail)

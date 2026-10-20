@@ -5,12 +5,9 @@
 
 | 键 | 类型 | 默认值 | 说明 |
 |---|---|---|---|
-| `mode` | "reverse" / "forward" | `"reverse"` | 连接模式：reverse = NapCat ws-reverse 拨入（本插件监听端口）；forward = 本插件主动连接 NapCat 的 ws 服务 |
 | `host` | string | `"127.0.0.1"` | reverse 模式监听地址；跨机部署（NapCat 从其他机器拨入）需显式改为 0.0.0.0 |
 | `port` | number | `8643` | reverse 模式监听端口 |
-| `url` | string | `"ws://127.0.0.1:3001"` | forward 模式的 NapCat ws 地址 |
 | `accessToken` | string | `""` | OneBot access_token（reverse 校验 / forward 发送 Authorization: Bearer） |
-| `reconnectMaxAttempts` | number | `100` | forward 模式重连上限：连续失败达到该次数后放弃重连并打印恢复指引；0 = 无限重试（退避间隔封顶 60s） |
 | `botQQ` | string | `""` | 机器人自身 QQ 号；留空则从 meta 事件自动学习 |
 | `requireMention` | boolean | `true` | 群聊是否仅在 @机器人（或回复其消息）时响应 |
 | `unknownCommand` | "intercept" / "passthrough" | `"intercept"` | 未知斜杠命令处理：intercept（默认）=拦截并提示相近命令或 /help；passthrough=透传给模型（旧行为） |

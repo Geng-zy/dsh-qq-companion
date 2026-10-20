@@ -5,10 +5,8 @@ import type { OneBotEvent } from '../src/connection.js'
 import { Config, logMetaEvent } from '../src/index.js'
 
 const CONFIG = {
-  mode: 'reverse' as const,
   host: '127.0.0.1',
   port: 0,
-  url: 'ws://127.0.0.1:3001',
   accessToken: '',
   callTimeoutMs: 3_000,
 }
@@ -152,65 +150,6 @@ describe('config schema', () => {
   })
 })
 
-describe('forward client', () => {
-  it('dials the server, sends Authorization, and reconnects', async () => {
-    const frames: Array<Record<string, unknown>> = []
-    const makeServer = (port: number): WebSocketServer => {
-      const server = new WebSocketServer({ host: '127.0.0.1', port })
-      server.on('connection', socket => {
-        socket.on('message', data => {
-          const frame = JSON.parse(data.toString()) as Record<string, unknown>
-          frames.push(frame)
-          if (typeof frame.echo === 'string') {
-            socket.send(JSON.stringify({ status: 'ok', retcode: 0, data: { ok: true }, echo: frame.echo }))
-          }
-        })
-      })
-      return server
-    }
-
-    let server = makeServer(0)
-    await new Promise<void>(resolve => {
-      server.on('listening', () => resolve())
-    })
-    const port = (server.address() as { port: number }).port
-    const connection = new OneBotConnection({
-      ...CONFIG, mode: 'forward', url: 'ws://127.0.0.1:' + port, accessToken: 'tok',
-    })
-    const statuses: boolean[] = []
-    connection.onStatus = (connected: boolean) => statuses.push(connected)
-    connection.start()
-    await vi.waitFor(() => expect(connection.connected).toBe(true))
-    expect(connection.selfId).toBe('')
-    await connection.call('get_login_info', {})
-    expect(frames[0].action).toBe('get_login_info')
-
-    // Kill the server; the client should reconnect when a new one appears.
-    for (const client of server.clients) client.terminate()
-    await new Promise<void>(resolve => server.close(() => resolve()))
-    await vi.waitFor(() => expect(connection.connected).toBe(false))
-    server = makeServer(port)
-    await vi.waitFor(() => expect(connection.connected).toBe(true), { timeout: 8_000 })
-    await connection.call('get_login_info', {})
-    expect(frames.filter(f => f.action === 'get_login_info')).toHaveLength(2)
-    for (const client of server.clients) client.terminate()
-    await new Promise<void>(resolve => server.close(() => resolve()))
-    await connection.stop()
-  })
-
-  it('still starts in forward mode with an empty access token', async () => {
-    // Grab a port that is definitely not listening, so the dial fails and settles.
-    const probe = new WebSocketServer({ host: '127.0.0.1', port: 0 })
-    await new Promise<void>(resolve => probe.on('listening', resolve))
-    const deadPort = (probe.address() as { port: number }).port
-    await new Promise<void>(resolve => probe.close(() => resolve()))
-    const connection = new OneBotConnection({ ...CONFIG, mode: 'forward', url: 'ws://127.0.0.1:' + deadPort })
-    expect(() => connection.start()).not.toThrow()
-    await vi.waitFor(() => expect((connection as unknown as { socket?: unknown }).socket).toBeUndefined())
-    await connection.stop()
-  })
-})
-
 describe('heartbeat pong watchdog', () => {
   interface HeartbeatView {
     socket: unknown
@@ -276,7 +215,6 @@ describe('heartbeat pong watchdog', () => {
     expect(socket.terminate).toHaveBeenCalledTimes(1)
     expect(socket.ping).toHaveBeenCalledTimes(1) // the stale tick terminates instead of pinging again
     expect(warnSpy).toHaveBeenCalledTimes(1)
-    expect(String(warnSpy.mock.calls[0]?.[0])).toContain('mode=reverse')
     expect(String(warnSpy.mock.calls[0]?.[0])).toContain('75000ms')
     warnSpy.mockRestore()
   })
@@ -325,18 +263,12 @@ describe('meta event logging', () => {
   })
 })
 
-describe('reconnect policy and port conflict', () => {
+describe('port conflict', () => {
   interface ReconnectInternals {
     socket?: unknown
     server?: unknown
-    reconnectTimer?: unknown
-    reconnectPromise?: unknown
-    reconnectAttempts: number
     reverseRetryTimer?: unknown
     reverseRetryAttempts?: number
-    selfHealTimer?: unknown
-    selfHealing?: boolean
-    selfHealTimes?: number[]
   }
   const internals = (connection: OneBotConnection): ReconnectInternals => connection as unknown as ReconnectInternals
 
@@ -360,106 +292,6 @@ describe('reconnect policy and port conflict', () => {
     }
     expect(predicate()).toBe(true)
   }
-
-  it('gives up after reconnectMaxAttempts retries with recovery guidance and stops scheduling', async () => {
-    const deadPort = await getDeadPort()
-    vi.useFakeTimers()
-    const connection = new OneBotConnection({ ...CONFIG, mode: 'forward', url: 'ws://127.0.0.1:' + deadPort, reconnectMaxAttempts: 2 })
-    const internal = internals(connection)
-    const errorSpy = vi.spyOn(console, 'error')
-    const warnSpy = vi.spyOn(console, 'warn')
-    connection.start()
-    // Initial dial fails -> retry #1 scheduled on the 2s rung.
-    await advanceUntil(() => internal.reconnectTimer !== undefined, 2_000)
-    expect(internal.reconnectAttempts).toBe(1)
-    // Retry #1 dials and fails -> retry #2 scheduled on the 5s rung.
-    await advanceUntil(() => internal.reconnectAttempts === 2 && internal.reconnectTimer !== undefined, 6_000)
-    // Retry #2 dials and fails -> the limit is exceeded -> give up.
-    await advanceUntil(() => internal.reconnectTimer === undefined && internal.reconnectPromise === undefined && errorSpy.mock.calls.length > 0, 6_000)
-    const giveUp = errorSpy.mock.calls.map(call => call.map(String).join(' ')).find(text => text.includes('giving up'))
-    expect(giveUp).toBeDefined()
-    expect(giveUp).toContain('reconnectMaxAttempts=2')
-    expect(giveUp).toContain('restart the plugin or reload the qq-companion channel')
-    expect(giveUp).toContain('slow self-heal') // the give-up line announces the self-heal
-    // Exactly 3 dials happened (initial + 2 retries): one 'forward WS error' warn each.
-    expect(warnSpy.mock.calls.filter(call => String(call[0]).includes('forward WS error'))).toHaveLength(3)
-    // give-up is no longer a permanent halt — exactly one slow self-heal
-    // timer stays scheduled, and the ladder state stays frozen at the give-up value.
-    expect(internal.selfHealTimer).toBeDefined()
-    expect(vi.getTimerCount()).toBe(1)
-    const warnsAtGiveUp = warnSpy.mock.calls.filter(call => String(call[0]).includes('forward WS error')).length
-    await vi.advanceTimersByTimeAsync(120_000)
-    expect(warnSpy.mock.calls.filter(call => String(call[0]).includes('forward WS error')).length).toBeGreaterThan(warnsAtGiveUp) // self-heal dials resumed
-    expect(internal.reconnectAttempts).toBe(3) // the ladder itself stays frozen; self-heal has its own budget
-    errorSpy.mockRestore()
-    warnSpy.mockRestore()
-    await connection.stop()
-  })
-
-  it('retries forever when reconnectMaxAttempts is 0', async () => {
-    const deadPort = await getDeadPort()
-    vi.useFakeTimers()
-    const connection = new OneBotConnection({ ...CONFIG, mode: 'forward', url: 'ws://127.0.0.1:' + deadPort, reconnectMaxAttempts: 0 })
-    const internal = internals(connection)
-    const errorSpy = vi.spyOn(console, 'error')
-    connection.start()
-    // Walk the 2/5/10/30s rungs until the ladder caps at 60s (attempt 5 onwards).
-    await advanceUntil(() => internal.reconnectAttempts >= 5, 60_000)
-    // 110 capped cycles, far beyond the default limit of 100.
-    for (let i = 0; i < 110; i++) {
-      await advanceUntil(() => internal.reconnectTimer !== undefined, 65_000)
-      expect(vi.getTimerCount()).toBe(1) // exactly one pending reconnect timer at every step
-      await vi.advanceTimersByTimeAsync(60_000)
-    }
-    expect(errorSpy).not.toHaveBeenCalled() // never gave up
-    expect(internal.reconnectAttempts).toBe(115) // 5 ladder rungs + 110 capped retries
-    errorSpy.mockRestore()
-    await connection.stop()
-  })
-
-  it('stop clears the pending reconnect timer and the dial guard', async () => {
-    const deadPort = await getDeadPort()
-    vi.useFakeTimers()
-    const connection = new OneBotConnection({ ...CONFIG, mode: 'forward', url: 'ws://127.0.0.1:' + deadPort })
-    const internal = internals(connection)
-    connection.start()
-    await advanceUntil(() => internal.reconnectTimer !== undefined, 5_000)
-    expect(vi.getTimerCount()).toBe(1)
-    await connection.stop()
-    expect(vi.getTimerCount()).toBe(0)
-    expect(internal.reconnectTimer).toBeUndefined()
-    expect(internal.reconnectPromise).toBeUndefined()
-    // No ghost dial afterwards either.
-    const warnSpy = vi.spyOn(console, 'warn')
-    await vi.advanceTimersByTimeAsync(120_000)
-    expect(warnSpy).not.toHaveBeenCalled()
-    expect(internal.reconnectTimer).toBeUndefined()
-    warnSpy.mockRestore()
-  })
-
-  it('survives 50 rapid stop/start cycles without ghost timers or duplicate dials', async () => {
-    const deadPort = await getDeadPort()
-    vi.useFakeTimers()
-    const connection = new OneBotConnection({ ...CONFIG, mode: 'forward', url: 'ws://127.0.0.1:' + deadPort })
-    const internal = internals(connection)
-    const warnSpy = vi.spyOn(console, 'warn')
-    for (let i = 0; i < 50; i++) {
-      connection.start()
-      // The fresh dial fails and exactly one reconnect timer gets scheduled.
-      await advanceUntil(() => internal.reconnectTimer !== undefined, 5_000)
-      expect(vi.getTimerCount()).toBe(1)
-      await connection.stop()
-      // stop() must wipe every trace: no ghost timer, no dial guard left.
-      expect(vi.getTimerCount()).toBe(0)
-      expect(internal.reconnectTimer).toBeUndefined()
-      expect(internal.reconnectPromise).toBeUndefined()
-    }
-    // Dial-count metric: every failed dial logs exactly one 'forward WS error'
-    // warn and every start() dials exactly once, so 50 cycles -> 50 warns.
-    expect(warnSpy.mock.calls.filter(call => String(call[0]).includes('forward WS error'))).toHaveLength(50)
-    expect(internal.reconnectAttempts).toBe(50) // cross-check: one scheduleReconnect per failed dial
-    warnSpy.mockRestore()
-  })
 
   it('reverse server logs the port and guidance on EADDRINUSE', async () => {
     const occupier = new WebSocketServer({ host: '127.0.0.1', port: 0 })
@@ -519,22 +351,6 @@ describe('frame cap and reverse churn guard', () => {
     await vi.waitFor(() => expect(client.readyState).toBe(WebSocket.CLOSED), { timeout: 10_000 })
     expect(close?.code).toBe(1009)
     await connection.stop()
-  })
-
-  it('dials forward with the same 64MiB frame cap', async () => {
-    const server = new WebSocketServer({ host: '127.0.0.1', port: 0 })
-    await new Promise<void>(resolve => {
-      server.on('listening', () => resolve())
-    })
-    const port = (server.address() as { port: number }).port
-    const connection = new OneBotConnection({ ...CONFIG, mode: 'forward', url: 'ws://127.0.0.1:' + port, accessToken: 'tok' })
-    connection.start()
-    await vi.waitFor(() => expect(connection.connected).toBe(true))
-    // The dial must carry maxPayload; ws stores it on the post-upgrade Receiver.
-    const receiver = (internals(connection).socket as { _receiver?: { _maxPayload?: number } } | undefined)?._receiver
-    expect(receiver?._maxPayload).toBe(64 * 1024 * 1024)
-    await connection.stop()
-    await new Promise<void>(resolve => server.close(() => resolve()))
   })
 
   it('rejects the 6th healthy-socket replacement within the 60s window', async () => {
@@ -636,18 +452,13 @@ describe('injected log port', () => {
   })
 })
 
-describe('EADDRINUSE takeover and forward self-heal', () => {
-  interface W2Internals {
+describe('EADDRINUSE takeover', () => {
+  interface BindInternals {
     server?: unknown
-    reconnectTimer?: unknown
-    reconnectAttempts: number
     reverseRetryTimer?: unknown
     reverseRetryAttempts?: number
-    selfHealTimer?: unknown
-    selfHealing?: boolean
-    selfHealTimes?: number[]
   }
-  const internals = (connection: OneBotConnection): W2Internals => connection as unknown as W2Internals
+  const internals = (connection: OneBotConnection): BindInternals => connection as unknown as BindInternals
   type LogSink = Array<{ level: string; message: string }>
   const sink = (logs: LogSink) => (level: 'info' | 'warn' | 'error' | 'debug', message: string): void => {
     logs.push({ level, message })
@@ -780,53 +591,4 @@ describe('EADDRINUSE takeover and forward self-heal', () => {
     await new Promise<void>(resolve => occupier.close(() => resolve()))
   })
 
-  it('forward: after give-up, self-heal dials resume and a successful dial restores the normal ladder', async () => {
-    const deadPort = await getDeadPort()
-    vi.useFakeTimers()
-    const logs: LogSink = []
-    const connection = new OneBotConnection({ ...CONFIG, mode: 'forward', url: 'ws://127.0.0.1:' + deadPort, reconnectMaxAttempts: 2, log: sink(logs) })
-    const internal = internals(connection)
-    connection.start()
-    await advanceUntil(() => internal.selfHealTimer !== undefined, 15_000) // 3 ladder dials, then give-up
-    expect(internal.reconnectAttempts).toBe(3)
-    expect(internal.selfHealTimes).toHaveLength(0)
-    // The peer comes back; the pending self-heal dial connects on its own.
-    const server = new WebSocketServer({ host: '127.0.0.1', port: deadPort })
-    await new Promise<void>(resolve => server.on('listening', resolve))
-    await advanceUntil(() => connection.connected, 20_000)
-    expect(internal.selfHealing).toBe(false)
-    expect(internal.selfHealTimes).toHaveLength(0)
-    expect(internal.reconnectAttempts).toBe(0)
-    // The peer dies again: the normal ladder resumes from the 2s rung.
-    for (const client of server.clients) client.terminate()
-    await new Promise<void>(resolve => server.close(() => resolve()))
-    await advanceUntil(() => internal.reconnectAttempts === 1 && internal.reconnectTimer !== undefined, 5_000)
-    await connection.stop()
-  })
-
-  it('forward: self-heal stretches to 60s once the rolling-hour cap is reached', async () => {
-    const deadPort = await getDeadPort()
-    vi.useFakeTimers()
-    const logs: LogSink = []
-    const connection = new OneBotConnection({ ...CONFIG, mode: 'forward', url: 'ws://127.0.0.1:' + deadPort, reconnectMaxAttempts: 2, log: sink(logs) })
-    const internal = internals(connection)
-    connection.start()
-    await advanceUntil(() => internal.selfHealTimer !== undefined, 15_000)
-    const dialCount = () => logs.filter(l => l.level === 'warn' && l.message.includes('forward WS error')).length
-    const dialsAtGiveUp = dialCount()
-    // Fill the rolling-hour budget directly (deterministic; no 30 min of fake time needed).
-    internal.selfHealTimes = Array.from({ length: 120 }, (_, i) => Date.now() - i * 1_000)
-    // First post-give-up dial (fast tier, 15s): the budget tips over the cap.
-    await vi.advanceTimersByTimeAsync(15_000)
-    await advanceUntil(() => dialCount() > dialsAtGiveUp && internal.selfHealTimer !== undefined, 5_000)
-    expect(internal.selfHealTimes.length).toBeGreaterThanOrEqual(120)
-    const dialsAfterCap = dialCount()
-    // Capped: 15s later there is no new dial; the next one lands at the 60s mark.
-    await vi.advanceTimersByTimeAsync(15_000)
-    expect(internal.selfHealTimer).toBeDefined()
-    expect(dialCount()).toBe(dialsAfterCap)
-    await vi.advanceTimersByTimeAsync(45_000)
-    await advanceUntil(() => dialCount() > dialsAfterCap, 5_000)
-    await connection.stop()
-  })
 })

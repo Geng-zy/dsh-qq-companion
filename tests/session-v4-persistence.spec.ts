@@ -83,7 +83,7 @@ async function makeV4Harness(opts?: {
   const sessions = { flush: vi.fn(async () => undefined) }
   const mediaDir = mkdtempSync(join(tmpdir(), 'onebot-v4-test-'))
   const connection = new OneBotConnection({
-    mode: 'reverse', host: '127.0.0.1', port: 0, url: 'ws://127.0.0.1:3001', accessToken: 'test-token', callTimeoutMs: 3_000,
+    host: '127.0.0.1', port: 0, accessToken: 'test-token', callTimeoutMs: 3_000,
   })
   const bridge = new ChatBridge({
     ctx,

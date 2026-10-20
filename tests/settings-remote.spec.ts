@@ -379,7 +379,7 @@ describe('onebotSettings remote — workspacePath 白名单扩展（connection �
     const snapshot = getSettings(new FakeConfigEditor(), createRevisionState())
     expect(ALL_KEYS).toHaveLength(Object.values(SETTINGS_GROUPS).flat().length)
     expect(SCHEMA_DEFAULTS.workspacePath).toBe('')
-    expect(SETTINGS_GROUPS.connection).toEqual(['mode', 'host', 'port', 'url', 'accessToken', 'botQQ', 'workspacePath'])
+    expect(SETTINGS_GROUPS.connection).toEqual(['host', 'port', 'accessToken', 'botQQ', 'workspacePath'])
     expect(snapshot.groups.connection).toEqual(SETTINGS_GROUPS.connection)
     expect(snapshot.config.workspacePath).toBe('')
   })

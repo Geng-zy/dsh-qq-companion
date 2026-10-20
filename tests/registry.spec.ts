@@ -68,7 +68,7 @@ describe('ChatRegistry', () => {
     const sessions = { flush: vi.fn(async () => undefined) }
     const mediaDir = mkdtempSync(join(tmpdir(), 'onebot-test-'))
     const connection = new OneBotConnection({
-      mode: 'reverse', host: '127.0.0.1', port: 0, url: 'ws://127.0.0.1:3001', accessToken: 'test-token', callTimeoutMs: 3_000,
+      host: '127.0.0.1', port: 0, accessToken: 'test-token', callTimeoutMs: 3_000,
     })
     const bridge = new ChatBridge({
       ctx, connection,
@@ -191,7 +191,7 @@ describe('ChatRegistry', () => {
     const sessions = { flush: vi.fn(async () => undefined) }
     const mediaDir = mkdtempSync(join(tmpdir(), 'onebot-test-'))
     const connection = new OneBotConnection({
-      mode: 'reverse', host: '127.0.0.1', port: 0, url: 'ws://127.0.0.1:3001', accessToken: 'test-token', callTimeoutMs: 3_000,
+      host: '127.0.0.1', port: 0, accessToken: 'test-token', callTimeoutMs: 3_000,
     })
 
     const mountedPresets: Array<string | undefined> = []
@@ -296,7 +296,7 @@ describe('ChatRegistry', () => {
     const bridge = new ChatBridge({
       ctx,
       connection: new OneBotConnection({
-        mode: 'reverse', host: '127.0.0.1', port: 0, url: 'ws://127.0.0.1:3001', accessToken: 'test-token', callTimeoutMs: 3_000,
+        host: '127.0.0.1', port: 0, accessToken: 'test-token', callTimeoutMs: 3_000,
       }),
       media: new MediaStore(join(mediaDir, 'media'), 6),
       transcriber: new Transcriber({ enabled: false, engine: 'auto', command: '', args: [], model: 'small', timeoutMs: 10_000 }),
@@ -376,7 +376,7 @@ describe('ChatRegistry', () => {
     const bridge = new ChatBridge({
       ctx,
       connection: new OneBotConnection({
-        mode: 'reverse', host: '127.0.0.1', port: 0, url: 'ws://127.0.0.1:3001', accessToken: 'test-token', callTimeoutMs: 3_000,
+        host: '127.0.0.1', port: 0, accessToken: 'test-token', callTimeoutMs: 3_000,
       }),
       media: new MediaStore(join(mediaDir, 'media'), 6),
       transcriber: new Transcriber({ enabled: false, engine: 'auto', command: '', args: [], model: 'small', timeoutMs: 10_000 }),
@@ -440,7 +440,7 @@ describe('ChatRegistry', () => {
     const bridge = new ChatBridge({
       ctx,
       connection: new OneBotConnection({
-        mode: 'reverse', host: '127.0.0.1', port: 0, url: 'ws://127.0.0.1:3001', accessToken: 'test-token', callTimeoutMs: 3_000,
+        host: '127.0.0.1', port: 0, accessToken: 'test-token', callTimeoutMs: 3_000,
       }),
       media: new MediaStore(join(mediaDir, 'media'), 6),
       transcriber: new Transcriber({ enabled: false, engine: 'auto', command: '', args: [], model: 'small', timeoutMs: 10_000 }),
@@ -487,7 +487,7 @@ describe('ChatRegistry', () => {
     const bridge = new ChatBridge({
       ctx,
       connection: new OneBotConnection({
-        mode: 'reverse', host: '127.0.0.1', port: 0, url: 'ws://127.0.0.1:3001', accessToken: 'test-token', callTimeoutMs: 3_000,
+        host: '127.0.0.1', port: 0, accessToken: 'test-token', callTimeoutMs: 3_000,
       }),
       media: new MediaStore(join(mediaDir, 'media'), 6),
       transcriber: new Transcriber({ enabled: false, engine: 'auto', command: '', args: [], model: 'small', timeoutMs: 10_000 }),
@@ -542,7 +542,7 @@ describe('ChatRegistry', () => {
     const bridge = new ChatBridge({
       ctx,
       connection: new OneBotConnection({
-        mode: 'reverse', host: '127.0.0.1', port: 0, url: 'ws://127.0.0.1:3001', accessToken: 'test-token', callTimeoutMs: 3_000,
+        host: '127.0.0.1', port: 0, accessToken: 'test-token', callTimeoutMs: 3_000,
       }),
       media: new MediaStore(join(mediaDir, 'media'), 6),
       transcriber: new Transcriber({ enabled: false, engine: 'auto', command: '', args: [], model: 'small', timeoutMs: 10_000 }),
@@ -605,7 +605,7 @@ describe('ChatRegistry', () => {
     const bridge = new ChatBridge({
       ctx,
       connection: new OneBotConnection({
-        mode: 'reverse', host: '127.0.0.1', port: 0, url: 'ws://127.0.0.1:3001', accessToken: 'test-token', callTimeoutMs: 3_000,
+        host: '127.0.0.1', port: 0, accessToken: 'test-token', callTimeoutMs: 3_000,
       }),
       media: new MediaStore(join(mediaDir, 'media'), 6),
       transcriber: new Transcriber({ enabled: false, engine: 'auto', command: '', args: [], model: 'small', timeoutMs: 10_000 }),
@@ -664,7 +664,7 @@ describe('ChatRegistry', () => {
     const ctx = new Context()
     const mediaDir = mkdtempSync(join(tmpdir(), 'onebot-test-'))
     const connection = new OneBotConnection({
-      mode: 'reverse', host: '127.0.0.1', port: 0, url: 'ws://127.0.0.1:3001', accessToken: 'test-token', callTimeoutMs: 3_000,
+      host: '127.0.0.1', port: 0, accessToken: 'test-token', callTimeoutMs: 3_000,
     })
     const attached: string[] = []
     const workspaceRegistry = {
@@ -728,7 +728,7 @@ describe('ChatRegistry', () => {
     }))
     const agents = { create: vi.fn(), resume } as never
     const connection = new OneBotConnection({
-      mode: 'reverse', host: '127.0.0.1', port: 0, url: 'ws://127.0.0.1:3001', accessToken: 'test-token', callTimeoutMs: 3_000,
+      host: '127.0.0.1', port: 0, accessToken: 'test-token', callTimeoutMs: 3_000,
     })
     const bridge = new ChatBridge({
       ctx,
@@ -773,7 +773,7 @@ describe('ChatRegistry', () => {
     const ctx2 = new Context()
     const bridge2 = new ChatBridge({
       ctx: ctx2,
-      connection: new OneBotConnection({ mode: 'reverse', host: '127.0.0.1', port: 0, url: 'ws://127.0.0.1:3002', accessToken: 'test-token', callTimeoutMs: 3_000 }),
+      connection: new OneBotConnection({ host: '127.0.0.1', port: 0, accessToken: 'test-token', callTimeoutMs: 3_000 }),
       media: new MediaStore(join(bridge2Dir, 'media'), 6),
       transcriber: new Transcriber({ enabled: false, engine: 'auto', command: '', args: [], model: 'small', timeoutMs: 10_000 }),
       agents: { create: vi.fn(), resume: resume2 } as never,
@@ -858,7 +858,7 @@ describe('ChatRegistry', () => {
     }
     const bridge2 = new ChatBridge({
       ctx: new Context(),
-      connection: new OneBotConnection({ mode: 'reverse', host: '127.0.0.1', port: 0, url: 'ws://127.0.0.1:3002', accessToken: 'test-token', callTimeoutMs: 3_000 }),
+      connection: new OneBotConnection({ host: '127.0.0.1', port: 0, accessToken: 'test-token', callTimeoutMs: 3_000 }),
       media: new MediaStore(join(h.mediaDir, 'media'), 6),
       transcriber: new Transcriber({ enabled: false, engine: 'auto', command: '', args: [], model: 'small', timeoutMs: 10_000 }),
       agents: { create: vi.fn(), resume } as never,

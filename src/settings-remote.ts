@@ -66,7 +66,7 @@ export const REMOTE_EFFECT = 'restart'
  *  connection 组追加 workspacePath（会话默认工作区；schema 已有该键
  *  src/index.ts:287，本批次起入面板白名单，键序追加在组尾）。 */
 export const SETTINGS_GROUPS: Readonly<Record<string, readonly string[]>> = {
-  connection: ['mode', 'host', 'port', 'url', 'accessToken', 'botQQ', 'workspacePath'],
+  connection: ['host', 'port', 'accessToken', 'botQQ', 'workspacePath'],
   permissions: ['requireMention', 'adminUsers', 'dmPolicy', 'groupPolicy', 'allowAllUsers', 'allowFrom', 'groupAllowFrom'],
   behavior: ['interimMessages', 'interimRecall', 'interimRecallMs', 'sendErrorNotice', 'unknownCommand', 'rateLimitPerMinute', 'newMessagePolicy', 'autoSteerPolicy', 'deferredTimeoutMs'],
   diagnostics: ['actionAuditEnabled', 'traceEnabled'],
@@ -77,10 +77,8 @@ export const SETTINGS_GROUPS: Readonly<Record<string, readonly string[]>> = {
 
 /** schema 默认值，快照生效值的底层。 */
 export const SCHEMA_DEFAULTS: Readonly<Record<string, unknown>> = {
-  mode: 'reverse',
   host: '127.0.0.1',
   port: 8643,
-  url: 'ws://127.0.0.1:3001',
   accessToken: '',
   botQQ: '',
   // 会话默认工作区路径（schema 默认 ''，src/index.ts:287——留空 = 宿主进程 cwd）。
@@ -146,7 +144,6 @@ export const SCHEMA_DEFAULTS: Readonly<Record<string, unknown>> = {
 export const SECRET_KEYS: readonly string[] = ['accessToken']
 
 const ENUM_KEYS: Readonly<Record<string, readonly string[]>> = {
-  mode: ['reverse', 'forward'],
   dmPolicy: ['open', 'allowlist', 'disabled'],
   groupPolicy: ['open', 'allowlist', 'disabled'],
   unknownCommand: ['intercept', 'passthrough'],
@@ -192,7 +189,7 @@ const BOOLEAN_KEYS: readonly string[] = [
   'groupSplitLines',
   'humanTypingPace',
 ]
-const STRING_KEYS: readonly string[] = ['host', 'url', 'accessToken', 'botQQ', 'workspacePath',
+const STRING_KEYS: readonly string[] = ['host', 'accessToken', 'botQQ', 'workspacePath',
   'ownerTitle', 'agentPreset', 'adminPreset', 'adminPermission', 'adminWorkspacePath', 'publicMemoryFile', 'groupMemoryDir', 'proactiveChatId', 'proactiveWindowStart', 'proactiveWindowEnd']
 const STRING_ARRAY_KEYS: readonly string[] = ['adminUsers', 'allowFrom', 'groupAllowFrom']
 /** 全部 29 键（校验与快照的唯一键集；6 枚举 + 4 数字 + 11 布尔 + 5 字符串 + 3 字符串数组）。 */

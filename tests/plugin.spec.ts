@@ -59,7 +59,6 @@ function makeCtx() {
 describe('plugin entry', () => {
   it('validates config defaults', () => {
     const config = Config({})
-    expect(config.mode).toBe('reverse')
     expect(config.port).toBe(8643)
     expect(config.requireMention).toBe(true)
     expect(config.unknownCommand).toBe('intercept')

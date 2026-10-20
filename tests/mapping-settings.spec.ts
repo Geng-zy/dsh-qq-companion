@@ -83,7 +83,7 @@ describe('mapping-file settings persistence', () => {
     const captured2 = { followups: [] as Array<{ text: string; sessionId: string }>, channelTools: [] as string[], channelSections: [] as string[] }
     const bridge2 = new ChatBridge({
       ctx: new Context(),
-      connection: new OneBotConnection({ mode: 'reverse', host: '127.0.0.1', port: 0, url: 'ws://127.0.0.1:3002', accessToken: 'test-token', callTimeoutMs: 3_000 }),
+      connection: new OneBotConnection({ host: '127.0.0.1', port: 0, accessToken: 'test-token', callTimeoutMs: 3_000 }),
       media: new MediaStore(join(h.mediaDir, 'media'), 6),
       transcriber: new Transcriber({ enabled: false, engine: 'auto', command: '', args: [], model: 'small', timeoutMs: 10_000 }),
       agents: makeFakeAgents([], captured2, { resumeOk: true }) as never,

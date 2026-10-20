@@ -4,7 +4,7 @@ import { selfCheck } from '../src/selfcheck.js'
 import type { SelfCheckInput } from '../src/selfcheck.js'
 
 const good: SelfCheckInput = {
-  mode: 'reverse', host: '127.0.0.1', accessToken: 'x', botQQ: '123450002', adminUsers: ['123450001'],
+  host: '127.0.0.1', accessToken: 'x', botQQ: '123450002', adminUsers: ['123450001'],
   dmPolicy: 'open', groupPolicy: 'allowlist', allowFrom: [], groupAllowFrom: ['888000001'], allowAllUsers: false,
   workspacePath: '', adminWorkspacePath: '', groupMemoryDir: '', publicMemoryFile: '',
   scheduledPrompts: [{ id: 'diary', time: '01:30', chatId: 'private:123450001', prompt: '写日记' }],
