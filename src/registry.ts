@@ -7,7 +7,7 @@
  * SessionLedger (session-ledger.ts); types live in registry-types.ts.
  * @module dsh-qq-companion/registry
  */
-import type { Agent, AgentSetup, ModelSelectionRef } from '@deepseek-ai/dsh-agent'
+import type { Agent, AgentSetup, ModelSelection, ModelSelectionRef } from '@deepseek-ai/dsh-agent'
 import { installModelSelection } from '@deepseek-ai/dsh-agent'
 import type { SessionId } from '@deepseek-ai/dsh-session'
 import { SessionId as makeSessionId } from '@deepseek-ai/dsh-session'
@@ -93,9 +93,14 @@ export class ChatRegistry {
 
   /** default-model wiring shared by the create and resume assembly paths
    * — agent options for the registry call plus the mutable per-agent
-   * selection ref (undefined when the deployment has no default model). */
-  private modelWiring(): { agentOptions: { provider?: string; model?: string }; selectionRef: ModelSelectionRef | undefined } {
-    const selection = this.deps.defaultModel?.()
+   * selection ref (undefined when the deployment has no default model).
+   * Group chats take groupReasoningEffort when it is set. */
+  private modelWiring(chatId: ChatId): { agentOptions: { provider?: string; model?: string }; selectionRef: ModelSelectionRef | undefined } {
+    let selection = this.deps.defaultModel?.()
+    const groupEffort = this.deps.config.groupReasoningEffort ?? ''
+    if (selection !== undefined && groupEffort !== '' && chatId.startsWith('group:')) {
+      selection = { ...selection, reasoningEffort: groupEffort as ModelSelection['reasoningEffort'] }
+    }
     const agentOptions: { provider?: string; model?: string } = {}
     if (selection !== undefined) {
       agentOptions.provider = selection.provider
@@ -224,7 +229,7 @@ export class ChatRegistry {
       this.ledger.retireBroken(sessionId)
       sessionId = this.ledger.freshSessionId(chatId)
     }
-    const { agentOptions, selectionRef } = this.modelWiring()
+    const { agentOptions, selectionRef } = this.modelWiring(chatId)
     const cwd = this.effectiveCwd(chatId)
     const groupRoot = this.deps.config.groupMemoryDir
     if (groupRoot !== undefined && groupRoot !== '' && chatId.startsWith('group:') && this.getSettings(chatId).workspacePath === undefined) {
@@ -391,7 +396,7 @@ export class ChatRegistry {
   /** Resume one persisted chat from its recorded session id (shared by
    * loadMapping and the evicted-chat resume). */
   private async resumeChat(chatId: ChatId, sessionId: string): Promise<ChatAgent> {
-    const { agentOptions, selectionRef } = this.modelWiring()
+    const { agentOptions, selectionRef } = this.modelWiring(chatId)
     const recordedPreset = await this.recordedPresetFor(makeSessionId(sessionId))
     // What this chat would get today (/preset override, admin default, config
     // default) — only a real difference from the recorded preset is reported.

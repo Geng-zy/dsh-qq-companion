@@ -209,6 +209,7 @@ export async function makeCmdHarness(opts?: {
   sendCounter?: { record(): void }
   splitLines?: boolean
   groupSplitLines?: boolean
+  groupReasoningEffort?: '' | 'off' | 'low' | 'high' | 'max'
 }) {
   const ctx = new Context()
   const sessionIds: string[] = []
@@ -273,6 +274,7 @@ export async function makeCmdHarness(opts?: {
       ...(opts?.splitLines !== undefined ? { splitLines: opts.splitLines, typingDelayMinMs: 0, typingDelayMaxMs: 0, typingDelayPerCharMs: 0 } : {}),
       ...(opts?.groupSplitLines !== undefined ? { groupSplitLines: opts.groupSplitLines } : {}),
       ...(opts?.typingPacer !== undefined ? { humanTypingPace: true } : {}),
+      ...(opts?.groupReasoningEffort !== undefined ? { groupReasoningEffort: opts.groupReasoningEffort } : {}),
     },
     ...(opts?.typingPacer !== undefined ? { typingPacer: opts.typingPacer } : {}),
     ...(opts?.sendCounter !== undefined ? { sendCounter: opts.sendCounter } : {}),

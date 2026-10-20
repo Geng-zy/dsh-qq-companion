@@ -94,6 +94,8 @@ export interface BridgeConfig {
    * inbound message (0 disables; default 7). Evicted chats keep their
    * chat→session mapping, so a later message resumes the same session. */
   chatIdleEvictDays?: number
+  /** reasoning effort for group-chat sessions ('' = the deployment default). */
+  groupReasoningEffort?: '' | 'off' | 'low' | 'high' | 'max'
   /** how a new ordinary message is handled while the chat's task
    * (agent turn) is running; absent → 'queue' (the default). 'queue' = the
    * message is dispatched normally (agent.followup queues it as the

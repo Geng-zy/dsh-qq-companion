@@ -349,3 +349,18 @@ describe('per-group memory', () => {
     expect(readFileSync(file, 'utf8')).toBe('我自己写的')
   })
 })
+
+describe('groupReasoningEffort', () => {
+  it('group chats get the configured thinking level; private chats keep the default', async () => {
+    const h = await makeCmdHarness({ groupReasoningEffort: 'low' })
+    h.sendGroupTextAs('大家好', 10003)
+    h.sendText('你好')
+    await vi.waitFor(() => expect(h.captured.followups).toHaveLength(2))
+    const chats = (h.bridge as unknown as { chats: Map<string, { selectionRef?: { current?: { reasoningEffort?: string } } }> }).chats
+    expect(chats.get('group:888')?.selectionRef?.current?.reasoningEffort).toBe('low')
+    expect(chats.get('private:10001')?.selectionRef?.current?.reasoningEffort).toBeUndefined()
+    h.client.close()
+    await h.bridge.stop()
+    await h.connection.stop()
+  })
+})
