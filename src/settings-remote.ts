@@ -1,5 +1,5 @@
 /**
- * dsh-onebot — `onebotSettings` Typert Remote service
+ * dsh-qq-companion — `onebotSettings` Typert Remote service
  *
  * Host-plane root service declared in cordis.patch.yml（仓库模板同名文件）via an
  * independent insert row (`- id: onebot-settings-remote / name:
@@ -18,7 +18,7 @@
  *     失败一律降级为 {available:false, workspaces:[]}，不抛错——辅助查询绝不
  *     阻塞 getSettings/updateSettings 主链路，也绝不打开 registry 内部态）
  *
- * 持久层 = profile patch 中 `dsh-onebot` 条目的 config 覆盖行（设置页
+ * 持久层 = profile patch 中插件条目（行 id `dsh-onebot`）的 config 覆盖行（设置页
  * /手改 patch/宿主原生设置页三方同源，无第二优先级）。写入经宿主
  * configEditor.edit（dsh-config-editor/lib/index.js:63-123：文件锁 + 原子写 +
  * reconcile 热生效 + 激活失败自动回滚），本模块不发明第二条写路径。
@@ -51,7 +51,7 @@ import type { Context } from '@deepseek-ai/cordis'
  *  list()，不打开 registry 内部态——import type 零运行时依赖，不改 bridge.ts）。 */
 import type { WorkspaceRegistryLike } from './bridge.js'
 
-/** patch insert 中 dsh-onebot 主条目的 id。 */
+/** patch 中插件主条目的行 id（沿用原版的 dsh-onebot，已有配置不用改）。 */
 export const ENTRY_ID = 'dsh-onebot'
 /** Typert Remote 命名空间 = cordis 服务键。 */
 export const NAMESPACE = 'onebotSettings'
@@ -204,7 +204,7 @@ export const ALL_KEYS: readonly string[] = [
 export interface OnebotSettingsSnapshot {
   /** §3.1 乐观锁计数器。 */
   revision: number
-  /** dsh-onebot 条目 fiber 是否 active（fiber.state === 2，同 configEditor.edit 的活性判据）。 */
+  /** 插件条目 fiber 是否 active（fiber.state === 2，同 configEditor.edit 的活性判据）。 */
   entryActive: boolean
   /** 28 键生效值；accessToken 脱敏为 ''。 */
   config: Record<string, unknown>
@@ -277,14 +277,14 @@ function requireConfigEditor(ctx: { get(key: string): unknown } | undefined): Co
   return editor
 }
 
-/** 在 profile patch 的可寻址条目中定位 dsh-onebot 主条目；不存在必须显式报错
+/** 在 profile patch 的可寻址条目中定位插件主条目；不存在必须显式报错
  *。 */
 function findEntry(editor: ConfigEditorLike): ConfigEditorEntry {
   const entry = editor.entries().find((candidate) => candidate?.options?.id === ENTRY_ID)
   if (!entry) {
     throw new RemoteError(
       'onebot-settings/no-entry',
-      `no active "${ENTRY_ID}" entry in the profile patch — mount dsh-onebot first`,
+      `no active "${ENTRY_ID}" entry in the profile patch — mount dsh-qq-companion first`,
       { entryId: ENTRY_ID },
     )
   }
@@ -443,10 +443,10 @@ export function describeEditFailure(cause: unknown): string {
     return '写入失败：配置文件被其他写入方占用（等待文件锁超时），本次修改未落盘，请稍后重试'
   }
   if (/no longer available|changed during reload/i.test(message)) {
-    return '写入失败：dsh-onebot 条目在编辑期间被替换或失活，本次修改未落盘，请刷新后重试'
+    return '写入失败：QQ 插件条目在编辑期间被替换或失活，本次修改未落盘，请刷新后重试'
   }
   if (/no longer active/i.test(message)) {
-    return '写入失败：dsh-onebot 插件当前未激活，本次修改未落盘，请检查插件加载状态'
+    return '写入失败：QQ 插件当前未激活，本次修改未落盘，请检查插件加载状态'
   }
   if (/overridden by a home patch|command-line overlay/i.test(message)) {
     return '写入失败：该配置被 home patch 或命令行覆盖层接管，修改被宿主拒绝；请改在对应层修改'

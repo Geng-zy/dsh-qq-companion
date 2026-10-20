@@ -379,7 +379,7 @@ describe('reconnect policy and port conflict (M1-B5)', () => {
     const giveUp = errorSpy.mock.calls.map(call => call.map(String).join(' ')).find(text => text.includes('giving up'))
     expect(giveUp).toBeDefined()
     expect(giveUp).toContain('reconnectMaxAttempts=2')
-    expect(giveUp).toContain('restart the plugin or reload the dsh-onebot channel')
+    expect(giveUp).toContain('restart the plugin or reload the qq-companion channel')
     expect(giveUp).toContain('slow self-heal') // W2-④: the give-up line announces the self-heal
     // Exactly 3 dials happened (initial + 2 retries): one 'forward WS error' warn each.
     expect(warnSpy.mock.calls.filter(call => String(call[0]).includes('forward WS error'))).toHaveLength(3)

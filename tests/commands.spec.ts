@@ -253,7 +253,7 @@ describe('commands', () => {
 
     h.sendText('/ver')
     await vi.waitFor(() => {
-      expect(h.outbound.some(f => JSON.stringify(f.params).includes('dsh-onebot v'))).toBe(true)
+      expect(h.outbound.some(f => JSON.stringify(f.params).includes('dsh-qq-companion v'))).toBe(true)
     })
 
     h.sendText('/status')

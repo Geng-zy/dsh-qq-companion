@@ -498,7 +498,7 @@ export class OneBotConnection {
       // QQ-CONN reference for the whole outage (individual ladder retries
       // stay reference-free to avoid fault storms).
       const ref = this.onFailure?.('forward-reconnect-give-up', 'forward 重连 ' + max + ' 次后放弃（reconnectMaxAttempts=' + max + '），转入慢速自愈')
-      this.log('error', 'giving up forward WS reconnect after ' + max + ' retries (reconnectMaxAttempts=' + max + '); check the NapCat ws address and network, then restart the plugin or reload the dsh-onebot channel to reconnect; slow self-heal retries continue every ' + SELF_HEAL_INTERVAL_MS / 1000 + 's (capped at ' + SELF_HEAL_HOURLY_CAP + '/hour) until the peer comes back' + (ref !== undefined ? '（参考号 ' + ref + '）' : ''))
+      this.log('error', 'giving up forward WS reconnect after ' + max + ' retries (reconnectMaxAttempts=' + max + '); check the NapCat ws address and network, then restart the plugin or reload the qq-companion channel to reconnect; slow self-heal retries continue every ' + SELF_HEAL_INTERVAL_MS / 1000 + 's (capped at ' + SELF_HEAL_HOURLY_CAP + '/hour) until the peer comes back' + (ref !== undefined ? '（参考号 ' + ref + '）' : ''))
       this.scheduleSelfHeal()
       return
     }

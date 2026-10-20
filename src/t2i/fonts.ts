@@ -209,7 +209,7 @@ export class FontManager {
     // rejected. If the family is not really used, both renders are the same
     // fallback glyph (or tofu) pixel for pixel.
     const real = render(family)
-    const fallback = render('dsh-onebot-no-such-font-' + process.pid)
+    const fallback = render('qq-companion-no-such-font-' + process.pid)
     let differing = 0
     for (let i = 0; i < real.length; i += 4) {
       if ((real[i] < 128) !== (fallback[i] < 128)) differing += 1
@@ -290,7 +290,7 @@ export class FontManager {
             for (const cp of face.characterSet) {
               subset.includeGlyph(face.glyphForCodePoint(cp))
             }
-            const dir = mkdtempSync(join(tmpdir(), 'dsh-onebot-font-'))
+            const dir = mkdtempSync(join(tmpdir(), 'qq-companion-font-'))
             const out = join(dir, name + '.ttf')
             writeFileSync(out, subset.encode())
             GlobalFonts.registerFromPath(out, name)

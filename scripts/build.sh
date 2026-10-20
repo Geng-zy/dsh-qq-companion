@@ -1,5 +1,5 @@
 #!/bin/bash
-# Build the dsh-onebot external plugin: compile src/ → lib/ (JS) and lib/types/
+# Build the dsh-qq-companion plugin: compile src/ → lib/ (JS) and lib/types/
 # (declarations) with TypeScript. The @deepseek-ai/dsh-* peer packages are
 # resolved from the same install the running `dsh` binary uses (npx store or
 # source checkout), so the plugin type-checks and runs against the exact

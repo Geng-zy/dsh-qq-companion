@@ -23,7 +23,7 @@ function userMessage(text: string, source: Record<string, unknown>, extraBlocks:
 }
 
 const SNAPSHOT_SOURCE = { kind: 'plugin', plugin: '@deepseek-ai/dsh-system-prompt', form: 'snapshot' }
-const QQ_SOURCE = { kind: 'plugin:dsh-onebot' }
+const QQ_SOURCE = { kind: 'plugin:qq-companion' }
 const GOAL_SOURCE = { kind: 'goal', goalId: 'g1', revision: 1, round: 2 }
 
 /** A fake persistence stub keyed by session id, recording opens/closes.
@@ -305,4 +305,14 @@ describe('/session list previews (command e2e)', () => {
     await h.bridge.stop()
     await h.connection.stop()
   }, 60_000)
+})
+
+describe('message source kinds across the rename', () => {
+  it('both the current and the pre-rename plugin kind count as real user input', async () => {
+    const { isRealUserMessageSource } = await import('../src/commands.js')
+    expect(isRealUserMessageSource({ kind: 'plugin:qq-companion' })).toBe(true)
+    expect(isRealUserMessageSource({ kind: 'plugin:dsh-onebot' })).toBe(true)
+    expect(isRealUserMessageSource({ kind: 'user' })).toBe(true)
+    expect(isRealUserMessageSource({ kind: 'plugin:something-else' })).toBe(false)
+  })
 })

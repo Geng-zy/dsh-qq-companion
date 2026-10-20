@@ -39,7 +39,7 @@ interface CapturedMessage {
   source: Record<string, unknown>
 }
 
-const PLUGIN_KIND = 'plugin:dsh-onebot'
+const PLUGIN_KIND = 'plugin:qq-companion'
 const RETIRED_KIND = 'plugin'
 
 /** 与 makeFakeAgents 同构，但捕获完整消息对象（含 source）——

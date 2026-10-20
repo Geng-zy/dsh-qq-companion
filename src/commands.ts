@@ -623,7 +623,7 @@ async function handleIdCommand(ctx: CommandContext, chatId: ChatId): Promise<voi
 /** /ver: plugin version + git commit (each read once and cached). */
 async function handleVerCommand(ctx: CommandContext, chatId: ChatId): Promise<void> {
   const commit = gitCommit()
-  await ctx.sendToChat(chatId, 'dsh-onebot v' + (packageVersion() ?? '?') + (commit !== undefined ? ' (' + commit + ')' : ''))
+  await ctx.sendToChat(chatId, 'dsh-qq-companion v' + (packageVersion() ?? '?') + (commit !== undefined ? ' (' + commit + ')' : ''))
 }
 
 /** /status: one-shot snapshot of the chat session state. */
@@ -878,13 +878,13 @@ const PREVIEW_UNREADABLE = '（内容不可读）'
  * message a turn claimed) rather than a synthetic agent.inject() context or a
  * goal continuation round. Direct prompts carry kind 'user'; QQ chats
  * attribute their own inbound messages to this plugin (platform-source
- * logging), so the plugin-owned kind 'plugin:dsh-onebot' — also what the v3→v4
- * converter maps this plugin's historical rows to — is the chat's real user
- * input too. */
+ * logging), so the plugin-owned kind 'plugin:qq-companion' is the chat's real
+ * user input too. Sessions written before the rename (and rows the host's
+ * v3→v4 converter migrated) carry the old kind 'plugin:dsh-onebot'. */
 export function isRealUserMessageSource(source: { kind?: string } | undefined): boolean {
   if (source === undefined || typeof source !== 'object') return false
   if (source.kind === 'user') return true
-  return source.kind === 'plugin:dsh-onebot'
+  return source.kind === 'plugin:qq-companion' || source.kind === 'plugin:dsh-onebot'
 }
 
 /** Code-point-safe truncation (never splits a surrogate pair — the §3.1

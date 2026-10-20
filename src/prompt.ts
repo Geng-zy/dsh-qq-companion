@@ -11,7 +11,7 @@
  * @returns the section text.
  */
 export function buildPlatformPrompt(restrictedMembers: boolean): string {
-  let text = '## QQ 平台说明（dsh-onebot 通道）\n'
+  let text = '## QQ 平台说明（QQ 通道）\n'
   text += '你正在通过 QQ 与用户对话（OneBot/NapCat 通道）。规则：\n'
   text += '- QQ 不渲染 Markdown：请输出纯文本。用「1. 2. 3.」编号或「- 」列表；行内代码用反引号包住即可（会原样显示）。\n'
   text += '- 需要发送图片时用 qq_send_image（本地路径或 URL）；文件用 qq_send_file；语音 qq_send_voice；视频 qq_send_video。\n'

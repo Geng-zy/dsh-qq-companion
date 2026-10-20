@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Fake NapCat for the dsh-onebot E2E: dials the plugin's reverse WS server,
+// Fake NapCat for an e2e run: dials the plugin's reverse WS server,
 // answers action echoes, sends a sequence of private messages (argv), prints
 // every outbound send_msg text, and exits after a quiet window.
 import WebSocket from 'ws'

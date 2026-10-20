@@ -29,7 +29,7 @@ describe('inbound pipeline', () => {
       'qq_send_image', 'qq_send_voice', 'qq_send_video', 'qq_send_file',
       'qq_send_forward', 'qq_napcat_api', 'qq_group_history',
     ]))
-    expect(h.captured.channelSections).toContain('channel:dsh-onebot')
+    expect(h.captured.channelSections).toContain('channel:qq-companion')
     const sessionId = h.sessionIds[0]
 
     // 2. Assistant message → deferred one step; turn end settles it as the

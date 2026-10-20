@@ -692,7 +692,7 @@ export class ChatBridge {
     // distinguishable from host/web UI inputs.
     chat.agent.followup(createUserMessage({
       content: [{ type: 'text', text: final }],
-      source: { kind: 'plugin:dsh-onebot' },
+      source: { kind: 'plugin:qq-companion' },
     }))
     // cross-stream join: the turn's session events arrive on a different
     // async chain, so record this dispatch's traceId per chat for
@@ -871,7 +871,7 @@ export class ChatBridge {
     if (chat === undefined) return false
     chat.agent.steer(createUserMessage({
       content: [{ type: 'text', text }],
-      source: { kind: 'plugin:dsh-onebot' },
+      source: { kind: 'plugin:qq-companion' },
     }))
     return true
   }
@@ -1222,7 +1222,7 @@ export class ChatBridge {
    */
   private installChannelScope(agentCtx: Context): void {
     agentCtx.systemPrompt.section({
-      name: 'channel:dsh-onebot',
+      name: 'channel:qq-companion',
       order: 90,
       text: buildPlatformPrompt(this.deps.config.restrictedMemberPrefix),
     })

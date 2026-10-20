@@ -85,7 +85,7 @@ describe('plugin entry', () => {
     // agent scope (installChannelScope in bridge.ts); the plugin scope stays
     // clean so Web/local sessions never see the QQ channel surface.
     expect(tools).toHaveLength(0)
-    expect(sections.some(s => s.name === 'channel:dsh-onebot')).toBe(false)
+    expect(sections.some(s => s.name === 'channel:qq-companion')).toBe(false)
 
     // Teardown: run the plugin's effect disposer (stops bridge + connection).
     expect(effectSpy).toHaveBeenCalled()

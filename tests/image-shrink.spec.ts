@@ -87,7 +87,7 @@ function minimalJpegWithSof(width: number, height: number, trailingBytes = 0): B
 let dir: string
 
 beforeEach(async () => {
-  dir = await mkdtemp(join(tmpdir(), 'dsh-onebot-shrink-'))
+  dir = await mkdtemp(join(tmpdir(), 'qq-companion-shrink-'))
   loadImageSpy.mockClear()
 })
 
