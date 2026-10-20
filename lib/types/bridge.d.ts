@@ -163,14 +163,10 @@ export declare class ChatBridge {
      * (images/voices/videos) and voice files are transcribed when enabled.
      */
     private buildBody;
-    /** steer a completed voice transcript into the chat's agent — the
-     * running turn consumes it at its nearest step boundary; an idle agent
-     * opens a turn. No live chat (dispatch dropped/never happened) drops it. */
-    private steerTranscript;
     /** the single agent.steer write point — one createUserMessage with
      * the producer-owned source kind (the session-v4 guard counts the source
      * write points; this and dispatchFollowup are the only two). Shared by the
-     * voice transcript path (steerTranscript), the 'steer' policy and /steer.
+     * 'steer' policy and /steer.
      * Returns false when the chat has no live agent (nothing was steered). */
     private steerMessage;
     /**

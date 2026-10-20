@@ -91,9 +91,6 @@ export interface InboundContext {
     media: MediaStore;
     /** Voice transcriber. */
     transcriber: Transcriber;
-    /** deliver a completed voice transcript into the chat's agent
-     * (bridge-owned: steers the running turn, or opens one when idle). */
-    steerTranscript(chatId: ChatId, text: string): void;
     /** Slash-command router (bridge facade: the command table's ctx lives there).
      * nickname: pre-sanitized sender display name for the /steer
      * <user_message> boundary attribute. */
@@ -121,6 +118,9 @@ export interface InboundContext {
     /** The only config fields the inbound pipeline reads. */
     config: Pick<BridgeConfig, 'botQQ' | 'ignoreSelf' | 'requireMention' | 'rateLimitPerMinute' | 'restrictedMemberPrefix' | 'maxInboundFileBytes' | 'dedupWindowSeconds'>;
 }
+/** Longest a voice message waits for its transcript before it is handed
+ * over as a bare [语音]. */
+export declare const VOICE_TRANSCRIPT_WAIT_MS = 30000;
 /** default (chatId, message_id) dedup window, aligned with the MIT
  * dsh-qq-onebot-bridge's dedupWindowSeconds (300s). */
 export declare const DEFAULT_DEDUP_WINDOW_SECONDS = 300;
@@ -134,6 +134,8 @@ export interface InboundPipelineOptions {
     dedupMaxEntries?: number;
     /** Clock override for the dedup window (tests); default Date.now. */
     now?: () => number;
+    /** Voice transcript wait override (tests); default VOICE_TRANSCRIPT_WAIT_MS. */
+    voiceWaitMs?: number;
 }
 /**
  * The inbound pipeline: one normalized OneBot event → one agent turn.
@@ -145,6 +147,7 @@ export declare class InboundPipeline {
     /** dedup knobs (see InboundPipelineOptions). */
     private readonly dedupMaxEntries;
     private readonly now;
+    private readonly voiceWaitMs;
     /** dedup window state: "chatId#messageId" → first-seen epoch ms, in
      * insertion order (Map) so the oldest entry is the LRU victim. */
     private readonly seenMessages;
@@ -175,10 +178,10 @@ export declare class InboundPipeline {
     buildBody(text: string, media: MediaRef[], chatId: ChatId): Promise<string>;
     /** Resolve one media ref to a text annotation with a local path. */
     resolveMediaRef(ref: MediaRef, chatId: ChatId): Promise<string>;
-    /** transcribe in the background and deliver the labeled transcript
-     * into the chat's turn (steer at the running turn's nearest step boundary,
-     * or a new turn when the agent is idle). Failure keeps [语音] as final. */
-    private transcribeLater;
+    /** The transcript label for one voice file ('' when nothing was said,
+     * transcription failed or it took longer than VOICE_TRANSCRIPT_WAIT_MS —
+     * the message then goes on as a bare [语音]). */
+    private transcribe;
     /** Expand a quoted (reply) message into [引用] text via get_msg. */
     expandQuote(messageId: string): Promise<string>;
     /**
