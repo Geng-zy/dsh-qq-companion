@@ -21,3 +21,5 @@ jobs:
       - run: npm ci --include=dev --legacy-peer-deps --no-audit --no-fund
       - run: ./scripts/build.sh
       - run: ./node_modules/.bin/vitest run
+      - name: 端到端测试（真实 dsh + 假模型 + 假 NapCat）
+        run: node scripts/e2e.mjs

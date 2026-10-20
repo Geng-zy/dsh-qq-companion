@@ -103,6 +103,7 @@
   "scripts": {
     "build": "./scripts/build.sh",
     "test": "vitest run",
+    "e2e": "node scripts/e2e.mjs",
     "replay": "node scripts/replay.mjs",
     "verify:injected-context": "node scripts/verify-injected-context.mjs",
     "verify:lan-management": "node scripts/verify-lan-management.mjs"
