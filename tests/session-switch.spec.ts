@@ -35,7 +35,8 @@ function brokenOf(r: ChatRegistry): Set<string> {
 }
 
 function recordSwitchableOf(r: ChatRegistry): (chatId: string, id: string) => void {
-  return (r as unknown as { recordSwitchable(chatId: string, id: string): void }).recordSwitchable.bind(r)
+  const ledger = (r as unknown as { ledger: { recordSwitchable(chatId: string, id: string): void } }).ledger
+  return ledger.recordSwitchable.bind(ledger)
 }
 
 /** Minimal fake agent registry: create always succeeds; resume succeeds unless

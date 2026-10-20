@@ -69,7 +69,7 @@ describe('hotfix 0.4.3', () => {
       onChatRemoved: () => undefined,
       installChannelScope: () => undefined,
     })
-    const saveRetired = (): Promise<void> => (registry as unknown as { saveRetired(): Promise<void> }).saveRetired()
+    const saveRetired = (): Promise<void> => (registry as unknown as { ledger: { saveRetired(): Promise<void> } }).ledger.saveRetired()
 
     registry.retiredSessionIds.add('onebot-private-10001-a')
     const first = saveRetired()

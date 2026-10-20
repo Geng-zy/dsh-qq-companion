@@ -589,7 +589,7 @@ describe('ChatRegistry', () => {
     // Atomic save: retire one id, then the file holds exactly it and no .tmp.
     // (Leading `;` guards against ASI joining this line onto the waitFor
     // statement above — the result would be waitFor(cb)(...) called.)
-    ;(registry as unknown as { retireSession(id: string): void }).retireSession('onebot-private-10001')
+    ;(registry as unknown as { ledger: { retireBroken(id: string): void } }).ledger.retireBroken('onebot-private-10001')
     await vi.waitFor(async () => {
       const content = await readFile(join(mediaDir, 'retired-sessions.json'), 'utf8')
       expect(content).toContain('onebot-private-10001')
