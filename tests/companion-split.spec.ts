@@ -2,7 +2,7 @@
  * "one line, one message" splitting of model final replies.
  * @module dsh-qq-companion/tests/companion-split
  */
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import { OutboundPipeline } from '../src/outbound.js'
 import type { SendOptions } from '../src/outbound.js'
@@ -142,14 +142,15 @@ describe('OutboundPipeline durable offline queue', () => {
     const sent1: string[] = []
     const before = mk(() => false, sent1)
     await before.sendToChat('private:10001', '断线时的回复', { queuable: true })
-    await new Promise(resolve => setTimeout(resolve, 50))
+    // wait for the queue file itself, not a fixed delay (slow CI disks)
+    const { readFileSync } = await import('node:fs')
+    await vi.waitFor(() => expect(readFileSync(join(dir, 'pending-sends.json'), 'utf8')).toContain('断线时的回复'))
     // "Restart": a fresh pipeline over the same mediaDir.
     const sent2: string[] = []
     const after = mk(() => true, sent2)
     await after.loadPending()
     after.drainPendingSends()
-    await new Promise(resolve => setTimeout(resolve, 50))
-    expect(sent2).toEqual(['断线时的回复'])
+    await vi.waitFor(() => expect(sent2).toEqual(['断线时的回复']))
     expect(sent1).toEqual([])
   })
 })
