@@ -30,7 +30,6 @@ import { OutboundPipeline, type OutboundSegment, type SendOptions } from './outb
 import { buildPlatformPrompt } from './prompt.js'
 import { FailureRefRegistry, failureRefSuffix, type FailureRefKind } from './ref.js'
 import { ChatRegistry, type ChatAgent } from './registry.js'
-import { transcriptLabel } from './stt.js'
 import { registerMemoryNoteTool, registerTools } from './tools.js'
 import { currentTrace, newTraceId, runWithTrace, TRACE_REASONS, type TraceScope, type TraceStage } from './trace.js'
 
@@ -140,7 +139,6 @@ export class ChatBridge {
       sweepIdleChats: () => this.registry.sweepIdleChats(),
       media: deps.media,
       transcriber: deps.transcriber,
-      steerTranscript: (chatId, text) => this.steerTranscript(chatId, text),
       tryHandleCommand: (chatId, text, userId, nickname) => this.tryHandleCommand(chatId, text, userId, nickname),
       buildBody: (text, media, chatId) => this.buildBody(text, media, chatId),
       expandQuote: messageId => this.expandQuote(messageId),
@@ -549,19 +547,10 @@ export class ChatBridge {
     return this.inbound.buildBody(text, media, chatId)
   }
 
-  /** steer a completed voice transcript into the chat's agent — the
-   * running turn consumes it at its nearest step boundary; an idle agent
-   * opens a turn. No live chat (dispatch dropped/never happened) drops it. */
-  private steerTranscript(chatId: ChatId, text: string): void {
-    if (this.steerMessage(chatId, transcriptLabel(text))) return
-    this.deps.log('debug', 'voice transcript dropped (no live chat): ' + chatId)
-    currentTrace()?.emit('dispatch', { ok: false, reason: TRACE_REASONS.transcriptNoChat })
-  }
-
   /** the single agent.steer write point — one createUserMessage with
    * the producer-owned source kind (the session-v4 guard counts the source
    * write points; this and dispatchFollowup are the only two). Shared by the
-   * voice transcript path (steerTranscript), the 'steer' policy and /steer.
+   * 'steer' policy and /steer.
    * Returns false when the chat has no live agent (nothing was steered). */
   private steerMessage(chatId: ChatId, text: string): boolean {
     const chat = this.chats.get(chatId)

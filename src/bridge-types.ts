@@ -100,7 +100,7 @@ export interface BridgeConfig {
    * the chat gets at most one queue notice per running turn; 'steer' = plain
    * text (no media/quote/forward, non-restricted senders) is submitted as a
    * supplementary instruction into the running turn via the same
-   * agent.steer kernel as steerTranscript, with a per-message submit notice. */
+   * agent.steer kernel as /steer, with a per-message submit notice. */
   newMessagePolicy?: 'queue' | 'steer'
   /** steer 模式下自动插话的发送者资格档位；
    * absent → 'admin'（缺省）。'admin' = 仅管理员可自动插话；'all' = 所有

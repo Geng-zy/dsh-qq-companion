@@ -734,7 +734,6 @@ describe('inbound message_id dedup', () => {
       sweepIdleChats: async () => undefined,
       media: { cleanupExpired: async () => undefined } as never,
       transcriber: { enabled: false, transcribe: async () => '' } as never,
-      steerTranscript: () => undefined,
       tryHandleCommand: async () => false,
       buildBody: async (text: string) => text,
       expandQuote: async () => '',

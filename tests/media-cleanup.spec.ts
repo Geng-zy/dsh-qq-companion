@@ -92,12 +92,12 @@ describe('Transcriber work dir cleanup', () => {
   it.runIf(ffmpegAvailable)('removes the stt_* work dir after a successful transcription', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'stt-ok-'))
     const input = join(dir, 'voice.wav')
-    // Synthesize a short tone so no sample file is needed; the custom engine
-    // is a fake shell command that writes the transcript into the work dir.
+    // Synthesize a short tone so no sample file is needed; the command
+    // engine is a fake shell command printing the transcript to stdout.
     await runCommand('ffmpeg', ['-y', '-f', 'lavfi', '-i', 'sine=frequency=440:duration=0.3', input])
     const transcriber = new Transcriber({
-      enabled: true, engine: 'custom', command: 'sh',
-      args: ['-c', 'printf fake-transcript > {out}.txt'],
+      enabled: true, engine: 'command', command: 'sh',
+      args: ['-c', 'test -s "$0" && printf fake-transcript', '{wav}'],
       model: '', timeoutMs: 30_000,
     })
     await expect(transcriber.transcribe(input)).resolves.toBe('fake-transcript')

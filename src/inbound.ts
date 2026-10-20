@@ -145,9 +145,6 @@ export interface InboundContext {
   media: MediaStore
   /** Voice transcriber. */
   transcriber: Transcriber
-  /** deliver a completed voice transcript into the chat's agent
-   * (bridge-owned: steers the running turn, or opens one when idle). */
-  steerTranscript(chatId: ChatId, text: string): void
   /** Slash-command router (bridge facade: the command table's ctx lives there).
    * nickname: pre-sanitized sender display name for the /steer
    * <user_message> boundary attribute. */
@@ -176,6 +173,10 @@ export interface InboundContext {
   config: Pick<BridgeConfig, 'botQQ' | 'ignoreSelf' | 'requireMention' | 'rateLimitPerMinute' | 'restrictedMemberPrefix' | 'maxInboundFileBytes' | 'dedupWindowSeconds'>
 }
 
+/** Longest a voice message waits for its transcript before it is handed
+ * over as a bare [语音]. */
+export const VOICE_TRANSCRIPT_WAIT_MS = 30_000
+
 /** default (chatId, message_id) dedup window, aligned with the MIT
  * dsh-qq-onebot-bridge's dedupWindowSeconds (300s). */
 export const DEFAULT_DEDUP_WINDOW_SECONDS = 300
@@ -190,6 +191,8 @@ export interface InboundPipelineOptions {
   dedupMaxEntries?: number
   /** Clock override for the dedup window (tests); default Date.now. */
   now?: () => number
+  /** Voice transcript wait override (tests); default VOICE_TRANSCRIPT_WAIT_MS. */
+  voiceWaitMs?: number
 }
 
 /**
@@ -202,6 +205,7 @@ export class InboundPipeline {
   /** dedup knobs (see InboundPipelineOptions). */
   private readonly dedupMaxEntries: number
   private readonly now: () => number
+  private readonly voiceWaitMs: number
   /** dedup window state: "chatId#messageId" → first-seen epoch ms, in
    * insertion order (Map) so the oldest entry is the LRU victim. */
   private readonly seenMessages = new Map<string, number>()
@@ -210,6 +214,7 @@ export class InboundPipeline {
     this.ctx = ctx
     this.dedupMaxEntries = options.dedupMaxEntries ?? DEDUP_MAX_ENTRIES
     this.now = options.now ?? Date.now
+    this.voiceWaitMs = options.voiceWaitMs ?? VOICE_TRANSCRIPT_WAIT_MS
   }
 
   /** health snapshot: how many message_ids are currently held in the
@@ -469,11 +474,10 @@ export class InboundPipeline {
         return '[图片:' + resolved.path + ']'
       }
       case 'voice':
-        // dispatch must not wait on STT — the [语音] placeholder ships
-        // now and the transcript steers into the turn when it completes. A
-        // failure/timeout keeps the placeholder as the final state.
-        void this.transcribeLater(resolved.path, chatId)
-        return '[语音]'
+        // The message waits for its transcript (a couple of seconds), so
+        // she answers what was said instead of replying to a bare [语音]
+        // first and to the transcript afterwards.
+        return '[语音]' + await this.transcribe(resolved.path)
       case 'video':
         return '[视频:' + resolved.path + ']'
       default:
@@ -481,21 +485,31 @@ export class InboundPipeline {
     }
   }
 
-  /** transcribe in the background and deliver the labeled transcript
-   * into the chat's turn (steer at the running turn's nearest step boundary,
-   * or a new turn when the agent is idle). Failure keeps [语音] as final. */
-  private async transcribeLater(path: string, chatId: ChatId): Promise<void> {
+  /** The transcript label for one voice file ('' when nothing was said,
+   * transcription failed or it took longer than VOICE_TRANSCRIPT_WAIT_MS —
+   * the message then goes on as a bare [语音]). */
+  private async transcribe(path: string): Promise<string> {
+    let timer: ReturnType<typeof setTimeout> | undefined
     try {
-      const text = await this.ctx.transcriber.transcribe(path)
-      if (transcriptLabel(text) === '') {
+      const timeout = new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error('等了 ' + this.voiceWaitMs / 1000 + ' 秒还没转写完')), this.voiceWaitMs)
+      })
+      const started = this.now()
+      const text = await Promise.race([this.ctx.transcriber.transcribe(path), timeout])
+      const label = transcriptLabel(text)
+      if (label === '') {
         this.ctx.log('debug', '语音转写结果为空: ' + path)
         currentTrace()?.emit('transcribe', { ok: false, reason: TRACE_REASONS.sttEmpty })
-        return
+      } else {
+        this.ctx.log('info', '语音转写完成（' + Array.from(text).length + ' 字，' + (this.now() - started) + 'ms）')
       }
-      this.ctx.steerTranscript(chatId, text)
+      return label
     } catch (error) {
       this.ctx.log('warn', 'STT failed: ' + describeError(error))
       currentTrace()?.emit('transcribe', { ok: false, reason: '语音转写失败: ' + describeError(error) })
+      return ''
+    } finally {
+      if (timer !== undefined) clearTimeout(timer)
     }
   }
 
