@@ -11,7 +11,7 @@
 
 import { selfCheck } from './selfcheck.js'
 import { QqLiveness } from './liveness.js'
-import { ChatActivity, DailyScheduler, ProactiveScheduler } from './companion/index.js'
+import { ChatActivity, DailyScheduler, NoteCounter, ProactiveScheduler, setDefaultNoteCounter } from './companion/index.js'
 import type { ScheduledPrompt } from './companion/index.js'
 import { GroupAccess, handleGroupEvent } from './groups.js'
 import type { Context as CordisContext } from '@deepseek-ai/cordis'
@@ -511,6 +511,9 @@ export function apply(ctx: Context, config: Config): void {
   // chat activity (idle reset / handoff / diary input).
   const activity = new ChatActivity({ mediaDir, log })
   const activityLoaded = activity.load()
+  // Per-day memory-note counts survive restarts.
+  const noteCounter = new NoteCounter(join(mediaDir, 'note-counts.json'), log)
+  setDefaultNoteCounter(noteCounter)
   // Late-bound: the proactive scheduler needs the bridge, the bridge's /task
   // needs the scheduler.
   let proactiveRef: ProactiveScheduler | undefined
@@ -701,7 +704,7 @@ export function apply(ctx: Context, config: Config): void {
 
   // Lifecycle: start the bridge and transport; unwind everything on unload.
   // daily scheduled prompts (diary …), fired into their chats.
-  const scheduler = new DailyScheduler({ prompts: config.scheduledPrompts, fire: prompt => bridge.fireScheduled(prompt), log })
+  const scheduler = new DailyScheduler({ prompts: config.scheduledPrompts, fire: prompt => bridge.fireScheduled(prompt), log, stateFile: join(mediaDir, 'scheduler-state.json') })
   // proactive wake-ups in the owner's chat.
   const proactive = config.proactiveEnabled && config.proactiveChatId !== ''
     ? new ProactiveScheduler({
@@ -718,12 +721,13 @@ export function apply(ctx: Context, config: Config): void {
       activity,
       fire: context => bridge.fireCheckin(config.proactiveChatId as never, context),
       log,
+      stateFile: join(mediaDir, 'proactive-state.json'),
     })
     : undefined
   proactiveRef = proactive
   ctx.effect(() => {
     bridge.start()
-    void activityLoaded.then(() => { scheduler.start(); proactive?.start() })
+    void Promise.all([activityLoaded, scheduler.load(), proactive?.load(), noteCounter.load()]).then(() => { scheduler.start(); proactive?.start() })
     liveness.start()
     connection.start()
     injectChannel?.start()

@@ -4,6 +4,7 @@
  * @module dsh-qq-companion/companion
  */
 export * from './time.js'
+export * from './state.js'
 export * from './activity.js'
 export * from './memory.js'
 export * from './scheduler.js'

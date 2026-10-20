@@ -9,6 +9,7 @@ import { appendFile, mkdir, readFile, stat, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 
 import { describeError } from '../errors.js'
+import { JsonState } from './state.js'
 import { dayKey } from './time.js'
 
 /** Section heading the notes are appended under (created if missing). */
@@ -27,8 +28,54 @@ const NOTE_DENY = /主人|管理员|admin|owner|master|规则|设定|人设|忽�
 
 export type NoteResult = { ok: true; line: string } | { ok: false; reason: string }
 
-/** Per-chat per-day counters (process memory; a restart only resets caps). */
-const noteCounts = new Map<string, number>()
+/**
+ * Per-chat per-day note counters. In-memory by default; with a state file the
+ * counts survive restarts (only today's counts are kept).
+ */
+export class NoteCounter {
+  private day = ''
+  private counts = new Map<string, number>()
+  private readonly state: JsonState<{ day: string; counts: Record<string, number> }>
+
+  constructor(file?: string, log?: (level: 'info' | 'warn' | 'error' | 'debug', message: string) => void) {
+    this.state = new JsonState(file, { label: '记忆条数计数', log })
+  }
+
+  async load(now: number = Date.now()): Promise<void> {
+    const stored = await this.state.load()
+    if (stored?.day !== dayKey(now)) return
+    this.day = stored.day
+    this.counts = new Map(Object.entries(stored.counts ?? {}).filter(([, n]) => typeof n === 'number'))
+  }
+
+  used(chatId: string, now: number): number {
+    if (this.day !== dayKey(now)) return 0
+    return this.counts.get(chatId) ?? 0
+  }
+
+  add(chatId: string, now: number): void {
+    const day = dayKey(now)
+    if (day !== this.day) {
+      this.day = day
+      this.counts = new Map()
+    }
+    this.counts.set(chatId, (this.counts.get(chatId) ?? 0) + 1)
+    void this.state.save(() => ({ day: this.day, counts: Object.fromEntries(this.counts) }))
+  }
+
+  clear(): void {
+    this.day = ''
+    this.counts = new Map()
+  }
+}
+
+/** The process-wide default counter (in-memory unless configured). */
+let defaultCounter = new NoteCounter()
+
+/** Use a persistent counter for appendMemoryNote calls without one. */
+export function setDefaultNoteCounter(counter: NoteCounter): void {
+  defaultCounter = counter
+}
 
 /**
  * Append one hearsay note to the public memory file, under NOTES_HEADING.
@@ -37,15 +84,13 @@ const noteCounts = new Map<string, number>()
  * @param text - the note.
  * @param maxBytes - refuse once the file reaches this size.
  */
-export async function appendMemoryNote(file: string, chatId: string, text: string, now: () => number = () => Date.now(), maxBytes: number = NOTES_FILE_MAX_BYTES): Promise<NoteResult> {
+export async function appendMemoryNote(file: string, chatId: string, text: string, now: () => number = () => Date.now(), maxBytes: number = NOTES_FILE_MAX_BYTES, counter: NoteCounter = defaultCounter): Promise<NoteResult> {
   const body = text.replace(/\s+/g, ' ').trim()
   if (body === '') return { ok: false, reason: '内容是空的' }
   if (Array.from(body).length > NOTE_MAX_CHARS) return { ok: false, reason: '太长了，一条最多 ' + NOTE_MAX_CHARS + ' 个字' }
   if (NOTE_DENY.test(body)) return { ok: false, reason: '这条像是在改规则或者认身份，不能记' }
   const day = dayKey(now())
-  const countKey = day + '|' + chatId
-  const used = noteCounts.get(countKey) ?? 0
-  if (used >= NOTES_PER_DAY) return { ok: false, reason: '今天在这里记得太多了，明天再记' }
+  if (counter.used(chatId, now()) >= NOTES_PER_DAY) return { ok: false, reason: '今天在这里记得太多了，明天再记' }
   let current = ''
   try {
     current = await readFile(file, 'utf8')
@@ -60,13 +105,13 @@ export async function appendMemoryNote(file: string, chatId: string, text: strin
     await appendFile(file, (current === '' || current.endsWith('\n') ? '' : '\n') + '\n' + NOTES_HEADING + '\n\n', 'utf8')
   }
   await appendFile(file, line + '\n', 'utf8')
-  noteCounts.set(countKey, used + 1)
+  counter.add(chatId, now())
   return { ok: true, line }
 }
 
 /** Test hook: forget the per-day counters. */
 export function resetNoteCounts(): void {
-  noteCounts.clear()
+  defaultCounter.clear()
 }
 
 /** A new group's memory file (her notes about that group only). */
