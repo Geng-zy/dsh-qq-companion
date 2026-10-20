@@ -163,6 +163,11 @@ export class MediaStore {
           const path = await this.downloadUrl(resolved.url, extForUrl(resolved.url, ref.kind), this.downloadMaxBytes)
           return { path, kind: ref.kind }
         }
+        if (resolved.file !== undefined && resolved.file.startsWith('base64://')) {
+          const path = this.freshPath(extForKind(ref.kind))
+          await writeFile(path, Buffer.from(resolved.file.slice('base64://'.length), 'base64'))
+          return { path, kind: ref.kind }
+        }
         if (resolved.file !== undefined && resolved.file.startsWith('file://')) {
           const source = resolved.file.slice('file://'.length)
           const path = this.freshPath(extForKind(ref.kind))

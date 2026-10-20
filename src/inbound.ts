@@ -444,15 +444,23 @@ export class InboundPipeline {
     if (ref.kind === 'file') {
       return await this.resolveNasFile(ref)
     }
+    // A voice segment's own URL usually serves QQ's raw SILK audio, which
+    // nothing downstream can decode: ask NapCat for an mp3 first and keep the
+    // URL as the fallback.
+    if (ref.kind === 'voice' && ref.file !== undefined && ref.file !== '' && ref.url !== undefined && ref.url !== '') {
+      try {
+        const mp3 = recordResult(await this.ctx.call('get_record', { file: ref.file, out_format: 'mp3' }))
+        if (mp3 !== undefined) ref = { ...ref, ...mp3 }
+      } catch (error) {
+        this.ctx.log('debug', 'get_record 转 mp3 失败，改用语音原链接: ' + describeError(error))
+      }
+    }
     const resolved = await this.ctx.media.resolve(ref, async (kind, file) => {
       if (kind === 'image') {
         const data = await this.ctx.call('get_image', { file }) as { url?: string; file?: string }
         return { url: data.url, file: data.file }
       }
-      if (kind === 'voice') {
-        const data = await this.ctx.call('get_record', { file, out_format: 'mp3' }) as { file?: string }
-        return { file: data.file }
-      }
+      if (kind === 'voice') return recordResult(await this.ctx.call('get_record', { file, out_format: 'mp3' }))
       return undefined
     })
     if (resolved === undefined) return ''
@@ -703,4 +711,19 @@ function nodeContentText(content: unknown, ownerName: string, media: MediaRef[],
   }
   if (typeof content === 'string') return content.trim()
   return ''
+}
+
+/**
+ * NapCat's get_record answer as a media ref: inline base64 when present, a
+ * download URL, or a local path (made a file:// ref). undefined = nothing usable.
+ */
+export function recordResult(data: unknown): { url?: string; file?: string } | undefined {
+  const d = (data ?? {}) as { file?: unknown; url?: unknown; base64?: unknown }
+  if (typeof d.base64 === 'string' && d.base64 !== '') return { url: undefined, file: 'base64://' + d.base64.replace(/^base64:\/\//, '') }
+  if (typeof d.url === 'string' && /^https?:\/\//.test(d.url)) return { url: d.url }
+  if (typeof d.file === 'string' && d.file !== '') {
+    if (d.file.startsWith('/')) return { url: undefined, file: 'file://' + d.file }
+    if (/^(file|base64):\/\//.test(d.file)) return { url: undefined, file: d.file }
+  }
+  return undefined
 }

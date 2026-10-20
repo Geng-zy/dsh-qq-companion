@@ -63,7 +63,7 @@ describe('plugin entry', () => {
     expect(config.port).toBe(8643)
     expect(config.requireMention).toBe(true)
     expect(config.unknownCommand).toBe('intercept')
-    expect(config.sttModel).toBe('small')
+    expect(config.sttModel).toBe('')
   })
 
   it('applies, registers tools and prompt, then unwinds on disposal', async () => {

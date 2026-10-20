@@ -42,12 +42,14 @@
 | `imageMaxSize` | number |  | [deprecated] 旧名别名（现 inboundImageMaxPx）：入站图片长边上限（像素）；本版兼容读取，新配置请用新名 |
 | `maxVoiceBytes` | number | `15728640` | 出站语音大小上限（字节） |
 | `maxFileBytes` | number | `20971520` | 出站视频/文件大小上限（字节） |
-| `sttEnabled` | boolean | `true` | 入站语音是否转写（需要 ffmpeg 和 whisper CLI；失败时降级为 [语音] 占位） |
-| `sttEngine` | "auto" / "openai" / "whisper-cpp" / "custom" | `"auto"` | STT 引擎：auto 自动探测 whisper-cli / whisper / mlx_whisper |
-| `sttCommand` | string | `""` | custom 引擎的程序名/路径 |
-| `sttArgs` | string[] | `[]` | custom 引擎参数模板，{file} 与 {out} 会被替换 |
-| `sttModel` | string | `"small"` | whisper 模型（openai: small/base/medium...；whisper.cpp: 模型名或 .bin 绝对路径） |
-| `sttTimeoutMs` | number | `60000` | 单次转写超时（毫秒，默认 60000）；超时后占位即终态，不追加转写 |
+| `sttEnabled` | boolean | `false` | 收到语音时转成文字给她看（本机离线识别，需要 ffmpeg 和一个识别引擎；没装或失败时她只看到 [语音]） |
+| `sttEngine` | "auto" / "sherpa-onnx" / "whisper-cpp" / "command" / "openai" / "custom" | `"auto"` | 识别引擎：sherpa-onnx = sherpa-onnx-offline + SenseVoice 模型（中文好、CPU 快，推荐）；whisper-cpp = whisper-cli + ggml 模型；command = 自定义命令（stdout 输出文字）；auto = 按 sherpa-onnx、whisper-cpp 的顺序找能用的。旧名 custom = command，openai = auto |
+| `sttCommand` | string | `""` | command 引擎的程序名或路径 |
+| `sttArgs` | string[] | `[]` | command 引擎的参数模板：{wav}（16kHz 单声道 WAV）、{input}（原文件）、{model}、{lang} 会被替换；留空 = 只传 {wav} |
+| `sttModel` | string | `""` | sherpa-onnx：SenseVoice 模型目录（含 tokens.txt 和 model.int8.onnx）；whisper-cpp：模型名（如 small，找 ggml-small.bin）或 .bin 路径；留空用默认位置 |
+| `sttLanguage` | string | `"auto"` | 语音的语言：auto 自动判断，或 zh / en / ja 等 |
+| `sttMaxSeconds` | number | `60` | 只转写每条语音的前多少秒 |
+| `sttTimeoutMs` | number | `60000` | 单次转写超时（毫秒）；超时后她只看到 [语音] |
 | `textImageThreshold` | number | `150` | 回复正文超过该长度（字符数）时渲染为文字图卡片发送；<=0 禁用卡片路径 |
 | `splitLines` | boolean | `false` | 模型最终回复按行拆成多条消息发送（一句一条），中间按字数停顿模拟打字 |
 | `splitMaxMessages` | number | `6` | 一条回复最多拆成几条；行数超过它（列表、代码等）就整段发送 |

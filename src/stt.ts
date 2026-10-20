@@ -1,230 +1,275 @@
 /**
- * Voice transcription: ffmpeg → 16 kHz mono WAV, then a whisper engine
- * (openai-whisper CLI, whisper.cpp whisper-cli, or a custom command) produces
- * the transcript. All subprocess work is queued, bounded by a timeout, and
- * contained: a transcription failure must never break the message pipeline
- * (the caller falls back to the [语音] placeholder).
+ * Voice transcription, fully local: ffmpeg turns the voice file into 16 kHz
+ * mono WAV (first sttMaxSeconds only), then one engine transcribes it:
+ *
+ *  - sherpa-onnx: `sherpa-onnx-offline` with a SenseVoice model directory
+ *    (model.int8.onnx / model.onnx + tokens.txt) — fast on CPU, strong on
+ *    Chinese; recommended;
+ *  - whisper-cpp: `whisper-cli` (or the older `main`) with a ggml model;
+ *  - command: any program; argv template with {wav} {input} {model} {lang},
+ *    transcript read from stdout;
+ *  - auto: the first of sherpa-onnx / whisper-cpp that is installed.
+ *
+ * One transcription runs at a time; at most MAX_QUEUE wait, more are refused
+ * at once. Every run has a timeout and its temp dir is always removed. Any
+ * failure throws — the caller keeps the [语音] placeholder.
  * @module dsh-qq-companion/stt
  */
-
 import { spawn } from 'node:child_process'
-import { constants } from 'node:fs'
-import { access, mkdir, readFile, readdir, rm } from 'node:fs/promises'
-import { basename, dirname, join } from 'node:path'
 import { randomUUID } from 'node:crypto'
+import { constants } from 'node:fs'
+import { access, mkdir, open, rm, stat } from 'node:fs/promises'
+import { dirname, join } from 'node:path'
 
-/** STT configuration (subset of the plugin Config). */
+export type SttEngine = 'auto' | 'sherpa-onnx' | 'whisper-cpp' | 'command'
+
 export interface SttConfig {
   enabled: boolean
-  engine: 'auto' | 'openai' | 'whisper-cpp' | 'custom'
-  /** Program path/name for the custom engine. */
+  /** Engine; the old names 'custom' (= command) and 'openai' (= auto) are accepted. */
+  engine: SttEngine | 'custom' | 'openai'
+  /** Program for the command engine. */
   command: string
-  /** argv template for the custom engine; {file} and {out} are substituted. */
+  /** argv template for the command engine. */
   args: string[]
-  /** whisper model id (openai: small/base/medium...; whisper.cpp: ggml name). */
+  /** sherpa-onnx: model directory; whisper-cpp: ggml model name or .bin path. */
   model: string
-  /** Per-transcription timeout in ms. */
+  /** Spoken language: 'auto' or a code such as 'zh' / 'en'. */
+  language?: string
+  /** Per-transcription timeout (ms). */
   timeoutMs: number
+  /** Only the first this-many seconds are transcribed. */
+  maxSeconds?: number
 }
 
-const DEFAULT_TIMEOUT_MS = 60_000
+/** Most transcriptions waiting behind the running one. */
+export const MAX_QUEUE = 5
+/** Transcripts longer than this are cut (characters). */
+export const MAX_TRANSCRIPT_CHARS = 500
+const MAX_INPUT_BYTES = 20 * 1024 * 1024
 
-/** Run a process, collecting output; rejects on non-zero exit or timeout. */
-function runProcess(
-  program: string,
-  args: string[],
-  timeoutMs: number,
-): Promise<{ stdout: string; stderr: string }> {
+/** Run a program; resolves stdout+stderr, rejects on a non-zero exit or timeout. */
+export function runProcess(program: string, args: readonly string[], timeoutMs: number): Promise<{ stdout: string; stderr: string }> {
   return new Promise((resolve, reject) => {
-    const child = spawn(program, args, { stdio: ['ignore', 'pipe', 'pipe'] })
+    const child = spawn(program, [...args], { stdio: ['ignore', 'pipe', 'pipe'] })
     let stdout = ''
     let stderr = ''
-    let settled = false
+    let done = false
+    const finish = (error?: Error) => {
+      if (done) return
+      done = true
+      clearTimeout(timer)
+      if (error) reject(error)
+      else resolve({ stdout, stderr })
+    }
     const timer = setTimeout(() => {
-      if (settled) return
-      settled = true
       child.kill('SIGKILL')
-      reject(new Error('STT command timed out after ' + timeoutMs + 'ms: ' + program))
+      finish(new Error('超时（' + Math.round(timeoutMs / 1000) + ' 秒）：' + program))
     }, timeoutMs)
-    child.stdout.on('data', chunk => {
-      stdout += String(chunk)
-    })
-    child.stderr.on('data', chunk => {
-      stderr += String(chunk)
-    })
-    child.on('error', error => {
-      if (settled) return
-      settled = true
-      clearTimeout(timer)
-      reject(error)
-    })
-    child.on('close', code => {
-      if (settled) return
-      settled = true
-      clearTimeout(timer)
-      if (code === 0) resolve({ stdout, stderr })
-      else reject(new Error('STT command exited with code ' + code + ': ' + program + '\n' + stderr.slice(-2000)))
-    })
+    child.stdout.on('data', chunk => { if (stdout.length < 1_000_000) stdout += String(chunk) })
+    child.stderr.on('data', chunk => { if (stderr.length < 1_000_000) stderr += String(chunk) })
+    child.on('error', error => finish(error))
+    child.on('close', code => finish(code === 0 ? undefined : new Error(program + ' 退出码 ' + code + '：' + stderr.trim().slice(-500))))
   })
 }
 
-/**
- * Detect a command on PATH by scanning each dir for an executable match
- * (no shell involved, so the configured name is never shell-interpreted;
- * builtins/aliases stop being visible — callers only need real binaries).
- */
+/** Find an executable on PATH (no shell involved). */
 export async function findCommand(name: string): Promise<string | undefined> {
+  if (name.includes('/')) {
+    try { await access(name, constants.X_OK); return name } catch { return undefined }
+  }
   for (const dir of (process.env.PATH ?? '').split(process.platform === 'win32' ? ';' : ':')) {
+    if (dir === '') continue
     const candidate = join(dir, name)
     try {
       await access(candidate, constants.X_OK)
       return candidate
     } catch {
-      // missing or not executable — try the next dir
+      // not here
     }
   }
   return undefined
 }
 
-/** Locate a whisper.cpp model file for the given model id. */
-async function findWhisperCppModel(model: string): Promise<string | undefined> {
-  if (model.includes('/') || model.endsWith('.bin')) {
-    try {
-      await access(model)
-      return model
-    } catch {
-      return undefined
-    }
-  }
-  const name = 'ggml-' + model + '.bin'
-  const candidates = [
-    '/opt/homebrew/share/whisper.cpp/models/' + name,
-    '/usr/local/share/whisper.cpp/models/' + name,
-    join(process.env.HOME ?? '', '.cache/whisper.cpp/' + name),
-    join(process.env.HOME ?? '', 'whisper.cpp/models/' + name),
-  ]
-  for (const candidate of candidates) {
-    try {
-      await access(candidate)
-      return candidate
-    } catch {
-      // try next
+const exists = async (path: string): Promise<boolean> => {
+  try { await access(path); return true } catch { return false }
+}
+
+/** A SenseVoice model directory: the onnx file and tokens.txt. */
+export async function findSenseVoiceModel(dir: string): Promise<{ model: string; tokens: string } | undefined> {
+  const candidates = dir !== '' ? [dir] : [join(process.env.HOME ?? '', '.cache', 'sherpa-onnx', 'sense-voice'), '/opt/sherpa-onnx/sense-voice']
+  for (const d of candidates) {
+    const tokens = join(d, 'tokens.txt')
+    if (!(await exists(tokens))) continue
+    for (const name of ['model.int8.onnx', 'model.onnx']) {
+      if (await exists(join(d, name))) return { model: join(d, name), tokens }
     }
   }
   return undefined
 }
 
-/**
- * Voice transcription service. One instance per plugin; calls are serialized
- * through a queue so concurrent voice messages cannot stack CPU-bound
- * whisper processes.
- */
+/** A whisper.cpp ggml model by path or by name (ggml-<name>.bin in the usual places). */
+export async function findWhisperModel(model: string): Promise<string | undefined> {
+  if (model.includes('/') || model.endsWith('.bin')) return (await exists(model)) ? model : undefined
+  const name = 'ggml-' + (model === '' ? 'small' : model) + '.bin'
+  const home = process.env.HOME ?? ''
+  for (const dir of [join(home, '.cache', 'whisper.cpp'), join(home, 'whisper.cpp', 'models'), '/usr/local/share/whisper.cpp/models', '/opt/homebrew/share/whisper.cpp/models', '/opt/whisper.cpp/models']) {
+    if (await exists(join(dir, name))) return join(dir, name)
+  }
+  return undefined
+}
+
+/** Phrases whisper tends to invent on silence or noise (subtitle credits and the like). */
+const HALLUCINATIONS = [
+  /请不吝点赞.*$/, /字幕(由|制作|提供|by).*$/i, /(感谢|谢谢)(您的)?(观看|收看|收听).*$/, /明镜与点点栏目/,
+  /^(\s*(谢谢|嗯|啊|哦)[。！!.]?\s*)+$/, /Thanks? (you )?for watching.*$/i, /^\s*\.+\s*$/,
+]
+
+/** Clean an engine's raw transcript: engine tags, noise markers, invented credits, length. */
+export function cleanTranscript(raw: string): string {
+  let text = raw
+    .replace(/<\|[^|>]*\|>/g, '') // SenseVoice language / emotion / event tags
+    .replace(/\[(BLANK_AUDIO|MUSIC|NOISE|SILENCE|音乐|掌声|笑声)[^\]]*\]|\((音乐|掌声|笑声)\)/gi, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+  for (const pattern of HALLUCINATIONS) text = text.replace(pattern, '').trim()
+  const chars = Array.from(text)
+  return chars.length > MAX_TRANSCRIPT_CHARS ? chars.slice(0, MAX_TRANSCRIPT_CHARS).join('') + '…' : text
+}
+
+/** sherpa-onnx prints a JSON object with "text" (on stdout or stderr, depending on version). */
+export function parseSherpaOutput(output: string): string {
+  for (const line of output.split('\n').reverse()) {
+    const at = line.indexOf('{')
+    if (at < 0 || !line.includes('"text"')) continue
+    try {
+      const parsed = JSON.parse(line.slice(at)) as { text?: unknown }
+      if (typeof parsed.text === 'string') return parsed.text
+    } catch {
+      // not the result line
+    }
+  }
+  return ''
+}
+
+/** True for a QQ SILK voice file (ffmpeg cannot decode it). */
+async function isSilk(path: string): Promise<boolean> {
+  const handle = await open(path, 'r')
+  try {
+    const { buffer, bytesRead } = await handle.read(Buffer.alloc(12), 0, 12, 0)
+    return buffer.subarray(0, bytesRead).toString('latin1').includes('#!SILK')
+  } finally {
+    await handle.close()
+  }
+}
+
+type Resolved = { engine: 'sherpa-onnx'; program: string; model: string; tokens: string } | { engine: 'whisper-cpp'; program: string; model: string } | { engine: 'command'; program: string }
+
 export class Transcriber {
   private readonly config: SttConfig
-  private queue: Promise<unknown> = Promise.resolve()
-  private ffmpegChecked: string | undefined
+  private chain: Promise<unknown> = Promise.resolve()
+  private waiting = 0
+  private resolved: Promise<Resolved> | undefined
 
   constructor(config: SttConfig) {
     this.config = config
   }
 
-  /** Whether transcription is enabled by config. */
   get enabled(): boolean {
     return this.config.enabled
   }
 
-  /**
-   * Transcribe a voice file. The input is converted to 16 kHz mono WAV with
-   * ffmpeg, then handed to the selected engine.
-   * @param filePath - absolute path of the downloaded voice file.
-   * @returns the transcript text (trimmed), or '' when the file is silent.
-   * @throws when transcription is impossible (missing tools, timeout...).
-   */
+  /** Transcribe one voice file (queued). @returns the cleaned transcript ('' = nothing said). */
   transcribe(filePath: string): Promise<string> {
-    const run = this.queue.then(() => this.transcribeNow(filePath))
-    // Keep the chain alive regardless of individual failures.
-    this.queue = run.catch(() => undefined)
+    if (this.waiting >= MAX_QUEUE) return Promise.reject(new Error('语音转写排队已满（' + MAX_QUEUE + ' 条），这条不转了'))
+    this.waiting += 1
+    const run = this.chain.then(() => this.transcribeNow(filePath)).finally(() => { this.waiting -= 1 })
+    this.chain = run.catch(() => undefined)
     return run
   }
 
+  /** Which engine would run (for diagnostics); throws when none is usable. */
+  async engineDescription(): Promise<string> {
+    const r = await this.resolve()
+    return r.engine + '（' + r.program + ('model' in r ? '，' + r.model : '') + '）'
+  }
+
+  private engineName(): SttEngine {
+    const e = this.config.engine
+    return e === 'custom' ? 'command' : e === 'openai' ? 'auto' : e
+  }
+
+  private resolve(): Promise<Resolved> {
+    // Cache only successes: a missing tool installed later is picked up.
+    this.resolved ??= this.resolveNow().catch(error => { this.resolved = undefined; throw error })
+    return this.resolved
+  }
+
+  private async resolveNow(): Promise<Resolved> {
+    const engine = this.engineName()
+    if (engine === 'command') {
+      const program = await findCommand(this.config.command)
+      if (program === undefined) throw new Error('找不到 sttCommand 指定的程序：' + (this.config.command || '（未配置）'))
+      return { engine, program }
+    }
+    if (engine === 'sherpa-onnx' || engine === 'auto') {
+      const program = await findCommand('sherpa-onnx-offline')
+      const model = await findSenseVoiceModel(engine === 'sherpa-onnx' ? this.config.model : '')
+      if (program !== undefined && model !== undefined) return { engine: 'sherpa-onnx', program, ...model }
+      if (engine === 'sherpa-onnx') throw new Error(program === undefined ? '找不到 sherpa-onnx-offline' : '找不到 SenseVoice 模型目录（需要 tokens.txt 和 model.int8.onnx）：' + this.config.model)
+    }
+    const program = (await findCommand('whisper-cli')) ?? (await findCommand('whisper-cpp'))
+    const model = await findWhisperModel(engine === 'whisper-cpp' ? this.config.model : this.config.model || 'small')
+    if (program !== undefined && model !== undefined) return { engine: 'whisper-cpp', program, model }
+    throw new Error(engine === 'auto'
+      ? '没有可用的语音识别引擎（装 sherpa-onnx + SenseVoice 模型，或 whisper.cpp + ggml 模型）'
+      : program === undefined ? '找不到 whisper-cli' : '找不到 whisper.cpp 模型：' + this.config.model)
+  }
+
   private async transcribeNow(filePath: string): Promise<string> {
-    const workDir = join(dirname(filePath), 'stt_' + randomUUID().slice(0, 8))
-    await mkdir(workDir, { recursive: true })
+    const size = (await stat(filePath)).size
+    if (size === 0) return ''
+    if (size > MAX_INPUT_BYTES) throw new Error('语音文件太大（' + Math.round(size / 1024 / 1024) + 'MB）')
+    if (await isSilk(filePath)) throw new Error('这是 QQ 的 SILK 原始语音，ffmpeg 解不了（应通过 NapCat get_record 转成 mp3）')
+    const ffmpeg = await findCommand('ffmpeg')
+    if (ffmpeg === undefined) throw new Error('找不到 ffmpeg（转写需要先把语音转成 WAV）')
+    const engine = await this.resolve()
+    const work = join(dirname(filePath), 'stt_' + randomUUID().slice(0, 8))
+    await mkdir(work, { recursive: true })
     try {
-      const wavPath = join(workDir, 'audio.wav')
-
-      const ffmpeg = this.ffmpegChecked ?? (await findCommand('ffmpeg'))
-      this.ffmpegChecked = ffmpeg
-      if (ffmpeg === undefined) {
-        throw new Error('STT: ffmpeg not found on PATH (needed to convert QQ voice to WAV)')
-      }
-      await runProcess(ffmpeg, ['-y', '-i', filePath, '-ar', '16000', '-ac', '1', '-f', 'wav', wavPath], 60_000)
-
-      const engine = await this.resolveEngine()
-      const text = await this.runEngine(engine, wavPath, workDir)
-      return text.trim()
+      const wav = join(work, 'audio.wav')
+      const seconds = Math.max(1, this.config.maxSeconds ?? 60)
+      await runProcess(ffmpeg, ['-nostdin', '-v', 'error', '-y', '-i', filePath, '-t', String(seconds), '-ac', '1', '-ar', '16000', '-f', 'wav', wav], Math.min(this.config.timeoutMs, 30_000))
+      return cleanTranscript(await this.runEngine(engine, wav, filePath))
     } finally {
-      // The work dir holds only intermediates (audio.wav, engine output):
-      // remove it on both success and failure. Best-effort — a failed cleanup
-      // must never lose the transcript (stale dirs are swept later by
-      // MediaStore.cleanupExpired as a fallback).
-      try {
-        await rm(workDir, { recursive: true, force: true })
-      } catch {
-        // best effort
+      await rm(work, { recursive: true, force: true })
+    }
+  }
+
+  private async runEngine(r: Resolved, wav: string, input: string): Promise<string> {
+    const lang = (this.config.language ?? 'auto').trim() || 'auto'
+    const timeout = this.config.timeoutMs
+    switch (r.engine) {
+      case 'sherpa-onnx': {
+        const { stdout, stderr } = await runProcess(r.program, [
+          '--tokens=' + r.tokens, '--sense-voice-model=' + r.model, '--sense-voice-language=' + lang,
+          '--sense-voice-use-itn=1', '--num-threads=2', wav,
+        ], timeout)
+        return parseSherpaOutput(stdout + '\n' + stderr)
+      }
+      case 'whisper-cpp': {
+        const { stdout } = await runProcess(r.program, ['-m', r.model, '-f', wav, '-l', lang, '-nt', '-np', '-t', '2'], timeout)
+        return stdout
+      }
+      case 'command': {
+        const args = this.config.args.map(a => a.replace(/\{wav\}/g, wav).replace(/\{input\}/g, input).replace(/\{model\}/g, this.config.model).replace(/\{lang\}/g, lang))
+        const { stdout } = await runProcess(r.program, args.length > 0 ? args : [wav], timeout)
+        return stdout
       }
     }
   }
-
-  private async resolveEngine(): Promise<'openai' | 'whisper-cpp' | 'custom'> {
-    if (this.config.engine === 'custom') return 'custom'
-    if (this.config.engine !== 'auto') return this.config.engine
-    if ((await findCommand('whisper-cli')) !== undefined) return 'whisper-cpp'
-    if ((await findCommand('whisper')) !== undefined) return 'openai'
-    if ((await findCommand('mlx_whisper')) !== undefined) return 'openai'
-    throw new Error('STT: no whisper engine found (tried whisper-cli, whisper, mlx_whisper); install one or set stt.command')
-  }
-
-  private async runEngine(engine: 'openai' | 'whisper-cpp' | 'custom', wavPath: string, workDir: string): Promise<string> {
-    const timeout = this.config.timeoutMs > 0 ? this.config.timeoutMs : DEFAULT_TIMEOUT_MS
-    if (engine === 'custom') {
-      const program = this.config.command !== '' ? this.config.command : 'whisper'
-      const args = this.config.args.map(arg => arg.replaceAll('{file}', wavPath).replaceAll('{out}', join(workDir, 'out')))
-      await runProcess(program, args, timeout)
-      return readFirstTxt(workDir)
-    }
-    if (engine === 'openai') {
-      const program = (await findCommand('whisper')) ?? (await findCommand('mlx_whisper'))
-      if (program === undefined) throw new Error('STT: whisper CLI not found')
-      const args = program.endsWith('mlx_whisper')
-        ? [wavPath, '--model', this.config.model, '--output-format', 'txt', '--output-dir', workDir, '--verbose', 'False']
-        : [wavPath, '--model', this.config.model, '--output_format', 'txt', '--output_dir', workDir, '--verbose', 'False']
-      await runProcess(program, args, timeout)
-      return readFirstTxt(workDir)
-    }
-    // whisper.cpp
-    const program = await findCommand('whisper-cli')
-    if (program === undefined) throw new Error('STT: whisper-cli not found')
-    const model = await findWhisperCppModel(this.config.model)
-    if (model === undefined) {
-      throw new Error('STT: whisper.cpp model not found for "' + this.config.model + '" (set stt.model to an absolute .bin path)')
-    }
-    const outBase = join(workDir, 'out')
-    await runProcess(program, ['-m', model, '-f', wavPath, '-otxt', '-of', outBase], timeout)
-    return readFirstTxt(workDir)
-  }
 }
 
-/** Read the first .txt transcript produced in a work dir. */
-async function readFirstTxt(dir: string): Promise<string> {
-  const entries = await readdir(dir)
-  const txt = entries.find(name => name.endsWith('.txt'))
-  if (txt === undefined) return ''
-  const content = await readFile(join(dir, txt), 'utf8')
-  return content.trim()
-}
-
-/** Convenience: transcription result for the bridge. */
+/** The transcript as shown to the model ('' when nothing was said). */
 export function transcriptLabel(text: string): string {
   return text !== '' ? '（语音转写：' + text + '）' : ''
 }
