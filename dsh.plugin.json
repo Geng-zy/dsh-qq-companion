@@ -1,6 +1,6 @@
 {
   "id": "dsh-qq-companion",
-  "version": "1.1.4",
+  "version": "1.1.5",
   "main": "./lib/index.js",
   "description": "Companion-style personal-QQ channel for dsh via OneBot 11 (NapCat): one line per message, per-chat permission isolation, memory & diary, proactive check-ins, periodic session renewal, runtime group allowlist, atomic state files, QQ liveness watchdog. Based on dsh-onebot (BSD-3).",
   "engines": {
