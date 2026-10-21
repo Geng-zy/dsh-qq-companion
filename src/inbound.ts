@@ -15,7 +15,7 @@ import { extForInboundName } from './media.js'
 import type { Transcriber } from './stt.js'
 import { transcriptLabel } from './stt.js'
 import type { OneBotSegment, MediaRef } from './cq.js'
-import { cqUnescape, detectMention, parseMessage } from './cq.js'
+import { cqUnescape, detectMention, mentionsOthers, parseMessage } from './cq.js'
 import type { AccessPolicyConfig, ChatId, UserRole } from './chat.js'
 import {
   buildChatId, buildGroupMessagePrefix, classifyUserRole, dmAllowed, groupAllowed,
@@ -269,10 +269,15 @@ export class InboundPipeline {
     if (!mentioned && kind === 'group' && inbound.replyId !== undefined) {
       mentioned = await this.quotesBot(inbound.replyId)
     }
-    // Her name in the text, or the person she just answered going on.
+    // Her name in the text, or the person she just answered going on — unless
+    // that message @-s someone else or replies to someone else's message
+    // (a reply to her own message already counts above): then it is for them.
     if (!mentioned && chatter !== undefined) {
       if (chatter.callsByName(inbound.text)) mentioned = '[叫到我]'
-      else if (chatter.isFollowup(groupId, userId)) mentioned = '[接着和我说]'
+      else if (chatter.isFollowup(groupId, userId) && inbound.replyId === undefined
+        && !mentionsOthers(inbound.segments, inbound.raw, this.ctx.selfId(), this.ctx.config.botQQ)) {
+        mentioned = '[接着和我说]'
+      }
     }
     if (kind === 'group' && this.ctx.config.requireMention && !mentioned) {
       this.ctx.log('debug', 'ignoring unmentioned group message in ' + groupId)

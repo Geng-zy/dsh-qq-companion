@@ -147,6 +147,16 @@ export function detectMention(
   return false
 }
 
+/** Whether the message @-s someone other than the bot (@全体成员 included):
+ * such a message is addressed to them, not a follow-up to her. */
+export function mentionsOthers(segments: OneBotSegment[] | undefined, raw: string, selfId: string, botQQ: string): boolean {
+  const bot = selfId !== '' ? selfId : botQQ
+  if (segments !== undefined) return segments.some(seg => seg.type === 'at' && (seg.data.qq ?? '') !== '' && seg.data.qq !== bot)
+  CQ_AT_RE.lastIndex = 0
+  for (const m of raw.matchAll(CQ_AT_RE)) if (m[1] !== bot) return true
+  return false
+}
+
 /** Split a raw CQ string into segments; used only when no segment array exists. */
 export function parseCqString(raw: string): OneBotSegment[] {
   const segments: OneBotSegment[] = []

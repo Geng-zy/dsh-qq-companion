@@ -119,3 +119,40 @@ describe('group chatter in the bridge', () => {
     await h.connection.stop()
   })
 })
+
+describe('follow-ups addressed to someone else', () => {
+  it('a follow-up that @-s someone else or replies to someone else is not for her', async () => {
+    const chatter = new GroupChatter({ config })
+    const h = await makeCmdHarness({ groupChatter: chatter })
+    h.sendGroupTextAs('你吃了吗', 10004)
+    await vi.waitFor(() => expect(h.captured.followups).toHaveLength(1))
+    await h.bridge.sendToChat('group:888' as never, '吃了吃了', { humanize: true })
+    // @-ing someone else
+    h.client.send(JSON.stringify({
+      post_type: 'message', message_type: 'group', user_id: 10004, group_id: 888, self_id: 10002,
+      message: [{ type: 'at', data: { qq: '10009' } }, { type: 'text', data: { text: ' 晚上打游戏吗' } }],
+      raw_message: '[CQ:at,qq=10009] 晚上打游戏吗', sender: { user_id: 10004, nickname: '用户10004' },
+    }))
+    // replying to someone else's message
+    const realCall = h.connection.call
+    h.connection.call = (async (action: string, params: unknown) => {
+      if (action === 'get_msg') return { message: [{ type: 'text', data: { text: '去哪' } }], raw_message: '去哪', sender: { user_id: 10009, nickname: '小李' } }
+      return await realCall(action, params)
+    }) as never
+    h.client.send(JSON.stringify({
+      post_type: 'message', message_type: 'group', user_id: 10004, group_id: 888, self_id: 10002,
+      message: [{ type: 'reply', data: { id: 77 } }, { type: 'text', data: { text: '海底捞' } }],
+      raw_message: '[CQ:reply,id=77]海底捞', sender: { user_id: 10004, nickname: '用户10004' },
+    }))
+    // a plain follow-up still counts
+    h.client.send(plain('你呢', 10004))
+    await vi.waitFor(() => expect(h.captured.followups).toHaveLength(2))
+    expect(h.captured.followups[1].text).toContain('[接着和我说]')
+    expect(h.captured.followups[1].text).toContain('你呢')
+    await new Promise(resolve => setTimeout(resolve, 100))
+    expect(h.captured.followups).toHaveLength(2)
+    h.client.close()
+    await h.bridge.stop()
+    await h.connection.stop()
+  })
+})
