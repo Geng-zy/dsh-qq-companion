@@ -375,3 +375,56 @@ describe('handoff labels', () => {
     expect(activity.handoff('group:888')).toBe('Dr（主人，10001）：test\n小忍（10003）：早')
   })
 })
+
+describe('prompt version resets', () => {
+  it('a changed persona / guide renews the session at the next message, with the handoff; scheduled turns never do', async () => {
+    let version = 'v1'
+    const activity = new ChatActivity({ mediaDir: tmp(), log: () => undefined, promptVersion: () => version })
+    const h = await makeCmdHarness({ activity })
+    h.sendText('早上好')
+    await vi.waitFor(() => expect(h.captured.followups).toHaveLength(1))
+    const first = h.captured.followups[0].sessionId
+    h.sendText('还是同一个会话')
+    await vi.waitFor(() => expect(h.captured.followups).toHaveLength(2))
+    expect(h.captured.followups[1].sessionId).toBe(first)
+
+    version = 'v2'
+    await h.bridge.fireScheduled({ id: 'diary', time: '01:30', chatId: 'private:10001', prompt: '写日记' })
+    await vi.waitFor(() => expect(h.captured.followups).toHaveLength(3))
+    expect(h.captured.followups[2].sessionId).toBe(first)
+
+    h.sendText('人设换了吗')
+    await vi.waitFor(() => expect(h.captured.followups).toHaveLength(4))
+    expect(h.captured.followups[3].sessionId).not.toBe(first)
+    expect(h.captured.followups[3].text).toContain('人设或功能说明更新了')
+    expect(h.captured.followups[3].text).toContain('还是同一个会话')
+    h.sendText('接着聊')
+    await vi.waitFor(() => expect(h.captured.followups).toHaveLength(5))
+    expect(h.captured.followups[4].sessionId).toBe(h.captured.followups[3].sessionId)
+    h.client.close()
+    await h.bridge.stop()
+    await h.connection.stop()
+  })
+
+  it('a record from before versions were kept counts as changed; /new records the current version', async () => {
+    const dir = tmp()
+    writeFileSync(join(dir, 'chat-activity.json'), JSON.stringify({ 'private:1': { lastAt: Date.now(), sessionStartedAt: Date.now(), recent: [], today: [] } }))
+    const a = new ChatActivity({ mediaDir: dir, log: () => undefined, promptVersion: () => 'v1' })
+    await a.load()
+    expect(a.promptStale('private:1')).toBe(true)
+    a.markSessionStart('private:1')
+    expect(a.promptStale('private:1')).toBe(false)
+    expect(a.promptStale('private:2')).toBe(false)
+  })
+})
+
+describe('personaBlocks', () => {
+  it('extracts every prefix block and ignores the rest', async () => {
+    const { personaBlocks, promptFingerprint } = await import('../src/companion/index.js')
+    const file = join(tmp(), 'patch.yml')
+    writeFileSync(file, 'a: 1\n  persona:\n    prefix: |\n      你是大肥鱼\n\n      爱吃鱼\n    other: x\nb: 2\n    prefix: |\n      第二份\n')
+    expect(personaBlocks(file).trimEnd()).toBe('      你是大肥鱼\n\n      爱吃鱼\n      第二份')
+    expect(personaBlocks(join(tmp(), 'missing.yml'))).toBe('')
+    expect(promptFingerprint('a', 'b')).not.toBe(promptFingerprint('ab', ''))
+  })
+})

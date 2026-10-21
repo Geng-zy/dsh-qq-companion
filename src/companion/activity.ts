@@ -37,6 +37,8 @@ interface ChatRecord {
   lastAt: number
   /** When the chat's current session began (age-based resets). */
   sessionStartedAt?: number
+  /** The prompt version the current session started with (absent = unknown). */
+  prompt?: string
   recent: ActivityLine[]
   today: ActivityLine[]
 }
@@ -54,12 +56,14 @@ export class ChatActivity {
   private saveTimer: ReturnType<typeof setTimeout> | undefined
   private saveChain: Promise<void> = Promise.resolve()
   private readonly writer: SerialFileWriter
+  private readonly promptVersion: ((chatId: string) => string) | undefined
 
-  constructor(options: { mediaDir: string; log: Log; now?: () => number }) {
+  constructor(options: { mediaDir: string; log: Log; now?: () => number; promptVersion?: (chatId: string) => string }) {
     this.file = join(options.mediaDir, CHAT_ACTIVITY_FILE)
     this.log = options.log
     this.writer = new SerialFileWriter(this.file, { label: '聊天活动记录', log: (level, message) => this.log(level, message) })
     this.now = options.now ?? (() => Date.now())
+    this.promptVersion = options.promptVersion
   }
 
   async load(): Promise<void> {
@@ -73,6 +77,7 @@ export class ChatActivity {
           sessionStartedAt: typeof rec.sessionStartedAt === 'number' ? rec.sessionStartedAt : this.now(),
           recent: Array.isArray(rec.recent) ? rec.recent.slice(-HANDOFF_LINES) : [],
           today: Array.isArray(rec.today) ? rec.today.slice(-TODAY_MAX_LINES) : [],
+          ...(typeof rec.prompt === 'string' ? { prompt: rec.prompt } : {}),
         }
       }
     } catch (error) {
@@ -95,7 +100,7 @@ export class ChatActivity {
   record(chatId: string, who: 'user' | 'bot', text: string, name = ''): void {
     const body = clip(text)
     if (body === '') return
-    const rec = this.chats[chatId] ?? (this.chats[chatId] = { lastAt: this.now(), sessionStartedAt: this.now(), recent: [], today: [] })
+    const rec = this.chats[chatId] ?? (this.chats[chatId] = { lastAt: this.now(), sessionStartedAt: this.now(), recent: [], today: [], ...this.promptOf(chatId) })
     const line: ActivityLine = { t: this.now(), who, text: body, ...(name !== '' ? { name } : {}) }
     rec.recent.push(line)
     if (rec.recent.length > HANDOFF_LINES) rec.recent.splice(0, rec.recent.length - HANDOFF_LINES)
@@ -110,7 +115,21 @@ export class ChatActivity {
     const rec = this.chats[chatId]
     if (rec === undefined) return
     rec.sessionStartedAt = this.now()
+    Object.assign(rec, this.promptOf(chatId))
     this.scheduleSave()
+  }
+
+  /** The current prompt version as a record field (none without a version source). */
+  private promptOf(chatId: string): { prompt?: string } {
+    return this.promptVersion !== undefined ? { prompt: this.promptVersion(chatId) } : {}
+  }
+
+  /** Whether the chat's session started under a different prompt version
+   * than the current one (a session from before versions were recorded
+   * counts as different). Never-seen chats are not stale. */
+  promptStale(chatId: string): boolean {
+    const rec = this.chats[chatId]
+    return this.promptVersion !== undefined && rec !== undefined && rec.prompt !== this.promptVersion(chatId)
   }
 
   /** How many 04:00 day boundaries the current session has crossed

@@ -11,7 +11,7 @@
 
 import { selfCheck } from './selfcheck.js'
 import { QqLiveness } from './liveness.js'
-import { ChatActivity, DailyScheduler, GroupChatter, buildCompanionGuide, NoteCounter, ProactiveScheduler, SendCounter, SessionCleaner, StickerLibrary, TypingPacer, companionStatusLines, setDefaultNoteCounter } from './companion/index.js'
+import { ChatActivity, DailyScheduler, GroupChatter, buildCompanionGuide, personaBlocks, promptFingerprint, NoteCounter, ProactiveScheduler, SendCounter, SessionCleaner, StickerLibrary, TypingPacer, companionStatusLines, setDefaultNoteCounter } from './companion/index.js'
 import { GroupAccess, handleGroupEvent } from './groups.js'
 import type { Context as CordisContext } from '@deepseek-ai/cordis'
 import type SystemPrompt from '@deepseek-ai/dsh-system-prompt'
@@ -37,6 +37,7 @@ let Transcriber: typeof import('./stt.js').Transcriber
 let TraceSink: typeof import('./trace.js').TraceSink
 let redactSnapshot: typeof import('./health.js').redactSnapshot
 let describeError: typeof import('./errors.js').describeError
+let packageVersion: typeof import('./commands/info.js').packageVersion
 
 try {
   configModule = await import('./config.js')
@@ -47,6 +48,7 @@ try {
   ;({ TraceSink } = await import('./trace.js'))
   ;({ redactSnapshot } = await import('./health.js'))
   ;({ describeError } = await import('./errors.js'))
+  ;({ packageVersion } = await import('./commands/info.js'))
 } catch (error) {
   console.error('[qq-companion] 挂载失败：peer 依赖解析失败或关键模块缺失 —— 部署副本必须带完整 node_modules 链接集（scripts/link-host.sh 产物），只复制 lib/ 不够。原始错误：' + (error instanceof Error ? error.message : String(error)))
   throw error
@@ -133,7 +135,12 @@ export function apply(ctx: Context, config: Config): void {
   const groupAccess = new GroupAccess({ policy, mediaDir, log })
   const groupAccessLoaded = groupAccess.load()
   // chat activity (idle reset / handoff / diary input).
-  const activity = new ChatActivity({ mediaDir, log })
+  // The prompt version of a chat (persona text + its guide + plugin version):
+  // a session started under another version is renewed at the next message,
+  // since dsh would keep sending the old system prompt beside the new one.
+  const persona = personaBlocks(join(dshHome(), 'profiles', 'web', 'cordis.patch.yml'))
+  const promptVersion = (chatId: string): string => promptFingerprint(packageVersion() ?? '', persona, companionGuide(chatId))
+  const activity = new ChatActivity({ mediaDir, log, promptVersion })
   const activityLoaded = activity.load()
   // how she takes part in group chats beyond an @ (context, names, follow-ups, looks).
   const groupChatter = new GroupChatter({
