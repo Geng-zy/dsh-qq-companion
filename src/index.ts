@@ -11,7 +11,7 @@
 
 import { selfCheck } from './selfcheck.js'
 import { QqLiveness } from './liveness.js'
-import { ChatActivity, DailyScheduler, GroupChatter, NoteCounter, ProactiveScheduler, SendCounter, SessionCleaner, StickerLibrary, TypingPacer, companionStatusLines, setDefaultNoteCounter } from './companion/index.js'
+import { ChatActivity, DailyScheduler, GroupChatter, buildCompanionGuide, NoteCounter, ProactiveScheduler, SendCounter, SessionCleaner, StickerLibrary, TypingPacer, companionStatusLines, setDefaultNoteCounter } from './companion/index.js'
 import { GroupAccess, handleGroupEvent } from './groups.js'
 import type { Context as CordisContext } from '@deepseek-ai/cordis'
 import type SystemPrompt from '@deepseek-ai/dsh-system-prompt'
@@ -150,6 +150,31 @@ export function apply(ctx: Context, config: Config): void {
     },
   })
   let peekTimer: ReturnType<typeof setInterval> | undefined
+  // how her companion features work, written from this config for each chat
+  const diary = (config.scheduledPrompts ?? []).find(p => p.includeTodayLog === true)
+  const companionGuide = (chatId: string): string => buildCompanionGuide({
+    ownerTitle: config.ownerTitle,
+    adminUsers: policy.adminUsers,
+    publicMemoryFile: config.publicMemoryFile ?? '',
+    publicMemoryMaxBytes: config.publicMemoryMaxBytes,
+    adminWorkspacePath: config.adminWorkspacePath ?? '',
+    privateMemoryMaxBytes: config.privateMemoryMaxBytes ?? 24 * 1024,
+    groupMemoryDir: config.groupMemoryDir ?? '',
+    groupMemoryMaxBytes: config.groupMemoryMaxBytes,
+    privateResetDays: config.privateResetDays ?? 0,
+    groupResetDays: config.groupResetDays ?? 0,
+    idleResetHours: config.idleResetHours ?? 0,
+    groupContextLines: config.groupContextLines ?? 0,
+    groupNameTriggers: config.groupNameTriggers ?? [],
+    groupFollowupSeconds: config.groupFollowupSeconds ?? 0,
+    groupPeekEnabled: config.groupPeekEnabled ?? false,
+    proactiveEnabled: config.proactiveEnabled && config.proactiveChatId === chatId,
+    proactiveWindowStart: config.proactiveWindowStart,
+    proactiveWindowEnd: config.proactiveWindowEnd,
+    proactiveMaxUnanswered: config.proactiveMaxUnanswered,
+    stickerDir: config.stickerDir ?? '',
+    diaryTime: diary !== undefined && diary.chatId === chatId ? diary.time : '',
+  }, chatId.startsWith('group:') ? 'group' : policy.adminUsers.includes(chatId.slice('private:'.length)) ? 'owner' : 'other')
   // Counts what the account sends (shown by /doctor).
   const sendCounter = new SendCounter()
   const typingPacer = new TypingPacer({ config: { perCharMs: config.typingDelayPerCharMs, minMs: config.typingDelayMinMs, maxMs: config.typingDelayMaxMs } })
@@ -269,6 +294,7 @@ export function apply(ctx: Context, config: Config): void {
     groupAccess,
     activity,
     groupChatter,
+    companionGuide,
     ...(stickers !== undefined ? { stickers } : {}),
     ...(config.proactiveEnabled ? { proactive: proactiveHandle } : {}),
     sendCounter,

@@ -111,7 +111,7 @@ export class ChatBridge {
         this.queueNoticeChats.delete(chat.chatId)
         this.stickerSentChats.delete(chat.chatId)
       },
-      installChannelScope: agentCtx => this.installChannelScope(agentCtx),
+      installChannelScope: (agentCtx, chatId) => this.installChannelScope(agentCtx, chatId),
       isAdminPrivate: chatId => this.isAdminPrivate(chatId),
       onSessionCreated: chat => this.applyAdminPermission(chat),
     })
@@ -909,12 +909,15 @@ export class ChatBridge {
    * the channel instructions or the media tools — they cannot (and should
    * not) push messages to QQ.
    */
-  private installChannelScope(agentCtx: Context): void {
+  private installChannelScope(agentCtx: Context, chatId: ChatId): void {
     agentCtx.systemPrompt.section({
       name: 'channel:qq-companion',
       order: 90,
       text: buildPlatformPrompt(this.deps.config.restrictedMemberPrefix),
     })
+    // How her companion features work in this chat, from the live config.
+    const guide = this.deps.companionGuide?.(chatId) ?? ''
+    if (guide !== '') agentCtx.systemPrompt.section({ name: 'channel:qq-companion-guide', order: 91, text: guide })
     registerTools(agentCtx, this, this.deps.connection, {
       maxImageBytes: this.deps.config.maxImageBytes,
       maxVoiceBytes: this.deps.config.maxVoiceBytes,

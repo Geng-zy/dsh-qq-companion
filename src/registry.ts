@@ -116,9 +116,9 @@ export class ChatRegistry {
    * paths. The only difference between the callers is the preset: a resumed
    * session rejoins the preset it recorded itself; a fresh create reuses the
    * config/default resolution already recorded in its header meta. */
-  private buildSetup(selectionRef: ModelSelectionRef | undefined, recordedPreset?: string, expected?: { chatId: ChatId; presetId: string | undefined }): AgentSetup {
+  private buildSetup(chatId: ChatId, selectionRef: ModelSelectionRef | undefined, recordedPreset?: string, expected?: { chatId: ChatId; presetId: string | undefined }): AgentSetup {
     return async agentCtx => {
-      this.deps.installChannelScope(agentCtx)
+      this.deps.installChannelScope(agentCtx, chatId)
       await this.joinPreset(agentCtx, recordedPreset, expected)
       if (selectionRef !== undefined) {
         installModelSelection(agentCtx, selectionRef)
@@ -245,7 +245,7 @@ export class ChatRegistry {
     // Mount the same preset the header records: without it joinPreset falls
     // back to config.agentPreset, so a /preset override was written to the
     // header but the agent still got the configured preset's tools.
-    const setup = this.buildSetup(selectionRef, presetId)
+    const setup = this.buildSetup(chatId, selectionRef, presetId)
     let handle: AgentHandle
     try {
       handle = await this.deps.agents.create({
@@ -404,7 +404,7 @@ export class ChatRegistry {
     const handle = await this.deps.agents.resume({
       resumeSessionId: makeSessionId(sessionId),
       agentOptions,
-      setup: this.buildSetup(selectionRef, recordedPreset, { chatId, presetId: expectedPreset }),
+      setup: this.buildSetup(chatId, selectionRef, recordedPreset, { chatId, presetId: expectedPreset }),
     })
     await this.attachToWorkspace(handle.agent.session.id, handle.agent.session.header?.cwd)
     // /workspace persistence across restarts: the per-chat override map is
