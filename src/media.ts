@@ -27,6 +27,8 @@ export interface ResolvedMedia {
   path: string
   /** Mime-ish kind for the caller. */
   kind: 'image' | 'voice' | 'video' | 'file'
+  /** Over the size cap: nothing was kept ('' path). */
+  tooLarge?: boolean
 }
 
 /** Options for the guarded download path (SSRF fence + size cap). */
@@ -120,7 +122,7 @@ export class MediaStore {
   }, resolveHash: (kind: 'image' | 'voice' | 'video' | 'file', file: string) => Promise<{ url?: string; file?: string } | undefined>): Promise<ResolvedMedia | undefined> {
     const result = await this.resolveInner(ref, resolveHash)
     // Downscale inbound images right after download (long-edge cap).
-    if (result !== undefined && result.kind === 'image' && this.imageMaxSize > 0) {
+    if (result !== undefined && result.tooLarge !== true && result.kind === 'image' && this.imageMaxSize > 0) {
       try {
         const shrunk = await shrinkImage(result.path, this.imageMaxSize)
         if (shrunk !== undefined) result.path = shrunk
@@ -144,14 +146,17 @@ export class MediaStore {
       }
       const file = ref.file ?? ''
       if (file.startsWith('base64://')) {
+        const data = Buffer.from(file.slice('base64://'.length), 'base64')
+        if (this.overCap(data.length)) return { path: '', kind: ref.kind, tooLarge: true }
         const path = this.freshPath(extForKind(ref.kind))
-        await writeFile(path, Buffer.from(file.slice('base64://'.length), 'base64'))
+        await writeFile(path, data)
         return { path, kind: ref.kind }
       }
       if (file.startsWith('file://')) {
         const source = file.slice('file://'.length)
         const path = this.freshPath(extForKind(ref.kind))
         try {
+          if (this.overCap((await stat(source)).size)) return { path: '', kind: ref.kind, tooLarge: true }
           await copyFile(source, path)
           return { path, kind: ref.kind }
         } catch {
@@ -167,12 +172,15 @@ export class MediaStore {
           return { path, kind: ref.kind }
         }
         if (resolved.file !== undefined && resolved.file.startsWith('base64://')) {
+          const data = Buffer.from(resolved.file.slice('base64://'.length), 'base64')
+          if (this.overCap(data.length)) return { path: '', kind: ref.kind, tooLarge: true }
           const path = this.freshPath(extForKind(ref.kind))
-          await writeFile(path, Buffer.from(resolved.file.slice('base64://'.length), 'base64'))
+          await writeFile(path, data)
           return { path, kind: ref.kind }
         }
         if (resolved.file !== undefined && resolved.file.startsWith('file://')) {
           const source = resolved.file.slice('file://'.length)
+          if (this.overCap((await stat(source)).size)) return { path: '', kind: ref.kind, tooLarge: true }
           const path = this.freshPath(extForKind(ref.kind))
           await copyFile(source, path)
           return { path, kind: ref.kind }
@@ -180,9 +188,21 @@ export class MediaStore {
       }
       return undefined
     } catch (error) {
+      // a download stopped at the size cap is not a failure to retry or hide
+      if (/download exceeds \d+ bytes/.test(describeError(error))) return { path: '', kind: ref.kind, tooLarge: true }
       this.log('warn', 'media resolve failed: ' + describeError(error))
       return undefined
     }
+  }
+
+  /** Whether `bytes` is over the inbound size cap (0 = no cap). */
+  private overCap(bytes: number): boolean {
+    return this.downloadMaxBytes > 0 && bytes > this.downloadMaxBytes
+  }
+
+  /** The inbound size cap in whole MB ('' when uncapped). */
+  capLabel(): string {
+    return this.downloadMaxBytes > 0 ? Math.round(this.downloadMaxBytes / 1024 / 1024) + 'MB' : ''
   }
 
   /**

@@ -641,6 +641,21 @@ export class ChatBridge {
     return this.inbound.expandQuote(messageId, chatId)
   }
 
+  /**
+   * Open one message of this chat by id (qq_open_message): images fetched,
+   * voice transcribed, forwards expanded — like a quote. Only a message that
+   * belongs to this chat opens (a group never reads another group's).
+   */
+  async openMessage(messageId: string, chatId: ChatId): Promise<string> {
+    const data = await this.call('get_msg', { message_id: Number(messageId) }) as { group_id?: number | string; message_type?: string } | undefined
+    const { kind, target } = splitChatId(chatId)
+    const sameChat = kind === 'group' ? String(data?.group_id ?? '') === target : data?.message_type !== 'group'
+    if (!sameChat) throw new Error('这条消息不在当前会话里，打不开')
+    const text = await this.inbound.expandQuote(messageId, chatId)
+    if (text === '') throw new Error('这条消息取不到了（可能太久远或已撤回）')
+    return text.replace(/^\[引用\]/, '')
+  }
+
   // ------------------------------------------------------------ outbound
 
   /** Send [[qq_forward]] nodes as a merged-forward message. */

@@ -146,9 +146,9 @@ describe('MediaStore.downloadUrl SSRF guards', () => {
     vi.stubGlobal('fetch', vi.fn(async () => new Response('0123456789abcdef', { status: 200 })))
     const unresolve = async () => undefined
     // Direct URL ref.
-    await expect(capped.resolve({ kind: 'image', url: 'http://public.example.com/a.jpg' }, unresolve)).resolves.toBeUndefined()
+    await expect(capped.resolve({ kind: 'image', url: 'http://public.example.com/a.jpg' }, unresolve)).resolves.toEqual({ path: '', kind: 'image', tooLarge: true })
     // Hash ref whose resolveHash answers with a URL.
-    await expect(capped.resolve({ kind: 'image', file: 'hash1' }, async () => ({ url: 'http://public.example.com/b.jpg' }))).resolves.toBeUndefined()
+    await expect(capped.resolve({ kind: 'image', file: 'hash1' }, async () => ({ url: 'http://public.example.com/b.jpg' }))).resolves.toEqual({ path: '', kind: 'image', tooLarge: true })
   })
 })
 

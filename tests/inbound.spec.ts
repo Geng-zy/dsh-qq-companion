@@ -25,7 +25,7 @@ describe('inbound pipeline', () => {
     // context (installChannelScope), not the plugin context.
     expect(h.captured.channelTools).toEqual(expect.arrayContaining([
       'qq_send_image', 'qq_send_voice', 'qq_send_video', 'qq_send_file',
-      'qq_send_forward', 'qq_napcat_api', 'qq_group_history',
+      'qq_send_forward', 'qq_napcat_api', 'qq_group_history', 'qq_open_message',
     ]))
     expect(h.captured.channelSections).toContain('channel:qq-companion')
     const sessionId = h.sessionIds[0]
