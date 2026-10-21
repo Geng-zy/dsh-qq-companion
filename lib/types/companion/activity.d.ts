@@ -25,10 +25,12 @@ export declare class ChatActivity {
     private saveTimer;
     private saveChain;
     private readonly writer;
+    private readonly promptVersion;
     constructor(options: {
         mediaDir: string;
         log: Log;
         now?: () => number;
+        promptVersion?: (chatId: string) => string;
     });
     load(): Promise<void>;
     /** Last user activity time for a chat (undefined = never seen). */
@@ -39,6 +41,12 @@ export declare class ChatActivity {
     record(chatId: string, who: 'user' | 'bot', text: string, name?: string): void;
     /** Mark that the chat's session starts now (/new, idle or age reset). */
     markSessionStart(chatId: string): void;
+    /** The current prompt version as a record field (none without a version source). */
+    private promptOf;
+    /** Whether the chat's session started under a different prompt version
+     * than the current one (a session from before versions were recorded
+     * counts as different). Never-seen chats are not stale. */
+    promptStale(chatId: string): boolean;
     /** How many 04:00 day boundaries the current session has crossed
      * (0 = started today; never-seen chats = 0). */
     sessionDaysCrossed(chatId: string): number;
