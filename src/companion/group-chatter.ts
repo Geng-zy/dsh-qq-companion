@@ -5,8 +5,9 @@
  *  - when she is called, the lines she has not seen yet ride along as
  *    context, so she knows what the group is talking about;
  *  - saying one of her names counts as calling her;
- *  - the person she just answered may keep talking to her for a short while
- *    without an @;
+ *  - everyone she answered lately may keep talking to her for a short while
+ *    without an @ (each on their own clock, so a third person calling her
+ *    does not cut the others off);
  *  - now and then, while a group is lively and she is not already talking
  *    there, she gets a look at the recent lines and decides herself whether
  *    to chip in (replying the pass marker sends nothing).
@@ -54,8 +55,10 @@ interface GroupState {
   lastSpokeAt: number
   /** Her last look. */
   lastPeekAt: number
-  /** The person whose message she last answered, and when she answered. */
-  partner?: { userId: string; at: number }
+  /** Everyone she answered lately → when she last answered them. */
+  partners: Map<string, number>
+  /** Whose message her next reply answers. */
+  current?: string
 }
 
 const clip = (text: string): string => {
@@ -80,7 +83,7 @@ export class GroupChatter {
   private state(groupId: string): GroupState {
     let s = this.groups.get(groupId)
     if (s === undefined) {
-      s = { lines: [], seenUpTo: 0, lastSpokeAt: 0, lastPeekAt: 0 }
+      s = { lines: [], seenUpTo: 0, lastSpokeAt: 0, lastPeekAt: 0, partners: new Map() }
       this.groups.set(groupId, s)
     }
     return s
@@ -105,23 +108,28 @@ export class GroupChatter {
     return this.config.names.some(name => name !== '' && text.includes(name))
   }
 
-  /** Whether this person is still talking with her (answered moments ago). */
+  /** Whether this person is still talking with her (she answered them moments ago). */
   isFollowup(groupId: string, userId: string): boolean {
-    const p = this.groups.get(groupId)?.partner
-    return this.config.followupSeconds > 0 && p !== undefined && p.userId === userId
-      && this.now() - p.at <= this.config.followupSeconds * 1000
+    const at = this.groups.get(groupId)?.partners.get(userId)
+    return this.config.followupSeconds > 0 && at !== undefined
+      && this.now() - at <= this.config.followupSeconds * 1000
   }
 
   /** She is about to answer `userId` in this group. */
   noteCalled(groupId: string, userId: string): void {
-    this.state(groupId).partner = { userId, at: this.now() }
+    const s = this.state(groupId)
+    s.current = userId
+    s.partners.set(userId, this.now())
+    // forget people whose window is long over
+    for (const [id, at] of s.partners) if (this.now() - at > this.config.followupSeconds * 1000) s.partners.delete(id)
   }
 
-  /** She sent a message in this group (the follow-up window restarts). */
+  /** She sent a message in this group: the window of the person she is
+   * answering restarts (the others keep their own clocks). */
   noteSpoke(groupId: string): void {
     const s = this.state(groupId)
     s.lastSpokeAt = this.now()
-    if (s.partner !== undefined) s.partner.at = this.now()
+    if (s.current !== undefined) s.partners.set(s.current, this.now())
   }
 
   /**

@@ -156,3 +156,18 @@ describe('follow-ups addressed to someone else', () => {
     await h.connection.stop()
   })
 })
+
+describe('several people talking with her', () => {
+  it('B calling her does not cut A off; each keeps their own window', () => {
+    let now = 1_000_000
+    const c = new GroupChatter({ config, now: () => now })
+    c.noteCalled('1', 'A'); c.noteSpoke('1')
+    now += 60_000
+    c.noteCalled('1', 'B'); c.noteSpoke('1')
+    expect(c.isFollowup('1', 'A')).toBe(true)
+    expect(c.isFollowup('1', 'B')).toBe(true)
+    now += 130_000 // A answered 190s ago, B 130s ago
+    expect(c.isFollowup('1', 'A')).toBe(false)
+    expect(c.isFollowup('1', 'B')).toBe(true)
+  })
+})
