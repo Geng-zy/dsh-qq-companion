@@ -125,3 +125,43 @@ describe('size cap', () => {
     expect(store.capLabel()).toBe('0MB')
   })
 })
+
+describe('forward inside a forward, NapCat inline shape', () => {
+  it('expands the inner forward from the content shipped with the outer one, without fetching it by id', async () => {
+    const h = await makeHarness()
+    const fetched: string[] = []
+    const real = h.connection.call.bind(h.connection)
+    h.connection.call = (async (action: string, params: Record<string, unknown>) => {
+      if (action === 'get_forward_msg') {
+        fetched.push(String(params.id))
+        if (params.id !== 'outer') throw new Error('消息已过期或者为内层消息，无法获取转发消息')
+        return {
+          messages: [
+            { sender: { user_id: 30001, nickname: '甲' }, message: [{ type: 'text', data: { text: '外层第一句' } }] },
+            {
+              sender: { user_id: 30002, nickname: '乙' },
+              message: [{ type: 'forward', data: { id: 'inner', content: [
+                { sender: { user_id: 30003, nickname: '丙' }, message: [{ type: 'text', data: { text: '内层的话' } }] },
+              ] } }],
+            },
+          ],
+        }
+      }
+      return await real(action, params)
+    }) as never
+    h.client.send(JSON.stringify({
+      post_type: 'message', message_type: 'private', user_id: 10001, self_id: 10002,
+      message: [{ type: 'forward', data: { id: 'outer' } }], raw_message: '[CQ:forward,id=outer]',
+      sender: { user_id: 10001, nickname: '小明' },
+    }))
+    await vi.waitFor(() => expect(h.captured.followups).toHaveLength(1))
+    const text = h.captured.followups[0].text
+    expect(text).toContain('甲: 外层第一句')
+    expect(text).toContain('  丙: 内层的话')
+    expect(text).not.toContain('未展开')
+    expect(fetched).toEqual(['outer'])
+    h.client.close()
+    await h.bridge.stop()
+    await h.connection.stop()
+  })
+})
