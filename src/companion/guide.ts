@@ -93,7 +93,7 @@ function memory(c: CompanionGuideConfig, audience: GuideAudience): string[] {
   if (audience === 'owner' && c.privateResetDays > 0) resets.push('私聊每 ' + c.privateResetDays + ' 天')
   if (audience === 'group' && c.groupResetDays > 0) resets.push(c.groupResetDays === 1 ? '群聊每天' : '群聊每 ' + c.groupResetDays + ' 天')
   if (c.idleResetHours > 0) resets.push(c.idleResetHours + ' 小时没人说话')
-  if (resets.length > 0) lines.push('- 会话会定期换新（' + resets.join('、') + '）。消息开头写着“这是一个新会话……上次最后几句是”，就顺着那几句自然接上，别说“我刚醒来”“我读取了记忆”。')
+  if (resets.length > 0) lines.push('- 会话会定期换新（' + resets.join('、') + '）。消息开头写着“这是一个新会话……”并附着今天聊过的（或上次最后几句），就顺着接上，别说“我刚醒来”“我读取了记忆”。')
   return lines
 }
 

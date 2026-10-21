@@ -19,6 +19,9 @@ export const CHAT_ACTIVITY_FILE = 'chat-activity.json'
 export const HANDOFF_LINES = 8
 /** Characters kept per handoff / today line. */
 export const LINE_MAX_CHARS = 200
+/** Today's lines handed to a fresh session at most (so a session renewed
+ * mid-day still knows what was said earlier that day). */
+export const HANDOFF_TODAY_LINES = 40
 /** Lines kept in today's excerpt per chat (the diary input). */
 export const TODAY_MAX_LINES = 200
 /** Lines per group in the nightly group excerpt (keeps the diary turn cheap). */
@@ -157,6 +160,16 @@ export class ChatActivity {
     const lines = this.chats[chatId]?.recent ?? []
     if (lines.length === 0) return ''
     return lines.map(l => (l.who === 'bot' ? '你' : (l.name ?? '对方')) + '：' + l.text).join('\n')
+  }
+
+  /** The handoff for a fresh session: today's lines (at most
+   * HANDOFF_TODAY_LINES, with times) when there are any — not yet taken by
+   * the diary — else the last few lines. '' = nothing to hand off. */
+  handoffRecap(chatId: string): { text: string; today: boolean } {
+    const rec = this.chats[chatId]
+    if (rec === undefined) return { text: '', today: false }
+    if (rec.today.length > 0) return { text: formatTranscript(rec.today.slice(-HANDOFF_TODAY_LINES)), today: true }
+    return { text: this.handoff(chatId), today: false }
   }
 
   /** Today's excerpt for a chat (diary input), then optionally cleared. */

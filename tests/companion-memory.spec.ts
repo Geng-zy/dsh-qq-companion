@@ -428,3 +428,31 @@ describe('personaBlocks', () => {
     expect(promptFingerprint('a', 'b')).not.toBe(promptFingerprint('ab', ''))
   })
 })
+
+describe('mid-day handoff', () => {
+  it('a session renewed mid-day gets everything said today, not just the last 8 lines', async () => {
+    let version = 'v1'
+    const activity = new ChatActivity({ mediaDir: tmp(), log: () => undefined, promptVersion: () => version })
+    const h = await makeCmdHarness({ activity })
+    for (let i = 1; i <= 10; i++) h.sendText('上午第' + i + '句')
+    await vi.waitFor(() => expect(h.captured.followups.length).toBeGreaterThan(0))
+    await vi.waitFor(() => expect(activity.takeToday('private:10001', false).length).toBe(10))
+    version = 'v2'
+    h.sendText('下午好')
+    await vi.waitFor(() => expect(h.captured.followups.some(f => f.text.includes('下午好'))).toBe(true))
+    const text = h.captured.followups.find(f => f.text.includes('下午好'))!.text
+    expect(text).toContain('今天前面聊过的是')
+    expect(text).toContain('上午第1句')
+    expect(text).toContain('上午第10句')
+    h.client.close()
+    await h.bridge.stop()
+    await h.connection.stop()
+  })
+
+  it('without lines today (the diary took them) the last few lines are handed over', () => {
+    const a = new ChatActivity({ mediaDir: tmp(), log: () => undefined })
+    a.record('private:1', 'user', '昨晚的话', '主人')
+    a.takeToday('private:1', true)
+    expect(a.handoffRecap('private:1')).toEqual({ text: '主人：昨晚的话', today: false })
+  })
+})
