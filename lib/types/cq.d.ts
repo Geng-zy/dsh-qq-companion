@@ -48,9 +48,10 @@ export declare function faceToEmoji(id: string): string;
  * falls back to CQ-string scanning. @-detection stays fail-closed: with an
  * unknown bot id and no configured botQQ, group messages are never treated
  * as mentioning us. Reply segments count only when the replied-to user is
- * determinably the bot itself; an undeterminable target (segment
- * carries no qq) falls back to the previous always-mention behavior — a
- * deliberate fail-open so tightening the gate never breaks existing setups.
+ * determinably the bot itself. NapCat's reply segment usually carries only
+ * the message id, so an undeterminable target is NOT a mention here — the
+ * inbound pipeline looks the quoted message's sender up (get_msg) instead;
+ * counting every reply made her answer members replying to each other.
  * @param segments - segment array (may be undefined for CQ-only payloads).
  * @param raw - raw CQ string.
  * @param selfId - learned bot QQ id ('' when unknown).

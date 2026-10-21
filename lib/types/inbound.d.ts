@@ -186,6 +186,9 @@ export declare class InboundPipeline {
      * transcription failed or it took longer than VOICE_TRANSCRIPT_WAIT_MS —
      * the message then goes on as a bare [语音]). */
     private transcribe;
+    /** Whether a quoted message was sent by the bot itself (get_msg; a lookup
+     * failure counts as no). */
+    private quotesBot;
     /**
      * Expand a quoted (reply) message into [引用] text via get_msg. The quoted
      * message goes through the same media path as a direct one: images are

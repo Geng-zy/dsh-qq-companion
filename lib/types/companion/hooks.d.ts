@@ -48,6 +48,10 @@ export declare class CompanionHooks {
      * @returns the turn text (possibly prefixed).
      */
     beforeUserTurn(chatId: string, text: string, plain: string, nickname: string, scheduled: boolean): Promise<string>;
+    /** How a user line is labeled in the handoff and the diary excerpt: the
+     * nickname plus the QQ number, and the owner marked as such — a nickname
+     * alone let a fresh session mistake who said what. */
+    private speakerLabel;
     /**
      * Before a final (humanized) reply is sent.
      * @returns false when nothing should be sent (the pass marker).
