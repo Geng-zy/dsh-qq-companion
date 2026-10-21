@@ -97,3 +97,36 @@ describe('quoted media', () => {
     await stop(h)
   })
 })
+
+/** A group reply quoting message 555 without @-ing anyone. */
+const replyOnly = (text: string) => JSON.stringify({
+  post_type: 'message', message_type: 'group', user_id: 10003, group_id: 888, self_id: 10002,
+  message: [{ type: 'reply', data: { id: 555 } }, { type: 'text', data: { text } }],
+  raw_message: '[CQ:reply,id=555]' + text,
+  sender: { user_id: 10003, nickname: '小李' },
+})
+
+describe('replies and mentions', () => {
+  it('a reply to someone else is not for her; a reply to her own message is', async () => {
+    const h = await makeCmdHarness()
+    let quotedSender = 10004
+    answerGetMsg(h, {})
+    const realCall = h.connection.call
+    h.connection.call = (async (action: string, params: unknown) => {
+      if (action === 'get_msg') return { message: [{ type: 'text', data: { text: '原话' } }], raw_message: '原话', sender: { user_id: quotedSender, nickname: quotedSender === 10002 ? '大肥鱼' : '小王' } }
+      return await realCall(action, params)
+    }) as never
+    h.client.send(replyOnly('哈哈哈'))
+    h.sendGroupTextAs('在吗', 10003)
+    await vi.waitFor(() => expect(h.captured.followups).toHaveLength(1))
+    expect(h.captured.followups[0].text).toContain('在吗')
+    quotedSender = 10002
+    h.client.send(replyOnly('你说得对'))
+    await vi.waitFor(() => expect(h.captured.followups).toHaveLength(2))
+    const text = h.captured.followups[1].text
+    // The quote is spelled out once; her words are not tagged as a quote.
+    expect(text).toContain('[引用]大肥鱼: 原话\n你说得对')
+    expect(text.split('[引用]')).toHaveLength(2)
+    await stop(h)
+  })
+})

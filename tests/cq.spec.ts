@@ -79,8 +79,9 @@ describe('detectMention', () => {
     expect(detectMention([{ type: 'at', data: { qq: '10001' } }], '', '10001', '')).toBe(true)
     expect(detectMention([{ type: 'at', data: { qq: '999' } }], '', '10001', '')).toBe(false)
   })
-  it('detects reply as mention', () => {
-    expect(detectMention([{ type: 'reply', data: { id: '1' } }], '', '10001', '')).toBe(true)
+  it('a reply with no sender is not a mention by itself (the pipeline looks the sender up)', () => {
+    expect(detectMention([{ type: 'reply', data: { id: '1' } }], '', '10001', '')).toBe(false)
+    expect(detectMention(undefined, '[CQ:reply,id=1]说得对', '10001', '')).toBe(false)
   })
   it('reply mentions only when it determinably replies to the bot itself', () => {
     // Replied-to user qq == learned selfId → mention.

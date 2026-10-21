@@ -107,16 +107,15 @@ export function faceToEmoji(id: string): string {
 }
 
 const CQ_AT_RE = /\[CQ:at,qq=([^,\]]+)\]/g
-const CQ_REPLY_RE = /\[CQ:reply,id=([^,\]]+)\]/g
-
 /**
  * Detect whether the message mentions the bot. Prefers the segment array;
  * falls back to CQ-string scanning. @-detection stays fail-closed: with an
  * unknown bot id and no configured botQQ, group messages are never treated
  * as mentioning us. Reply segments count only when the replied-to user is
- * determinably the bot itself; an undeterminable target (segment
- * carries no qq) falls back to the previous always-mention behavior — a
- * deliberate fail-open so tightening the gate never breaks existing setups.
+ * determinably the bot itself. NapCat's reply segment usually carries only
+ * the message id, so an undeterminable target is NOT a mention here — the
+ * inbound pipeline looks the quoted message's sender up (get_msg) instead;
+ * counting every reply made her answer members replying to each other.
  * @param segments - segment array (may be undefined for CQ-only payloads).
  * @param raw - raw CQ string.
  * @param selfId - learned bot QQ id ('' when unknown).
@@ -132,8 +131,7 @@ export function detectMention(
   if (segments !== undefined) {
     for (const seg of segments) {
       if (seg.type === 'reply') {
-        const qq = seg.data.qq ?? ''
-        if (qq === '' || qq === bot) return true
+        if (bot !== '' && seg.data.qq === bot) return true
         continue
       }
       if (bot !== '' && seg.type === 'at' && (seg.data.qq === bot || seg.data.qq === 'all')) return true
@@ -145,8 +143,7 @@ export function detectMention(
   for (const m of raw.matchAll(CQ_AT_RE)) {
     if (m[1] === bot || m[1] === 'all') return true
   }
-  CQ_REPLY_RE.lastIndex = 0
-  return CQ_REPLY_RE.test(raw)
+  return false
 }
 
 /** Split a raw CQ string into segments; used only when no segment array exists. */

@@ -288,7 +288,7 @@ describe('day-based session resets', () => {
     await vi.waitFor(() => expect(h.captured.followups).toHaveLength(5))
     expect(h.captured.followups[4].sessionId).not.toBe(privFirst)
     expect(h.captured.followups[4].text).toContain('每隔 5 天会换一次新会话')
-    expect(h.captured.followups[4].text).toContain('主人：第三天'.replace('主人', '小明'))
+    expect(h.captured.followups[4].text).toContain('小明（管理员，10001）：第三天')
 
     h.client.close()
     await h.bridge.stop()
@@ -362,5 +362,16 @@ describe('groupReasoningEffort', () => {
     h.client.close()
     await h.bridge.stop()
     await h.connection.stop()
+  })
+})
+
+describe('handoff labels', () => {
+  it('lines carry the QQ number and mark the owner', async () => {
+    const { CompanionHooks } = await import('../src/companion/index.js')
+    const activity = new ChatActivity({ mediaDir: tmp(), log: () => undefined })
+    const hooks = new CompanionHooks({ config: { ownerTitle: '主人' }, activity, log: () => undefined, resetChat: async () => undefined, adminUsers: () => ['10001'] })
+    await hooks.beforeUserTurn('group:888', '<user_message qq="10001" nickname="Dr">\ntest\n</user_message>', 'test', 'Dr', false)
+    await hooks.beforeUserTurn('group:888', '<user_message qq="10003" nickname="小忍">\n早\n</user_message>', '早', '小忍', false)
+    expect(activity.handoff('group:888')).toBe('Dr（主人，10001）：test\n小忍（10003）：早')
   })
 })
