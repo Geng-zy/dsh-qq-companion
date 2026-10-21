@@ -58,6 +58,9 @@ export declare function faceToEmoji(id: string): string;
  * @param botQQ - configured bot QQ id ('' when unset).
  */
 export declare function detectMention(segments: OneBotSegment[] | undefined, raw: string, selfId: string, botQQ: string): boolean;
+/** Whether the message @-s someone other than the bot (@全体成员 included):
+ * such a message is addressed to them, not a follow-up to her. */
+export declare function mentionsOthers(segments: OneBotSegment[] | undefined, raw: string, selfId: string, botQQ: string): boolean;
 /** Split a raw CQ string into segments; used only when no segment array exists. */
 export declare function parseCqString(raw: string): OneBotSegment[];
 /**
