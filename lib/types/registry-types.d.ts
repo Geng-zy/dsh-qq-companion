@@ -161,7 +161,7 @@ export interface RegistryDeps {
     onChatRemoved(chat: ChatAgent): void;
     /** Register the QQ platform prompt section + qq_* tools on a new agent's
      * own scope — bridge-owned because the tools call back into the bridge. */
-    installChannelScope(agentCtx: Context): void;
+    installChannelScope(agentCtx: Context, chatId: ChatId): void;
     /** whether a chat is an admin's private chat, which then
      * defaults to config.adminPreset. Absent = no admin defaults. */
     isAdminPrivate?(chatId: ChatId): boolean;
