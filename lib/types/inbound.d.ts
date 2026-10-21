@@ -223,6 +223,8 @@ export declare class InboundPipeline {
         text: string;
         media: MediaRef[];
     }>;
+    /** The lines and media of a forward's nodes (a few levels of nesting). */
+    private expandNodes;
 }
 /** Media files fetched for one merged forward at most (the rest keep their placeholders). */
 export declare const FORWARD_MEDIA_MAX = 20;
