@@ -219,11 +219,15 @@ export declare class InboundPipeline {
      * (api-error / empty-response / no-text-nodes) stays in the model context
      * so it can self-serve via the whitelisted get_forward_msg tool.
      */
-    expandForward(forwardId: string): Promise<{
+    expandForward(forwardId: string, depth?: number): Promise<{
         text: string;
         media: MediaRef[];
     }>;
 }
+/** Media files fetched for one merged forward at most (the rest keep their placeholders). */
+export declare const FORWARD_MEDIA_MAX = 20;
+/** How many forwards-inside-forwards are expanded. */
+export declare const FORWARD_MAX_DEPTH = 3;
 /**
  * NapCat's get_record answer as a media ref: inline base64 when present, a
  * download URL, or a local path (made a file:// ref). undefined = nothing usable.

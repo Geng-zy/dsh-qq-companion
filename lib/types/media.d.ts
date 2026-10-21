@@ -13,6 +13,8 @@ export interface ResolvedMedia {
     path: string;
     /** Mime-ish kind for the caller. */
     kind: 'image' | 'voice' | 'video' | 'file';
+    /** Over the size cap: nothing was kept ('' path). */
+    tooLarge?: boolean;
 }
 /** Options for the guarded download path (SSRF fence + size cap). */
 export interface MediaStoreDownloadOptions {
@@ -70,6 +72,10 @@ export declare class MediaStore {
         file?: string;
     } | undefined>): Promise<ResolvedMedia | undefined>;
     private resolveInner;
+    /** Whether `bytes` is over the inbound size cap (0 = no cap). */
+    private overCap;
+    /** The inbound size cap in whole MB ('' when uncapped). */
+    capLabel(): string;
     /**
      * Download a URL into the scratch dir, behind the SSRF fence: http/https
      * only, private/loopback targets refused (unless allowPrivateHosts is on),

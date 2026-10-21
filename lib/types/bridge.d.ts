@@ -200,6 +200,12 @@ export declare class ChatBridge {
     private interceptBusyTurn;
     /** Expand a quoted (reply) message into [引用] text via get_msg. */
     private expandQuote;
+    /**
+     * Open one message of this chat by id (qq_open_message): images fetched,
+     * voice transcribed, forwards expanded — like a quote. Only a message that
+     * belongs to this chat opens (a group never reads another group's).
+     */
+    openMessage(messageId: string, chatId: ChatId): Promise<string>;
     /** Send [[qq_forward]] nodes as a merged-forward message. */
     sendForward(chatId: ChatId, nodes: Array<{
         name: string;
