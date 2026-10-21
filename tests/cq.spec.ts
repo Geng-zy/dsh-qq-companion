@@ -91,6 +91,10 @@ describe('detectMention', () => {
     // Replied-to user is someone else → not a mention.
     expect(detectMention([{ type: 'reply', data: { id: '1', qq: '999' } }], '', '10001', '')).toBe(false)
   })
+  it('@全体成员 is not a mention', () => {
+    expect(detectMention([{ type: 'at', data: { qq: 'all' } }, { type: 'text', data: { text: ' 明天开会' } }], '', '10001', '')).toBe(false)
+    expect(detectMention(undefined, '[CQ:at,qq=all] 明天开会', '10001', '')).toBe(false)
+  })
   it('falls back to CQ strings', () => {
     expect(detectMention(undefined, '[CQ:at,qq=10001] hi', '10001', '')).toBe(true)
     expect(detectMention(undefined, 'hi', '10001', '')).toBe(false)

@@ -134,14 +134,15 @@ export function detectMention(
         if (bot !== '' && seg.data.qq === bot) return true
         continue
       }
-      if (bot !== '' && seg.type === 'at' && (seg.data.qq === bot || seg.data.qq === 'all')) return true
+      // @全体成员 is an announcement, not a call to her.
+      if (bot !== '' && seg.type === 'at' && seg.data.qq === bot) return true
     }
     return false
   }
   if (bot === '') return false
   CQ_AT_RE.lastIndex = 0
   for (const m of raw.matchAll(CQ_AT_RE)) {
-    if (m[1] === bot || m[1] === 'all') return true
+    if (m[1] === bot) return true
   }
   return false
 }
