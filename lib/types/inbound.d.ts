@@ -4,6 +4,7 @@ import type { Transcriber } from './stt.js';
 import type { OneBotSegment, MediaRef } from './cq.js';
 import type { AccessPolicyConfig, ChatId, UserRole } from './chat.js';
 import type { BridgeConfig } from './bridge.js';
+import type { GroupChatter } from './companion/group-chatter.js';
 /**
  * The neutral shape normalizeOneBot11 extracts from one OneBot 11 message
  * event: exactly the fields the inbound pipeline consumes, with the event
@@ -108,6 +109,8 @@ export interface InboundContext {
      * media-bearing messages always queue, never steer). Optional: absent =
      * straight dispatch for every message. */
     interceptBusyTurn?(chatId: ChatId, text: string, role: UserRole, nickname: string | undefined, plain: boolean): Promise<boolean>;
+    /** group chatter (context, name / follow-up calls); absent = only @ and replies to her. */
+    groupChatter?: GroupChatter;
     /** Outbound facade (the rate-limit notice). */
     sendToChat(chatId: ChatId, text: string): Promise<string[]>;
     /** Bridge log line callback. */

@@ -18,3 +18,4 @@ export * from './scheduler.js';
 export * from './proactive.js';
 export * from './stickers.js';
 export * from './session-cleanup.js';
+export * from './group-chatter.js';

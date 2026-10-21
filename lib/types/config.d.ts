@@ -101,6 +101,15 @@ export interface Config {
     /** chats idle longer than this many days are evicted (0 disables). */
     chatIdleEvictDays: number;
     groupReasoningEffort: '' | 'off' | 'low' | 'high' | 'max';
+    groupContextLines: number;
+    groupNameTriggers: string[];
+    groupFollowupSeconds: number;
+    groupPeekEnabled: boolean;
+    groupPeekGapMinutes: number;
+    groupPeekMinMessages: number;
+    groupPeekQuietMinutes: number;
+    groupPeekWindowStart: string;
+    groupPeekWindowEnd: string;
     /** Escape hatch: skip the download private-address check (local reverse proxy). */
     allowPrivateHosts: boolean;
     /** inbound (chatId, message_id) dedup window in seconds; 0 disables. */

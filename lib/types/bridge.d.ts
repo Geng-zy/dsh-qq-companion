@@ -116,6 +116,9 @@ export declare class ChatBridge {
         unanswered: number;
         lastUserAt: number | undefined;
     }): Promise<void>;
+    /** One periodic look at a group (she decides herself whether to chip in;
+     * the pass marker sends nothing). Skipped while the group's turn is busy. */
+    firePeek(groupId: string): Promise<void>;
     /** run one scheduled prompt (diary, proactive check-ins) as
      * an admin turn in its chat. Never idle-resets: the diary must see the
      * day's session. */
