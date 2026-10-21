@@ -40,11 +40,12 @@ export declare class GroupChatter {
     observe(groupId: string, userId: string, nickname: string, text: string): void;
     /** Whether the text calls her by one of her names. */
     callsByName(text: string): boolean;
-    /** Whether this person is still talking with her (answered moments ago). */
+    /** Whether this person is still talking with her (she answered them moments ago). */
     isFollowup(groupId: string, userId: string): boolean;
     /** She is about to answer `userId` in this group. */
     noteCalled(groupId: string, userId: string): void;
-    /** She sent a message in this group (the follow-up window restarts). */
+    /** She sent a message in this group: the window of the person she is
+     * answering restarts (the others keep their own clocks). */
     noteSpoke(groupId: string): void;
     /**
      * The context block for a call: the lines she has not seen, minus the
