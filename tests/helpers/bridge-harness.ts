@@ -210,6 +210,7 @@ export async function makeCmdHarness(opts?: {
   splitLines?: boolean
   groupSplitLines?: boolean
   groupReasoningEffort?: '' | 'off' | 'low' | 'high' | 'max'
+  groupChatter?: unknown
 }) {
   const ctx = new Context()
   const sessionIds: string[] = []
@@ -233,6 +234,7 @@ export async function makeCmdHarness(opts?: {
     sessions: sessions as never,
     agentPresets: opts?.agentPresets as never,
     ...(opts?.activity !== undefined ? { activity: opts.activity as never } : {}),
+    ...(opts?.groupChatter !== undefined ? { groupChatter: opts.groupChatter as never } : {}),
     commands: (opts?.commands ?? {
       execute: vi.fn(async (_agent: unknown, _line: string, attachments: readonly unknown[], signal: AbortSignal | undefined) => {
         // Mirror the host: execute() reads submittedAttachments.length and

@@ -15,10 +15,10 @@ import type { Session, SessionEvent } from '@deepseek-ai/dsh-session'
 import type { BridgeDeps } from './bridge-types.js'
 import { relayHostCards } from './card-relay.js'
 import type { ChatId, UserRole } from './chat.js'
-import { buildChatId, classifyUserRole, splitChatId } from './chat.js'
+import { buildChatId, classifyUserRole, groupAllowed, splitChatId } from './chat.js'
 import { STEER_ACCEPTED_NOTICE, tryHandleCommand as routeCommand, type CommandContext } from './commands.js'
 import type { ScheduledPrompt } from './companion/index.js'
-import { CompanionHooks } from './companion/index.js'
+import { CompanionHooks, PROACTIVE_PASS } from './companion/index.js'
 import type { OneBotEvent } from './connection.js'
 import type { MediaRef } from './cq.js'
 import { DEFAULT_DEFERRED_TIMEOUT_MS, DeferredDelivery } from './deferred.js'
@@ -149,6 +149,7 @@ export class ChatBridge {
       expandQuote: (messageId, chatId) => this.expandQuote(messageId, chatId),
       dispatchFollowup: (chatId, text, role, nickname) => this.dispatchFollowup(chatId, text, role, nickname),
       interceptBusyTurn: (chatId, text, role, nickname, plain) => this.interceptBusyTurn(chatId, text, role, nickname, plain),
+      ...(deps.groupChatter !== undefined ? { groupChatter: deps.groupChatter } : {}),
       sendToChat: (chatId, text) => this.sendToChat(chatId, text),
       log: (level, message) => this.deps.log(level, message),
       config: deps.config,
@@ -301,6 +302,7 @@ export class ChatBridge {
     if (clean.trim() === '') return Promise.resolve([])
     // a skipped proactive wake-up sends nothing; final replies are recorded.
     if (options.humanize === true && !this.companion.beforeFinalReply(chatId, clean)) return Promise.resolve([])
+    if (options.humanize === true && chatId.startsWith('group:')) this.deps.groupChatter?.noteSpoke(chatId.slice('group:'.length))
     return this.outbound.sendToChat(chatId, clean, options)
   }
 
@@ -341,6 +343,19 @@ export class ChatBridge {
    * whether to write; replying exactly PROACTIVE_PASS sends nothing. */
   async fireCheckin(chatId: ChatId, context: { time: string; unanswered: number; lastUserAt: number | undefined }): Promise<void> {
     await this.dispatchFollowup(chatId, this.companion.checkinText(context), 'admin', undefined, { scheduled: true })
+  }
+
+  /** One periodic look at a group (she decides herself whether to chip in;
+   * the pass marker sends nothing). Skipped while the group's turn is busy. */
+  async firePeek(groupId: string): Promise<void> {
+    const chatter = this.deps.groupChatter
+    const chatId = ('group:' + groupId) as ChatId
+    if (chatter === undefined || this.chats.get(chatId)?.busy === true) return
+    if (!groupAllowed(groupId, this.deps.policy)) return
+    const text = chatter.takePeek(groupId, PROACTIVE_PASS)
+    if (text === '') return
+    this.deps.log('info', '看一眼群聊: ' + chatId)
+    await this.dispatchFollowup(chatId, text, 'member', undefined, { scheduled: true })
   }
 
   /** run one scheduled prompt (diary, proactive check-ins) as
@@ -952,6 +967,7 @@ function plainUserText(text: string): string {
   return text
     .replace(/<\/?user_message[^>]*>/g, ' ')
     .replace(/\[受限用户:仅问答\]\s*/g, '')
-    .replace(/\[\d{2}:\d{2} [^\]]*\(\d+\)\](\[@我\])?/g, '')
+    .replace(/<group_context>[\s\S]*?<\/group_context>/g, ' ')
+    .replace(/\[\d{2}:\d{2} [^\]]*\(\d+\)\](\[(@我|叫到我|接着和我说)\])?/g, '')
     .trim()
 }

@@ -24,6 +24,7 @@ import {
 import type { BridgeConfig } from './bridge.js'
 import { describeError } from './errors.js'
 import { currentTrace, TRACE_REASONS } from './trace.js'
+import type { GroupChatter } from './companion/group-chatter.js'
 
 /**
  * The neutral shape normalizeOneBot11 extracts from one OneBot 11 message
@@ -162,6 +163,8 @@ export interface InboundContext {
    * media-bearing messages always queue, never steer). Optional: absent =
    * straight dispatch for every message. */
   interceptBusyTurn?(chatId: ChatId, text: string, role: UserRole, nickname: string | undefined, plain: boolean): Promise<boolean>
+  /** group chatter (context, name / follow-up calls); absent = only @ and replies to her. */
+  groupChatter?: GroupChatter
   /** Outbound facade (the rate-limit notice). */
   sendToChat(chatId: ChatId, text: string): Promise<string[]>
   /** Bridge log line callback. */
@@ -256,11 +259,20 @@ export class InboundPipeline {
       }
     }
 
-    let mentioned = detectMention(inbound.segments, inbound.raw, this.ctx.selfId(), this.ctx.config.botQQ)
+    const chatter = kind === 'group' ? this.ctx.groupChatter : undefined
+    // Every allowed group message is kept (in memory only) so a later call
+    // can show her what the group was talking about.
+    chatter?.observe(groupId, userId, sanitizeNickname(inbound.nickname), cqUnescape(inbound.text))
+    let mentioned: boolean | string = detectMention(inbound.segments, inbound.raw, this.ctx.selfId(), this.ctx.config.botQQ)
     // A reply that does not say whose message it quotes: it is for her only
     // when the quoted message is hers.
     if (!mentioned && kind === 'group' && inbound.replyId !== undefined) {
       mentioned = await this.quotesBot(inbound.replyId)
+    }
+    // Her name in the text, or the person she just answered going on.
+    if (!mentioned && chatter !== undefined) {
+      if (chatter.callsByName(inbound.text)) mentioned = '[叫到我]'
+      else if (chatter.isFollowup(groupId, userId)) mentioned = '[接着和我说]'
     }
     if (kind === 'group' && this.ctx.config.requireMention && !mentioned) {
       this.ctx.log('debug', 'ignoring unmentioned group message in ' + groupId)
@@ -335,6 +347,11 @@ export class InboundPipeline {
     let final = wrapUserMessage(content, userId, nickname)
     if (kind === 'group') {
       final = buildGroupMessagePrefix(nickname, userId, mentioned) + final
+      if (chatter !== undefined) {
+        chatter.noteCalled(groupId, userId)
+        const context = chatter.takeContext(groupId)
+        if (context !== '') final += '\n' + context
+      }
       if (!isAdmin && this.ctx.config.restrictedMemberPrefix) {
         final = RESTRICTED_PREFIX + final
       }

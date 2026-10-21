@@ -114,6 +114,15 @@ export interface Config {
   /** chats idle longer than this many days are evicted (0 disables). */
   chatIdleEvictDays: number
   groupReasoningEffort: '' | 'off' | 'low' | 'high' | 'max'
+  groupContextLines: number
+  groupNameTriggers: string[]
+  groupFollowupSeconds: number
+  groupPeekEnabled: boolean
+  groupPeekGapMinutes: number
+  groupPeekMinMessages: number
+  groupPeekQuietMinutes: number
+  groupPeekWindowStart: string
+  groupPeekWindowEnd: string
   /** Escape hatch: skip the download private-address check (local reverse proxy). */
   allowPrivateHosts: boolean
   /** inbound (chatId, message_id) dedup window in seconds; 0 disables. */
@@ -332,6 +341,24 @@ export const Config: Z<Config> = z.object({
     .description('下载 SSRF 防护逃生门：默认拒绝解析到私网/环回/链路本地地址的下载目标（协议仅 http/https、重定向逐跳复检仍生效）；NapCat 文件服务器或反代部署在本机/内网时置 true 跳过私网检查'),
   groupReasoningEffort: z.union(['', 'off', 'low', 'high', 'max']).default('')
     .description('群聊会话的思考强度（off/low/high/max；留空 = 和部署默认一样）。私聊不受影响'),
+  groupContextLines: z.number().default(0)
+    .description('群里叫到她时，附上她没看到的最近几条群聊（只给她看上下文，0=不附）'),
+  groupNameTriggers: z.array(z.string()).default([])
+    .description('群里说出这些名字也算叫她，不用 @（空=只认 @ 和回复她）'),
+  groupFollowupSeconds: z.number().default(0)
+    .description('她在群里回了某人之后这么多秒内，这个人接着说话不用 @ 也算在跟她聊（0=关闭）'),
+  groupPeekEnabled: z.boolean().default(false)
+    .description('群里热闹时隔一段时间让她看一眼最近的聊天，她自己决定插不插话（不插就回 [不发]）'),
+  groupPeekGapMinutes: z.number().default(30)
+    .description('同一个群两次“看一眼”至少隔多少分钟'),
+  groupPeekMinMessages: z.number().default(10)
+    .description('上次看过（或她上次说话）以后群里至少有这么多条新消息才看一眼'),
+  groupPeekQuietMinutes: z.number().default(10)
+    .description('她在这个群里说过话后这么多分钟内不看一眼（正在聊或刚聊完）'),
+  groupPeekWindowStart: z.string().default('09:00')
+    .description('每天几点开始可以看一眼（HH:MM）'),
+  groupPeekWindowEnd: z.string().default('24:00')
+    .description('每天几点以后不再看一眼（HH:MM，可以写 24:00）'),
   chatIdleEvictDays: z.number().default(7)
     .description('会话空闲淘汰天数：chat 超过该天数无任何活动时，在下一条入站消息处理前清理其 agent（会话先落盘 flush、映射保留，之后同一 chat 的消息可 resume 恢复原会话）；0 = 禁用'),
   dedupWindowSeconds: z.number().default(300)

@@ -141,11 +141,12 @@ export function sanitizeNickname(nickname: string): string {
  * @param mentioned - whether the bot was mentioned.
  * @returns the prefix string (never empty: always at least the time stamp).
  */
-export function buildGroupMessagePrefix(nickname: string, userId: string, mentioned: boolean): string {
+export function buildGroupMessagePrefix(nickname: string, userId: string, mentioned: boolean | string): string {
   const now = new Date()
   const hh = String(now.getHours()).padStart(2, '0')
   const mm = String(now.getMinutes()).padStart(2, '0')
-  const mention = mentioned ? '[@我]' : ''
+  // a string is the way she was called ([叫到我] / [接着和我说]); true = an @
+  const mention = typeof mentioned === 'string' ? mentioned : mentioned ? '[@我]' : ''
   return '[' + hh + ':' + mm + ' ' + nickname + '(' + userId + ')]' + mention + ' '
 }
 

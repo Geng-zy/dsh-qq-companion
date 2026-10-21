@@ -92,6 +92,15 @@
 | `maxInboundFileBytes` | number |  | [deprecated] 旧名别名（现 inboundFileMaxBytes）：QQ 入站文件最大字节数；本版兼容读取，新配置请用新名 |
 | `allowPrivateHosts` | boolean | `false` | 下载 SSRF 防护逃生门：默认拒绝解析到私网/环回/链路本地地址的下载目标（协议仅 http/https、重定向逐跳复检仍生效）；NapCat 文件服务器或反代部署在本机/内网时置 true 跳过私网检查 |
 | `groupReasoningEffort` | "" / "off" / "low" / "high" / "max" | `""` | 群聊会话的思考强度（off/low/high/max；留空 = 和部署默认一样）。私聊不受影响 |
+| `groupContextLines` | number | `0` | 群里叫到她时，附上她没看到的最近几条群聊（只给她看上下文，0=不附） |
+| `groupNameTriggers` | string[] | `[]` | 群里说出这些名字也算叫她，不用 @（空=只认 @ 和回复她） |
+| `groupFollowupSeconds` | number | `0` | 她在群里回了某人之后这么多秒内，这个人接着说话不用 @ 也算在跟她聊（0=关闭） |
+| `groupPeekEnabled` | boolean | `false` | 群里热闹时隔一段时间让她看一眼最近的聊天，她自己决定插不插话（不插就回 [不发]） |
+| `groupPeekGapMinutes` | number | `30` | 同一个群两次“看一眼”至少隔多少分钟 |
+| `groupPeekMinMessages` | number | `10` | 上次看过（或她上次说话）以后群里至少有这么多条新消息才看一眼 |
+| `groupPeekQuietMinutes` | number | `10` | 她在这个群里说过话后这么多分钟内不看一眼（正在聊或刚聊完） |
+| `groupPeekWindowStart` | string | `"09:00"` | 每天几点开始可以看一眼（HH:MM） |
+| `groupPeekWindowEnd` | string | `"24:00"` | 每天几点以后不再看一眼（HH:MM，可以写 24:00） |
 | `chatIdleEvictDays` | number | `7` | 会话空闲淘汰天数：chat 超过该天数无任何活动时，在下一条入站消息处理前清理其 agent（会话先落盘 flush、映射保留，之后同一 chat 的消息可 resume 恢复原会话）；0 = 禁用 |
 | `dedupWindowSeconds` | number | `300` | 入站消息去重窗口（秒）：同一会话内相同 message_id 在该窗口内重投（断线重连重放等）只处理第一条，后续静默跳过并记 debug；仅对会触发回复处理的消息事件生效（notice/meta 类不经过此闸）；0 = 禁用去重 |
 | `actionAuditEnabled` | boolean | `true` | 工具发送审计：她用 qq_send_image/voice/video/file/segments、qq_send_forward 等工具主动发出的每条消息（成功或失败）追加一行 JSON 到 mediaDir/qq-actions.log（含 ts/chatId/action/ok/reason）；写失败只记 warn，不影响发送 |

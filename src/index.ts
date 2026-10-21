@@ -11,7 +11,7 @@
 
 import { selfCheck } from './selfcheck.js'
 import { QqLiveness } from './liveness.js'
-import { ChatActivity, DailyScheduler, NoteCounter, ProactiveScheduler, SendCounter, SessionCleaner, StickerLibrary, TypingPacer, companionStatusLines, setDefaultNoteCounter } from './companion/index.js'
+import { ChatActivity, DailyScheduler, GroupChatter, NoteCounter, ProactiveScheduler, SendCounter, SessionCleaner, StickerLibrary, TypingPacer, companionStatusLines, setDefaultNoteCounter } from './companion/index.js'
 import { GroupAccess, handleGroupEvent } from './groups.js'
 import type { Context as CordisContext } from '@deepseek-ai/cordis'
 import type SystemPrompt from '@deepseek-ai/dsh-system-prompt'
@@ -135,6 +135,21 @@ export function apply(ctx: Context, config: Config): void {
   // chat activity (idle reset / handoff / diary input).
   const activity = new ChatActivity({ mediaDir, log })
   const activityLoaded = activity.load()
+  // how she takes part in group chats beyond an @ (context, names, follow-ups, looks).
+  const groupChatter = new GroupChatter({
+    config: {
+      contextLines: config.groupContextLines ?? 0,
+      names: config.groupNameTriggers ?? [],
+      followupSeconds: config.groupFollowupSeconds ?? 0,
+      peekEnabled: config.groupPeekEnabled ?? false,
+      peekGapMinutes: config.groupPeekGapMinutes ?? 30,
+      peekMinMessages: config.groupPeekMinMessages ?? 10,
+      peekQuietMinutes: config.groupPeekQuietMinutes ?? 10,
+      peekWindowStart: config.groupPeekWindowStart ?? '09:00',
+      peekWindowEnd: config.groupPeekWindowEnd ?? '24:00',
+    },
+  })
+  let peekTimer: ReturnType<typeof setInterval> | undefined
   // Counts what the account sends (shown by /doctor).
   const sendCounter = new SendCounter()
   const typingPacer = new TypingPacer({ config: { perCharMs: config.typingDelayPerCharMs, minMs: config.typingDelayMinMs, maxMs: config.typingDelayMaxMs } })
@@ -253,6 +268,7 @@ export function apply(ctx: Context, config: Config): void {
     policy,
     groupAccess,
     activity,
+    groupChatter,
     ...(stickers !== undefined ? { stickers } : {}),
     ...(config.proactiveEnabled ? { proactive: proactiveHandle } : {}),
     sendCounter,
@@ -327,10 +343,20 @@ export function apply(ctx: Context, config: Config): void {
     liveness.start()
     connection.start()
     sessionCleaner.start()
+    if (config.groupPeekEnabled) {
+      // once a minute: groups that are lively and quiet for her get a look
+      peekTimer = setInterval(() => {
+        for (const groupId of groupChatter.peekDue(groupChatter.knownGroups())) {
+          void bridge.firePeek(groupId).catch(error => log('warn', '看一眼群聊失败: ' + String(error)))
+        }
+      }, 60_000)
+      peekTimer.unref?.()
+    }
     // QQ 平台说明与 qq_* 工具现按会话 agent 注入（见 ChatBridge.installChannelScope）
     return async () => {
       scheduler.stop()
       proactive?.stop()
+      if (peekTimer !== undefined) clearInterval(peekTimer)
       await sessionCleaner.stop()
       liveness.stop()
       await bridge.stop()

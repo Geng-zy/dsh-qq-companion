@@ -1,5 +1,13 @@
 # 更新记录
 
+## 1.9.0（2026-10-21）
+
+群聊参与方式（都默认关闭，按配置打开）：
+- `groupContextLines`：群里叫到她时，附上她没看到的最近几条群聊（`<group_context>`），她知道前因后果。群消息只存在内存里（每群最近 40 条），平时不交给模型、不花钱。
+- `groupNameTriggers`：消息里出现这些名字也算叫她（前缀标 `[叫到我]`）。
+- `groupFollowupSeconds`：她回了某人之后这么多秒内，这个人接着说话不用 @（前缀标 `[接着和我说]`）；只认那一个人。
+- `groupPeekEnabled` 等：群里热闹时隔一段时间让她“看一眼”最近的聊天，她自己决定插不插话（不插回 `[不发]`，什么都不发）。条件：同一个群两次至少隔 `groupPeekGapMinutes` 分钟、期间至少 `groupPeekMinMessages` 条新消息、她在这个群说过话后 `groupPeekQuietMinutes` 分钟内不看、只在 `groupPeekWindowStart`–`groupPeekWindowEnd` 之间、这个群正在回复时不看。
+
 ## 1.8.2（2026-10-21）
 
 - 群里的“@全体成员”不再算叫她（群公告一般都会 @全体成员，原来她每次都会接一句）。真的要找她就 @她 或者回复她的消息。
