@@ -5,6 +5,9 @@ export declare const CHAT_ACTIVITY_FILE = "chat-activity.json";
 export declare const HANDOFF_LINES = 8;
 /** Characters kept per handoff / today line. */
 export declare const LINE_MAX_CHARS = 200;
+/** Today's lines handed to a fresh session at most (so a session renewed
+ * mid-day still knows what was said earlier that day). */
+export declare const HANDOFF_TODAY_LINES = 40;
 /** Lines kept in today's excerpt per chat (the diary input). */
 export declare const TODAY_MAX_LINES = 200;
 /** Lines per group in the nightly group excerpt (keeps the diary turn cheap). */
@@ -55,6 +58,13 @@ export declare class ChatActivity {
     botLinesSinceUser(chatId: string): number;
     /** The handoff recap text for a fresh session ('' = nothing to hand off). */
     handoff(chatId: string): string;
+    /** The handoff for a fresh session: today's lines (at most
+     * HANDOFF_TODAY_LINES, with times) when there are any — not yet taken by
+     * the diary — else the last few lines. '' = nothing to hand off. */
+    handoffRecap(chatId: string): {
+        text: string;
+        today: boolean;
+    };
     /** Today's excerpt for a chat (diary input), then optionally cleared. */
     takeToday(chatId: string, clear: boolean): ActivityLine[];
     /** Today's excerpt of every group chat that has one (diary input), each
