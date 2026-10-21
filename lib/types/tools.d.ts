@@ -21,6 +21,9 @@ export declare function registerTools(ctx: Context, bridge: ChatBridge, connecti
     maxVoiceBytes: number;
     maxFileBytes: number;
 }): () => void;
+/** What the model reads from qq_group_history: one line per message
+ * ("[HH:MM] 昵称（QQ）：内容"); the count alone left her with nothing. */
+export declare function renderGroupHistory(list: readonly unknown[]): string;
 /**
  * qq_memory_note — the one memory write a chat-only (group)
  * session gets: append a short hearsay line to the PUBLIC memory file. The
